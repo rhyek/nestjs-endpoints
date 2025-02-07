@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 set -e
 
 pnpm --filter "test-app-*" --filter "!test-app-express-cjs" exec sh -c "\

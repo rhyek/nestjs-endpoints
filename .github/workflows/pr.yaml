@@ -11,12 +11,13 @@ concurrency:
 
 jobs:
   checks:
+    name: Checks
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: asdf-vm/actions/install@v3
       - run: pnpm install --frozen-lockfile
       - name: Test build
-        run: (cd packages/nestjs-endpoints && pnpm run build)
+        run: ./build.sh
       - name: Test e2e
         run: ./test.sh
