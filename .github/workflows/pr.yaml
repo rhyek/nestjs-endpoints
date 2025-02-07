@@ -16,6 +16,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: asdf-vm/actions/install@v3
+        with:
+          asdf_branch: v0.15.0
       - run: pnpm install --frozen-lockfile
       - name: Test build
         run: ./build.sh
