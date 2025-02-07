@@ -23,3 +23,5 @@ jobs:
         run: ./build.sh
       - name: Test e2e
         run: ./test.sh
+        env:
+          FORCE_COLOR: true
