@@ -1,0 +1,46 @@
+{
+  "name": "nestjs-endpoints",
+  "version": "0.0.0",
+  "description": "NestJS Endpoints",
+  "author": "Carlos González <carlos.rgn@gmail.com>",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/rhyek/nestjs-endpoints.git"
+  },
+  "keywords": [
+    "nestjs",
+    "endpoints",
+    "openapi",
+    "swagger",
+    "file-based",
+    "routing",
+    "rest",
+    "schema",
+    "zod"
+  ],
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "dev": "tsc --watch",
+    "build": "tsc"
+  },
+  "dependencies": {
+    "callsites": "^3.1.0",
+    "nestjs-zod": "^4.2.0"
+  },
+  "peerDependencies": {
+    "@nestjs/common": ">=11.0.0",
+    "@nestjs/core": ">=11.0.0",
+    "@nestjs/swagger": ">=11.0.0",
+    "zod": ">=3.24.1"
+  },
+  "devDependencies": {
+    "@nestjs/common": "^11.0.0",
+    "@nestjs/core": "^11.0.0",
+    "@nestjs/swagger": "^11.0.0",
+    "@types/node": "^22.13.1",
+    "typescript": "^5.7.3",
+    "zod": "^3.24.1"
+  }
+}

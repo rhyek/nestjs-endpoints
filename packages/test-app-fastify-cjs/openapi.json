@@ -1,0 +1,257 @@
+{
+  "openapi": "3.0.0",
+  "paths": {
+    "/user/create": {
+      "post": {
+        "operationId": "UserCreate",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UserCreateInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserCreateOutput"
+                }
+              }
+            }
+          }
+        },
+        "summary": "",
+        "tags": [
+          "user"
+        ]
+      }
+    },
+    "/user/find": {
+      "get": {
+        "operationId": "UserFind",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserFindOutput"
+                }
+              }
+            }
+          }
+        },
+        "summary": "",
+        "tags": [
+          "user"
+        ]
+      }
+    },
+    "/user/appointment/create": {
+      "post": {
+        "operationId": "UserAppointmentCreate",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UserAppointmentCreateInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Appointment created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserAppointmentCreate201Output"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserAppointmentCreate400Output"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Create an appointment",
+        "tags": [
+          "user",
+          "user/appointment"
+        ]
+      }
+    },
+    "/user/appointment/count": {
+      "get": {
+        "operationId": "UserAppointmentCount",
+        "parameters": [
+          {
+            "name": "userId",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserAppointmentCountOutput"
+                }
+              }
+            }
+          }
+        },
+        "summary": "",
+        "tags": [
+          "user",
+          "user/appointment"
+        ]
+      }
+    }
+  },
+  "info": {
+    "title": "",
+    "description": "",
+    "version": "1.0.0",
+    "contact": {}
+  },
+  "tags": [],
+  "servers": [],
+  "components": {
+    "schemas": {
+      "UserCreateInput": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string",
+            "format": "email"
+          }
+        },
+        "required": [
+          "name",
+          "email"
+        ]
+      },
+      "UserCreateOutput": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "id"
+        ]
+      },
+      "UserFindOutput": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "number"
+          },
+          "name": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "email"
+        ],
+        "nullable": true
+      },
+      "UserAppointmentCreateInput": {
+        "type": "object",
+        "properties": {
+          "userId": {
+            "type": "number"
+          },
+          "date": {}
+        },
+        "required": [
+          "userId",
+          "date"
+        ]
+      },
+      "UserAppointmentCreate201Output": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "number"
+          },
+          "date": {},
+          "address": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "date",
+          "address"
+        ]
+      },
+      "UserAppointmentCreate400Output": {
+        "oneOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "message": {
+                "type": "string"
+              },
+              "errorCode": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "message",
+              "errorCode"
+            ]
+          }
+        ]
+      },
+      "UserAppointmentCountOutput": {
+        "type": "number"
+      }
+    }
+  }
+}

@@ -1,0 +1,8 @@
+{
+  "name": "nestjs-endpoints-monorepo",
+  "author": "Carlos González <carlos.rgn@gmail.com>",
+  "private": true,
+  "scripts": {
+    "test": "./test.sh"
+  }
+}
