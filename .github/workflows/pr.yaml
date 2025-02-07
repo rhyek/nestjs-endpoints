@@ -1,0 +1,22 @@
+name: Pull Request
+
+on:
+  pull_request:
+    branches:
+      - main
+
+concurrency:
+  group: ${{ github.ref_name }}
+  cancel-in-progress: true
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: asdf-vm/actions/install@v3
+      - run: pnpm install --frozen-lockfile
+      - name: Test build
+        run: (cd packages/nestjs-endpoints && pnpm run build)
+      - name: Test e2e
+        run: ./test.sh

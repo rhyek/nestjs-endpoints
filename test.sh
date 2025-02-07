@@ -8,5 +8,4 @@ pnpm --filter "test-app-*" --filter "!test-app-express-cjs" exec sh -c "\
   cp ../test-app-express-cjs/test/{jest-e2e.json,app.e2e-spec.ts} ./test/ \
 "
 
-(cd packages/nestjs-endpoints && pnpm run build)
 pnpm --filter "test-app-*" run test:e2e --no-cache
