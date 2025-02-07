@@ -19,9 +19,9 @@ jobs:
         with:
           asdf_branch: v0.15.0
       - run: pnpm install --frozen-lockfile
-      - name: Test build
+      - name: Build
         run: ./build.sh
-      - name: Test e2e
+      - name: E2E tests
         run: ./test.sh
         env:
           FORCE_COLOR: true
