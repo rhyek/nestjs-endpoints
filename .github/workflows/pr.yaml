@@ -21,6 +21,7 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - name: ESLint
         run: |
+          git fetch origin ${{ github.base_ref }}
           changed=$(git diff --diff-filter=d --name-only origin/${{ github.base_ref }} HEAD)
           echo "Changed files between ${{ github.base_ref }} and PR:"
           echo "$changed"
