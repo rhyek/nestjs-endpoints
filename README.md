@@ -16,7 +16,7 @@ It utilizes file-based routing, [zod](https://zod.dev/) input and output validat
 - **HTTP Adapter agnostic:** Works with both Express and Fastify NestJS applications.
 - **Stable:** Fully-tested for \*nix systems and produces regular NestJS Controllers under the hood.
 
-## Setup Instructions
+## Getting Started
 
 ### Installation
 
@@ -48,7 +48,7 @@ async function bootstrap() {
 }
 ```
 
-## Basic usage
+## Basic Usage
 
 ```typescript
 // src/user/find.endpoint.ts
@@ -130,13 +130,13 @@ File-based routing works using a naming convention consisting of `*.module.ts` a
 
 Bundled projects via Webpack or similar are not supported.
 
-## Advanced usage
+## Advanced Usage
 
 Depending on the project's requirements, the above should ideally suffice most of the time. In case you need access to more of NestJS' features like Interceptors, Guards, access to the request object, etc, here is a more complete example:
 
-> Note: You are also welcome to use both NestJS Controllers and endpoints in the same project.
+> _**Note**_: You are also welcome to use both NestJS Controllers and endpoints in the same project.
 
-> Note: Assume `src/user/user.module.ts` and `src/user/appointment/appointment.module.ts` files exist.
+> _**Note**_: Assume `src/user/user.module.ts` and `src/user/appointment/appointment.module.ts` files exist.
 
 ```typescript
 // src/user/appointment/endpoints/create/create.endpoint.ts
