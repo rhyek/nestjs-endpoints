@@ -37,7 +37,8 @@ async function bootstrap() {
       outputFile: 'openapi.json',
     },
   });
-  // optional: Generate client SDK with orval using the above openapi.json
+  // optional: Generate client SDK with orval using
+  // the above openapi.json
   if (changed) {
     await import('orval').then(({ generate }) => {
       void generate();
@@ -186,11 +187,18 @@ export default endpoint({
   injectMethod: {
     req: decorated<Request>(Req()),
   },
-  handler: async ({ input, db, appointmentsRepository, req, response }) => {
+  handler: async ({
+    input,
+    db,
+    appointmentsRepository,
+    req,
+    response,
+  }) => {
     assert(typeof req.ip === 'string');
     const user = await db.find(input.userId);
     if (!user) {
-      // Need to use response fn when multiple output status codes are defined
+      // Need to use response fn when multiple output status codes
+      // are defined
       return response(400, 'User not found');
     }
     if (await appointmentsRepository.hasConflict(input.date)) {
@@ -201,7 +209,11 @@ export default endpoint({
     }
     return response(
       201,
-      await appointmentsRepository.create(input.userId, input.date, req.ip),
+      await appointmentsRepository.create(
+        input.userId,
+        input.date,
+        req.ip,
+      ),
     );
   },
 });

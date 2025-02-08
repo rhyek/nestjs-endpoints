@@ -18,7 +18,11 @@ import {
 } from '@nestjs/common';
 import { HttpAdapterHost } from '@nestjs/core';
 import { ApiBody, ApiOperation, ApiResponse } from '@nestjs/swagger';
-import { createZodDto, ZodSerializerDto, ZodValidationPipe } from 'nestjs-zod';
+import {
+  createZodDto,
+  ZodSerializerDto,
+  ZodValidationPipe,
+} from 'nestjs-zod';
 import { z, ZodObject, ZodSchema } from 'zod';
 import { ApiQueries, getEndpointHttpPath, shouldJson } from './helpers';
 
@@ -76,7 +80,8 @@ type OutputMap<OS extends OutputSchemaUnion> = OS extends undefined
       ? { [k in keyof OS & number]: ExtractSchemaFromSchemaDef<OS[k]> }
       : never;
 
-type OutputMapKey<OS extends OutputSchemaUnion> = keyof OutputMap<OS> & number;
+type OutputMapKey<OS extends OutputSchemaUnion> = keyof OutputMap<OS> &
+  number;
 
 type OutputMapValue<
   OS extends OutputSchemaUnion,
@@ -210,9 +215,10 @@ export function endpoint<
 
   // define method parameters
   const resKey = Symbol('res');
-  const methodParamDecorators: Record<string | symbol, ParameterDecorator>[] = [
-    { [resKey]: Res() },
-  ];
+  const methodParamDecorators: Record<
+    string | symbol,
+    ParameterDecorator
+  >[] = [{ [resKey]: Res() }];
   if (injectMethod) {
     for (const [key, wd] of Object.entries(injectMethod)) {
       methodParamDecorators.push({
@@ -322,7 +328,9 @@ export function endpoint<
       const s = schema instanceof SchemaDef ? schema.schema : schema;
       const dto = createZodDto(s as any);
       const schemaName =
-        httpPathPascalName + `${status === '200' ? '' : status}` + 'Output';
+        httpPathPascalName +
+        `${status === '200' ? '' : status}` +
+        'Output';
       Object.defineProperty(dto, 'name', { value: schemaName });
       methodDecorators.push(
         ApiResponse({
@@ -336,7 +344,10 @@ export function endpoint<
     }
   }
   const methodDecorator = applyDecorators(...methodDecorators);
-  const descriptor = Object.getOwnPropertyDescriptor(cls.prototype, 'handler');
+  const descriptor = Object.getOwnPropertyDescriptor(
+    cls.prototype,
+    'handler',
+  );
   methodDecorator(cls.prototype, 'handler', descriptor);
 
   return cls;

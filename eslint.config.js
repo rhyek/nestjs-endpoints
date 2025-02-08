@@ -7,7 +7,11 @@ import tseslint from 'typescript-eslint';
 
 export default tseslint.config(
   {
-    ignores: ['**/node_modules', '**/dist', 'packages/!(nestjs-endpoints)/**'],
+    ignores: [
+      '**/node_modules',
+      '**/dist',
+      'packages/!(nestjs-endpoints)/**',
+    ],
   },
   eslint.configs.recommended,
   tseslint.configs.recommendedTypeChecked,

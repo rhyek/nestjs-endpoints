@@ -59,7 +59,9 @@ export function getEndpointHttpPath() {
   }
   pathSegments.reverse();
 
-  const leaf = path.basename(file, path.extname(file)).split('.endpoint')[0];
+  const leaf = path
+    .basename(file, path.extname(file))
+    .split('.endpoint')[0];
   pathSegments.push(leaf);
   const httpPath = path.join(...pathSegments);
 
@@ -88,7 +90,9 @@ export const ApiQueries = <T extends z.ZodObject<ZodRawShape>>(
     return acc;
   }, []);
 
-  return applyDecorators(...optionsList.map((options) => ApiQuery(options)));
+  return applyDecorators(
+    ...optionsList.map((options) => ApiQuery(options)),
+  );
 };
 
 export function shouldJson(value: unknown) {
