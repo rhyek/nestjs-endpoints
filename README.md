@@ -35,7 +35,7 @@ async function bootstrap() {
       outputFile: 'openapi.json',
     },
   });
-  // optional: Generate the SDK client with orval using the above openapi.json
+  // optional: Generate client SDK with orval using the above openapi.json
   if (changed) {
     await import('orval').then(({ generate }) => {
       void generate();
@@ -45,9 +45,7 @@ async function bootstrap() {
 }
 ```
 
-## Usage
-
-### Basic
+## Basic usage
 
 ```typescript
 // src/user/find.endpoint.ts
@@ -123,13 +121,13 @@ null%
 {"id":1}%
 ```
 
-#### File-based routing
+### File-based routing
 
 File-based routing works using a naming convention consisting of `*.module.ts` and `*.endpoint.ts` files and their location relative to each other. The http path will resemble the folder structure, but you need a `*.module.ts` with an `EndpointsModule` inside each folder you want to include as an http path segment.
 
 Bundled projects via Webpack or similar are not supported.
 
-### Advanced
+## Advanced usage
 
 Depending on the project's requirements, the above should ideally suffice most of the time. In case you need access to more of NestJS' features like Interceptors, Guards, access to the request object, etc, here is a more complete example:
 
@@ -166,7 +164,7 @@ export default endpoint({
       }),
       {
         description: 'Appointment created',
-      }
+      },
     ),
     400: z.union([
       z.string(),
@@ -180,7 +178,7 @@ export default endpoint({
   inject: {
     db: DbService,
     appointmentsRepository: decorated<IAppointmentRepository>(
-      Inject(AppointmentRepositoryToken)
+      Inject(AppointmentRepositoryToken),
     ),
   },
   injectMethod: {
@@ -201,7 +199,7 @@ export default endpoint({
     }
     return response(
       201,
-      await appointmentsRepository.create(input.userId, input.date, req.ip)
+      await appointmentsRepository.create(input.userId, input.date, req.ip),
     );
   },
 });
