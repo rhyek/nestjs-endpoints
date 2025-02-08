@@ -1,6 +1,6 @@
-/* eslint-disable @typescript-eslint/no-unsafe-assignment */
 /* eslint-disable @typescript-eslint/no-unsafe-argument */
 /* eslint-disable @typescript-eslint/no-unsafe-member-access */
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import {
   applyDecorators,
   Body,
@@ -20,7 +20,7 @@ import { HttpAdapterHost } from '@nestjs/core';
 import { ApiBody, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { createZodDto, ZodSerializerDto, ZodValidationPipe } from 'nestjs-zod';
 import { z, ZodObject, ZodSchema } from 'zod';
-import { ApiQueries, getEndpointHttpPath, shouldJson } from './helpers.js';
+import { ApiQueries, getEndpointHttpPath, shouldJson } from './helpers';
 
 type HttpMethod = 'get' | 'post' | 'put' | 'delete' | 'patch';
 const httpMethodDecorators = {
@@ -32,12 +32,12 @@ const httpMethodDecorators = {
 } satisfies Record<HttpMethod, () => MethodDecorator>;
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
-class WithDecorator<T> {
+class WithDecorator<_T> {
   constructor(public decorator: PropertyDecorator | ParameterDecorator) {}
 }
 
 export function decorated<T = any>(
-  decorator: PropertyDecorator | ParameterDecorator
+  decorator: PropertyDecorator | ParameterDecorator,
 ) {
   return new WithDecorator<T>(decorator);
 }
@@ -49,7 +49,7 @@ type Schema = ZodSchema<any>;
 class SchemaDef<S extends Schema = Schema> {
   constructor(
     public schema: S,
-    public description: string | undefined
+    public description: string | undefined,
   ) {}
 }
 type ExtractSchemaFromSchemaDef<S extends Schema | SchemaDef<Schema>> =
@@ -57,7 +57,7 @@ type ExtractSchemaFromSchemaDef<S extends Schema | SchemaDef<Schema>> =
 
 export function schema<S extends Schema>(
   schema: S,
-  spec?: { description?: string }
+  spec?: { description?: string },
 ) {
   return new SchemaDef<S>(schema, spec?.description);
 }
@@ -90,7 +90,7 @@ type OutputMapValue<
 class EndpointResponse<Status extends number = any, Body = any> {
   constructor(
     public status: Status,
-    public body: Body
+    public body: Body,
   ) {}
 }
 
@@ -152,9 +152,9 @@ export function endpoint<
           Body extends OutputMapValue<OutputSchema, Status>,
         >(
           status: Status,
-          body: Body
+          body: Body,
         ) => EndpointResponse<Status, Body>;
-      }
+      },
   ) => OutputSchema extends undefined
     ? MaybePromise<any>
     : OutputSchema extends Record<number, Schema | SchemaDef>
@@ -234,7 +234,7 @@ export function endpoint<
         methodParamDecorators.map((p, i) => {
           const key = Reflect.ownKeys(p)[0];
           return [key, params[i]] as const;
-        })
+        }),
       );
     const handlerParams: Record<string | symbol, any> = { response };
     if (inject) {
@@ -261,7 +261,7 @@ export function endpoint<
       const schema = outputSchemas[endpointResponse.status];
       if (!schema) {
         throw new Error(
-          `Did not find schema for status code ${endpointResponse.status}`
+          `Did not find schema for status code ${endpointResponse.status}`,
         );
       }
       const s = schema instanceof SchemaDef ? schema.schema : schema;
@@ -330,7 +330,7 @@ export function endpoint<
           type: dto,
           description:
             schema instanceof SchemaDef ? schema.description : undefined,
-        })
+        }),
       );
       methodDecorators.push(ZodSerializerDto(dto));
     }

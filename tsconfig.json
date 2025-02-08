@@ -1,0 +1,19 @@
+{
+  "compilerOptions": {
+    // Enable latest features
+    "lib": ["esnext"],
+    "target": "esnext",
+    "module": "esnext",
+    "moduleDetection": "force",
+    "allowJs": true,
+
+    // Bundler mode
+    "moduleResolution": "bundler",
+    "allowImportingTsExtensions": true,
+    "verbatimModuleSyntax": true,
+    "noEmit": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true
+  },
+  "include": ["./eslint.config.js"]
+}
