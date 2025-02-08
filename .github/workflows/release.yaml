@@ -9,7 +9,8 @@ jobs:
   release:
     name: Release
     runs-on: ubuntu-latest
-
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v4
       - uses: asdf-vm/actions/install@v3
@@ -29,7 +30,15 @@ jobs:
 
       - run: cp README.md ./packages/nestjs-endpoints/README.md
 
-      # - name: Publish package to npm
-      #   run: npm publish
-      #   env:
-      #     NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+      - name: GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            packages/nestjs-endpoints/package.json
+            packages/nestjs-endpoints/README.md
+            packages/nestjs-endpoints/dist
+
+      - name: Publish package to npm
+        run: npm publish --provenance
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
