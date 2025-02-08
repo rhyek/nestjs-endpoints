@@ -114,7 +114,7 @@ import find from './find.endpoint';
 export class UserModule {}
 ```
 
-You can call the above using:
+You call the above using:
 
 ```bash
 ❯ curl 'http://localhost:3000/user/find?id=1'
@@ -142,7 +142,6 @@ Depending on the project's requirements, the above should ideally suffice most o
 
 ```typescript
 // src/user/appointment/endpoints/create/create.endpoint.ts
-import assert from 'node:assert';
 import { Inject, Req, UseGuards } from '@nestjs/common';
 import type { Request } from 'express';
 import { decorated, endpoint, schema, z } from 'nestjs-endpoints';
@@ -196,7 +195,6 @@ export default endpoint({
     req,
     response,
   }) => {
-    assert(typeof req.ip === 'string');
     const user = await db.find(input.userId);
     if (!user) {
       // Need to use response fn when multiple output status codes
