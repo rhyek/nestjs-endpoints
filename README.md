@@ -6,7 +6,7 @@
 
 **nestjs-endpoints** is a tool for easily and succinctly writing HTTP APIs with NestJS inspired by the [REPR pattern](https://www.apitemplatepack.com/docs/introduction/repr-pattern/), the [Fast Endpoints](https://fast-endpoints.com/) .NET library, and [tRPC](https://trpc.io/).
 
-It utilizes file-based routing, [zod](https://zod.dev/) input and output validation, comprehensive type-inference, and `@nestjs/swagger` + [nestjs-zod](https://github.com/BenLorantfy/nestjs-zod) to speed up development and automatically generate an OpenAPI spec file which can be used to then generate client SDKs using something like [orval](https://orval.dev/).
+It utilizes file-based routing, [zod](https://zod.dev/) input and output validation, comprehensive type-inference, and `@nestjs/swagger` + [nestjs-zod](https://github.com/BenLorantfy/nestjs-zod) to speed up development and optionally automatically generate an OpenAPI spec file which can be used to then generate client SDKs using something like [orval](https://orval.dev/).
 
 ## Features
 
@@ -24,7 +24,7 @@ It utilizes file-based routing, [zod](https://zod.dev/) input and output validat
 npm install nestjs-endpoints @nestjs/swagger zod
 ```
 
-### Setup
+### OpenAPI Setup (optional)
 
 ```typescript
 // src/main.ts
@@ -32,13 +32,15 @@ import { setupEndpoints } from 'nestjs-endpoints';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
+  // Only necessary if you plan on using the spec file.
   const { document, changed } = await setupEndpoints(app, {
     openapi: {
+      configure: (builder) => builder.setTitle('My Api'),
       outputFile: 'openapi.json',
     },
   });
   // optional: Generate client SDK with orval using
-  // the above openapi.json
+  // above openapi.json
   if (changed) {
     await import('orval').then(({ generate }) => {
       void generate();
