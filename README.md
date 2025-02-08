@@ -136,7 +136,7 @@ Depending on the project's requirements, the above should ideally suffice most o
 
 > Note: You are also welcome to use both NestJS Controllers and endpoints in the same project.
 
-> Assume `src/user/user.module.ts` and `src/user/appointment/appointment.module.ts` files exist.
+> Note: Assume `src/user/user.module.ts` and `src/user/appointment/appointment.module.ts` files exist.
 
 ```typescript
 // src/user/appointment/endpoints/create/create.endpoint.ts
