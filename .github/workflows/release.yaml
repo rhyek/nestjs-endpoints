@@ -39,6 +39,14 @@ jobs:
             packages/nestjs-endpoints/dist
 
       - name: Publish package to npm
-        run: npm publish --provenance
+        working-directory: packages/nestjs-endpoints
+        run: |
+          cat << 'EOF' > .npmrc
+          //registry.npmjs.org/:_authToken=${NODE_AUTH_TOKEN}
+          registry=https://registry.npmjs.org/
+          always-auth=true
+          EOF
+
+          npm publish --provenance
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
