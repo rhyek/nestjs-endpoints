@@ -1,0 +1,12 @@
+{
+  "eslint.enable": true,
+  "eslint.format.enable": true,
+  "editor.formatOnType": false, // required
+  "editor.formatOnPaste": true,
+  "editor.formatOnSave": true,
+  "editor.formatOnSaveMode": "file", // required to format on save
+  "eslint.rules.customizations": [{ "rule": "prettier/*", "severity": "off" }],
+  "[typescript]": {
+    "editor.defaultFormatter": "dbaeumer.vscode-eslint"
+  }
+}

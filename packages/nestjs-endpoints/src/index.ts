@@ -1,5 +1,5 @@
-export { EndpointsModule } from './decorators.js';
-export * from './setup.js';
-export * from './helpers.js';
 export { z } from 'zod';
-export { endpoint, decorated, schema } from './fns.js';
+export { EndpointsModule } from './decorators';
+export { endpoint, decorated, schema } from './fns';
+export * from './helpers';
+export * from './setup';

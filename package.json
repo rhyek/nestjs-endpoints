@@ -2,7 +2,20 @@
   "name": "nestjs-endpoints-monorepo",
   "author": "Carlos González <carlos.rgn@gmail.com>",
   "private": true,
+  "type": "module",
   "scripts": {
     "test": "./test.sh"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.20.0",
+    "@types/node": "^22.13.1",
+    "@typescript-eslint/parser": "^8.23.0",
+    "eslint": "^8.42.0",
+    "eslint-config-prettier": "^9.0.0",
+    "eslint-plugin-import": "^2.31.0",
+    "eslint-plugin-prettier": "^5.0.0",
+    "eslint-plugin-unused-imports": "^4.1.4",
+    "prettier": "^3.0.0",
+    "typescript-eslint": "^8.23.0"
   }
 }

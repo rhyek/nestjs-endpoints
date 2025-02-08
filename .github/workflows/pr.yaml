@@ -19,6 +19,13 @@ jobs:
         with:
           asdf_branch: v0.15.0
       - run: pnpm install --frozen-lockfile
+      - name: ESLint
+        run: |
+          changed=$(git diff --diff-filter=d --name-only origin/${{ github.base_ref }} HEAD)
+          echo "Changed files between ${{ github.base_ref }} and PR:"
+          echo "$changed"
+          export NODE_OPTIONS="--max_old_space_size=4096"
+          echo "$changed" | xargs pnpm eslint --max-warnings=0 --no-warn-ignored
       - name: Build
         run: ./build.sh
       - name: E2E tests

@@ -2,8 +2,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { applyDecorators } from '@nestjs/common';
 import { ApiQuery, ApiQueryOptions } from '@nestjs/swagger';
-import { zodToOpenAPI } from 'nestjs-zod';
 import callsites from 'callsites';
+import { zodToOpenAPI } from 'nestjs-zod';
 import { z, ZodRawShape } from 'zod';
 
 const isDirPathSegmentCache = new Map<string, boolean>();
@@ -43,6 +43,7 @@ export function getEndpointHttpPath() {
   const pathSegments: string[] = [];
   let start = path.dirname(file);
   let lastDirPathSegment: string | null = null;
+  // eslint-disable-next-line no-constant-condition
   while (true) {
     if (shortCircuitDirs[start] || start === path.parse(start).root) {
       break;
@@ -70,7 +71,7 @@ export function getEndpointHttpPath() {
 }
 
 export const ApiQueries = <T extends z.ZodObject<ZodRawShape>>(
-  zodObject: T
+  zodObject: T,
 ) => {
   const optionsList = Object.keys(zodObject.shape).reduce<
     Array<ApiQueryOptions & { schema: ReturnType<typeof zodToOpenAPI> }>
@@ -90,6 +91,6 @@ export const ApiQueries = <T extends z.ZodObject<ZodRawShape>>(
   return applyDecorators(...optionsList.map((options) => ApiQuery(options)));
 };
 
-export function shouldJson(value: any) {
+export function shouldJson(value: unknown) {
   return typeof value !== 'string';
 }
