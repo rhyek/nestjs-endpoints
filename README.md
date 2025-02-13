@@ -10,11 +10,11 @@ It utilizes file-based routing, [zod](https://zod.dev/) input and output validat
 
 ## Features
 
-- **Easy Setup:** Quick and simple installation process.
+- **No Setup Required** if the OpenAPI spec is not needed. Otherwise, just call `setupEndpoints` during app start-up.
 - **User-Friendly API:** Supports file-based routing and both basic and advanced per-endpoint configuration.
 - **Fully Typed:** Compile and run-time validation of input and output values using Zod schemas.
 - **HTTP Adapter agnostic:** Works with both Express and Fastify NestJS applications.
-- **Stable:** Fully-tested for \*nix systems and produces regular NestJS Controllers under the hood.
+- **Stable:** Produces regular **NestJS Controllers** under the hood.
 
 ## Getting Started
 
@@ -66,7 +66,7 @@ export default endpoint({
     .object({
       id: z.number(),
       name: z.string(),
-      email: z.string(),
+      email: z.string().email(),
     })
     .nullable(),
   inject: {
@@ -106,10 +106,11 @@ export default endpoint({
 import { EndpointsModule } from 'nestjs-endpoints';
 import create from './create.endpoint';
 import find from './find.endpoint';
+// ...
 
 @EndpointsModule({
   endpoints: [create, find],
-  // ...
+  providers: [DbService],
 })
 export class UserModule {}
 ```
