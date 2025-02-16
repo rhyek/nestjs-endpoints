@@ -10,7 +10,9 @@ export default tseslint.config(
     ignores: [
       '**/node_modules',
       '**/dist',
-      'packages/!(nestjs-endpoints)/**',
+      'packages/*',
+      '!packages/nestjs-endpoints/',
+      '!packages/test-app-express-cjs/',
     ],
   },
   eslint.configs.recommended,
@@ -63,6 +65,16 @@ export default tseslint.config(
         },
       ],
       '@typescript-eslint/no-unsafe-assignment': 'off',
+      '@typescript-eslint/no-unsafe-argument': 'off',
+      '@typescript-eslint/no-unsafe-member-access': 'off',
+      '@typescript-eslint/no-explicit-any': 'off',
+      '@typescript-eslint/no-unsafe-call': 'off',
+    },
+  },
+  {
+    files: ['packages/nestjs-endpoints/**'],
+    rules: {
+      'no-console': 'error',
     },
   },
 );

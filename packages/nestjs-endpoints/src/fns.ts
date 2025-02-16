@@ -1,6 +1,3 @@
-/* eslint-disable @typescript-eslint/no-unsafe-argument */
-/* eslint-disable @typescript-eslint/no-unsafe-member-access */
-/* eslint-disable @typescript-eslint/no-explicit-any */
 import {
   applyDecorators,
   Body,
@@ -14,17 +11,12 @@ import {
   Query,
   Res,
   Type,
-  UsePipes,
 } from '@nestjs/common';
 import { HttpAdapterHost } from '@nestjs/core';
 import { ApiBody, ApiOperation, ApiResponse } from '@nestjs/swagger';
-import {
-  createZodDto,
-  ZodSerializerDto,
-  ZodValidationPipe,
-} from 'nestjs-zod';
-import { z, ZodObject, ZodSchema } from 'zod';
-import { ApiQueries, getEndpointHttpPath, shouldJson } from './helpers';
+import { createZodDto, ZodValidationException } from 'nestjs-zod';
+import { z, ZodSchema } from 'zod';
+import { ApiQueries, getEndpointHttpPath } from './helpers';
 
 type HttpMethod = 'get' | 'post' | 'put' | 'delete' | 'patch';
 const httpMethodDecorators = {
@@ -116,13 +108,108 @@ export function endpoint<
   InputSchema extends Schema | SchemaDef | undefined = undefined,
   OutputSchema extends OutputSchemaUnion = undefined,
 >(params: {
+  /**
+   * HTTP method.
+   *
+   * @default 'get'
+   */
   method?: 'get' | 'post' | 'put' | 'delete' | 'patch';
+  /**
+   * OpenAPI endpoint summary.
+   */
   summary?: string;
+  /**
+   * OpenAPI endpoint tags.
+   */
   tags?: string[];
+  /**
+   * Input Zod schema.
+   *
+   * ```ts
+   * endpoint({
+   *   input: z.object({
+   *     name: z.string(),
+   *   }),
+   *   handler: ({ input: { name } }) => {}
+   * })
+   * ```
+   */
   input?: InputSchema;
+  /**
+   * Output Zod schema.
+   *
+   * ```ts
+   * endpoint({
+   *   output: z.object({
+   *     name: z.string(),
+   *   }),
+   *   handler: () => ({ name: 'John' })
+   * })
+   * ```
+   */
   output?: OutputSchema;
+  /**
+   * Inject controller providers.
+   *
+   * ```ts
+   * // NestJS controller:
+   * ⁣@Controller()
+   * class UserController {
+   *   constructor(
+   *     private readonly userService: UserService,
+   *   ) {}
+   * }
+   *
+   * // nestjs-endpoints:
+   * endpoint({
+   *   inject: {
+   *     userService: UserService,
+   *   },
+   *   handler: ({ userService }) => {},
+   * })
+   * ```
+   */
   inject?: InjectProviders;
+  /**
+   * Inject method parameters.
+   *
+   * ```ts
+   * // NestJS controller:
+   * ⁣@Controller()
+   * class UserController {
+   *   ⁣@Get('/user')
+   *   async getUser(@Req() req: Request) {}
+   * }
+   *
+   * // nestjs-endpoints:
+   * endpoint({
+   *   injectMethod: {
+   *     req: decorated<Request>(Req()),
+   *   },
+   *   handler: async ({ req }) => {},
+   * })
+   * ```
+   */
   injectMethod?: InjectMethodParameters;
+  /**
+   * Method decorators.
+   *
+   * ```ts
+   * // NestJS controller:
+   * ⁣@Controller()
+   * class UserController {
+   *   ⁣@UseGuards(AuthGuard)
+   *   ⁣@Get('/user')
+   *   async getUser() {}
+   * }
+   *
+   * // nestjs-endpoints:
+   * endpoint({
+   *   decorators: [UseGuards(AuthGuard)],
+   *   handler: async () => {},
+   * })
+   * ```
+   */
   decorators?: MethodDecorator[];
   handler: (
     params: (InjectProviders extends undefined
@@ -184,13 +271,16 @@ export function endpoint<
   } = params;
   const { httpPath, httpPathPascalName, httpPathSegments } =
     getEndpointHttpPath();
-
   let outputSchemas: Record<number, Schema | SchemaDef> | null = null;
   if (output) {
-    if (output instanceof SchemaDef || output instanceof ZodSchema) {
-      outputSchemas = { 200: output };
+    if (
+      output.constructor === Object &&
+      Object.keys(output).length > 0 &&
+      Object.keys(output).every((k) => Number.isInteger(Number(k)))
+    ) {
+      outputSchemas = output as any;
     } else {
-      outputSchemas = output;
+      outputSchemas = { 200: output as any };
     }
   }
 
@@ -214,11 +304,17 @@ export function endpoint<
   }
 
   // define method parameters
+  const inputKey = Symbol('input');
   const resKey = Symbol('res');
   const methodParamDecorators: Record<
     string | symbol,
     ParameterDecorator
-  >[] = [{ [resKey]: Res() }];
+  >[] = [{ [resKey]: Res({ passthrough: true }) }];
+  if (input) {
+    methodParamDecorators.push({
+      [inputKey]: httpMethod === 'get' ? Query() : Body(),
+    });
+  }
   if (injectMethod) {
     for (const [key, wd] of Object.entries(injectMethod)) {
       methodParamDecorators.push({
@@ -226,15 +322,10 @@ export function endpoint<
       });
     }
   }
-  if (input) {
-    methodParamDecorators.push({
-      input: httpMethod === 'get' ? Query() : Body(),
-    });
-  }
 
   // handler method
   const response = (s: number, b: any) => new EndpointResponse(s, b);
-  (cls.prototype as any).handler = function (...params: any[]) {
+  (cls.prototype as any).handler = async function (...params: any[]) {
     const injectedMethodParams: Record<string | symbol, any> =
       Object.fromEntries(
         methodParamDecorators.map((p, i) => {
@@ -254,9 +345,16 @@ export function endpoint<
       }
     }
     if (input) {
-      handlerParams.input = injectedMethodParams.input;
+      const schema: ZodSchema =
+        input instanceof SchemaDef ? input.schema : input;
+      const parsed = schema.safeParse(injectedMethodParams[inputKey]);
+      if (parsed.error) {
+        throw new ZodValidationException(parsed.error);
+      }
+      handlerParams.input = parsed.data;
     }
-    const result: any = handler(handlerParams as any);
+    // eslint-disable-next-line @typescript-eslint/await-thenable
+    const result: any = await handler(handlerParams as any);
     let endpointResponse: EndpointResponse;
     if (result instanceof EndpointResponse) {
       endpointResponse = result;
@@ -278,13 +376,15 @@ export function endpoint<
     const httpAdapter = httpAdapterHost.httpAdapter;
     const { status, body } = endpointResponse;
     httpAdapter.status(res, status);
-    if (shouldJson(body)) {
+    if (typeof body !== 'string') {
       httpAdapter.setHeader(res, 'Content-Type', 'application/json');
-      httpAdapter.reply(res, JSON.stringify(body));
-    } else {
-      httpAdapter.setHeader(res, 'Content-Type', 'text/plain');
-      httpAdapter.reply(res, body);
     }
+    if (body === null) {
+      httpAdapter.reply(res, JSON.stringify(null));
+      return;
+    }
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-return
+    return body;
   };
   // configure method parameters
   for (let i = 0; i < methodParamDecorators.length; i++) {
@@ -310,18 +410,15 @@ export function endpoint<
     ...(decorators ?? []),
   ];
   if (input) {
-    const dto = createZodDto(input as any);
-    if (!(dto.schema instanceof ZodObject)) {
-      throw new Error('Input dto.schema must be a ZodObject');
-    }
+    const schema = input instanceof SchemaDef ? input.schema : input;
+    const dto = createZodDto(schema as any);
     const schemaName = httpPathPascalName + 'Input';
     Object.defineProperty(dto, 'name', { value: schemaName });
     if (httpMethod === 'get') {
-      methodDecorators.push(ApiQueries(dto.schema));
+      methodDecorators.push(ApiQueries(dto.schema as any));
     } else {
       methodDecorators.push(ApiBody({ type: dto }));
     }
-    methodDecorators.push(UsePipes(new ZodValidationPipe(dto)));
   }
   if (outputSchemas) {
     for (const [status, schema] of Object.entries(outputSchemas)) {
@@ -340,7 +437,6 @@ export function endpoint<
             schema instanceof SchemaDef ? schema.description : undefined,
         }),
       );
-      methodDecorators.push(ZodSerializerDto(dto));
     }
   }
   const methodDecorator = applyDecorators(...methodDecorators);

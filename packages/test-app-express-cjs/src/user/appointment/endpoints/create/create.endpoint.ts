@@ -2,6 +2,7 @@ import assert from 'node:assert';
 import { Inject, Req, UseGuards } from '@nestjs/common';
 import { decorated, endpoint, schema, z } from 'nestjs-endpoints';
 import { AuthGuard } from '../../../../auth.guard';
+import { CurrentUser } from '../../../../decorators/current-user.decorator';
 import { UserService } from '../../../user.service';
 import {
   AppointmentRepositoryToken,
@@ -42,10 +43,21 @@ export default endpoint({
     ),
   },
   injectMethod: {
+    currentUser: decorated<{ name: string; isSuperAdmin: boolean }>(
+      CurrentUser(),
+    ),
     req: decorated<{ ip: string | undefined }>(Req()),
   },
-  handler: ({ input, userService, appointmentsRepository, req, response }) => {
+  handler: async ({
+    input,
+    userService,
+    appointmentsRepository,
+    currentUser,
+    req,
+    response,
+  }) => {
     assert(typeof req.ip === 'string');
+    assert(currentUser.isSuperAdmin);
     const user = userService.find(input.userId);
     if (!user) {
       return response(400, 'User not found');
@@ -58,7 +70,7 @@ export default endpoint({
     }
     return response(
       201,
-      appointmentsRepository.create(input.userId, input.date, req.ip),
+      await appointmentsRepository.create(input.userId, input.date, req.ip),
     );
   },
 });

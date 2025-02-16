@@ -4,18 +4,23 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test": "./test.sh"
+    "test": "./scripts/test.sh",
+    "dev": "pnpm --filter nestjs-endpoints --filter test-app-express-cjs run --parallel dev"
   },
   "devDependencies": {
     "@eslint/js": "^9.20.0",
+    "@nestjs/common": "^11.0.8",
+    "@nestjs/core": "^11.0.8",
+    "@nestjs/swagger": "^11.0.3",
     "@types/node": "^22.13.1",
     "@typescript-eslint/parser": "^8.23.0",
-    "eslint": "^8.42.0",
+    "eslint": "^9.20.1",
     "eslint-config-prettier": "^9.0.0",
     "eslint-plugin-import": "^2.31.0",
     "eslint-plugin-prettier": "^5.0.0",
     "eslint-plugin-unused-imports": "^4.1.4",
     "prettier": "^3.0.0",
-    "typescript-eslint": "^8.23.0"
+    "typescript-eslint": "^8.24.0",
+    "zod": "^3.24.1"
   }
 }

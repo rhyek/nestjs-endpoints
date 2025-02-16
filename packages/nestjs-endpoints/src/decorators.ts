@@ -2,7 +2,7 @@ import { Module, ModuleMetadata, Type } from '@nestjs/common';
 
 export function EndpointsModule(
   metadata: Omit<ModuleMetadata, 'controllers'> & {
-    endpoints: Type[];
+    endpoints?: Type[];
   },
 ): ClassDecorator {
   const { endpoints = [], ...rest } = metadata;

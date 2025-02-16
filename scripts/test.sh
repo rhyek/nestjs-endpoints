@@ -1,5 +1,6 @@
 #!/bin/bash
 set -e
+__dirname=$(dirname "$0")
 
 pnpm --filter "test-app-*" --filter "!test-app-express-cjs" exec sh -c "\
   rm -rf src/user && \

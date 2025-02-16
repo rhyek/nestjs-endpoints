@@ -3,7 +3,7 @@ export type IAppointmentRepository = {
     userId: number,
     date: Date,
     address: string,
-  ) => { id: number; date: Date; address: string };
+  ) => Promise<{ id: number; date: Date; address: string }>;
   hasConflict: (date: Date) => boolean;
   count: (userId: number) => number;
 };

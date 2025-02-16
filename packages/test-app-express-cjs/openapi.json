@@ -138,6 +138,36 @@
           "user/appointment"
         ]
       }
+    },
+    "/test/error": {
+      "get": {
+        "operationId": "TestError",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "",
+        "tags": [
+          "test"
+        ]
+      }
+    },
+    "/test/status": {
+      "get": {
+        "operationId": "TestStatus",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "",
+        "tags": [
+          "test"
+        ]
+      }
     }
   },
   "info": {

@@ -28,8 +28,8 @@ jobs:
           export NODE_OPTIONS="--max_old_space_size=4096"
           echo "$changed" | xargs pnpm eslint --max-warnings=0 --no-warn-ignored
       - name: Build
-        run: ./build.sh
+        run: ./scripts/build.sh
       - name: E2E tests
-        run: ./test.sh
+        run: ./scripts/test.sh
         env:
           FORCE_COLOR: true

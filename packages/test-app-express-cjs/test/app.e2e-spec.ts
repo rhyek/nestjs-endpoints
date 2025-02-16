@@ -1,8 +1,8 @@
+import { Writable } from 'node:stream';
 import { ArgumentsHost, Catch, type ExceptionFilter } from '@nestjs/common';
 import { APP_FILTER, HttpAdapterHost } from '@nestjs/core';
 import { Test, TestingModule } from '@nestjs/testing';
 import { setupEndpoints } from 'nestjs-endpoints';
-import { Writable } from 'node:stream';
 import request from 'supertest';
 import { ZodError } from 'zod';
 import { AppModule } from '../src/app.module';
@@ -45,6 +45,7 @@ describe('api', () => {
     }).compile();
 
     const app = await createApp(moduleFixture);
+    app.useLogger(false);
 
     const userService = app.get(UserService);
     const appointmentsRepository = app.get<AppointmentRepository>(
@@ -54,6 +55,14 @@ describe('api', () => {
 
     return { userService, appointmentsRepository, req, exceptionSpy };
   }
+
+  test.concurrent('error endpoint throws', async () => {
+    const { req } = await setup();
+    await req.get('/test/error').expect(500, {
+      statusCode: 500,
+      message: 'Internal server error',
+    });
+  });
 
   test.concurrent('user find input validation throws', async () => {
     const { req } = await setup();
@@ -332,7 +341,7 @@ it('spec works', async () => {
       callback();
     },
   });
-  await setupEndpoints(app, {
+  await setupEndpoints(app as any, {
     openapi: {
       configure: (builder) => builder.setTitle('Test Api'),
       outputFile: stream,

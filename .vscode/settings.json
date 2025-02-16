@@ -5,8 +5,11 @@
   "editor.formatOnPaste": true,
   "editor.formatOnSave": true,
   "editor.formatOnSaveMode": "file", // required to format on save
-  "eslint.rules.customizations": [{ "rule": "prettier/*", "severity": "off" }],
+  "eslint.rules.customizations": [
+    { "rule": "prettier/*", "severity": "off" }
+  ],
   "[typescript]": {
     "editor.defaultFormatter": "dbaeumer.vscode-eslint"
-  }
+  },
+  "typescript.preferences.importModuleSpecifier": "relative"
 }

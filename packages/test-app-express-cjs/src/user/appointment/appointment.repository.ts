@@ -13,7 +13,7 @@ export class AppointmentRepository {
       address,
     };
     this.appointments.push(appointment);
-    return appointment;
+    return Promise.resolve(appointment);
   }
 
   hasConflict(date: Date) {
