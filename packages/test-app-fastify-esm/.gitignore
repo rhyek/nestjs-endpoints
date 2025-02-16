@@ -38,4 +38,6 @@ test/jest-e2e.json
 test/app.e2e-spec.ts
 src/app.module.ts
 src/auth.guard.ts
+src/decorators
 src/user
+src/test

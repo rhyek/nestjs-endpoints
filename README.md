@@ -121,6 +121,27 @@ You call the above using:
 ❯ curl 'http://localhost:3000/user/find?id=1'
 null%
 
+# bad input
+❯ curl -s -X 'POST' 'http://localhost:3000/user/create' \
+-H 'Content-Type: application/json' \
+-d '{"name": "Art", "emailTYPO": "art@vandelayindustries.com"}' | jq
+{
+  "statusCode": 400,
+  "message": "Validation failed",
+  "errors": [
+    {
+      "code": "invalid_type",
+      "expected": "string",
+      "received": "undefined",
+      "path": [
+        "email"
+      ],
+      "message": "Required"
+    }
+  ]
+}
+
+# success
 ❯ curl -X 'POST' 'http://localhost:3000/user/create' \
 -H 'Content-Type: application/json' \
 -d '{"name": "Art", "email": "art@vandelayindustries.com"}'
