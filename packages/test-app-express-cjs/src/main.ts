@@ -1,6 +1,6 @@
 import { NestFactory } from '@nestjs/core';
-import { AppModule } from './app.module';
 import { setupEndpoints } from 'nestjs-endpoints';
+import { AppModule } from './app.module';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
@@ -14,4 +14,4 @@ async function bootstrap() {
     console.log(`Server is running on port ${port}`);
   });
 }
-bootstrap();
+void bootstrap();

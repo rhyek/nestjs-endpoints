@@ -14,7 +14,11 @@ import {
 } from '@nestjs/common';
 import { HttpAdapterHost } from '@nestjs/core';
 import { ApiBody, ApiOperation, ApiResponse } from '@nestjs/swagger';
-import { createZodDto, ZodValidationException } from 'nestjs-zod';
+import {
+  createZodDto,
+  ZodSerializationException,
+  ZodValidationException,
+} from 'nestjs-zod';
 import { z, ZodSchema } from 'zod';
 import { ApiQueries, getEndpointHttpPath } from './helpers';
 
@@ -369,7 +373,11 @@ export function endpoint<
         );
       }
       const s = schema instanceof SchemaDef ? schema.schema : schema;
-      endpointResponse.body = s.parse(endpointResponse.body);
+      const parsed = s.safeParse(endpointResponse.body);
+      if (parsed.error) {
+        throw new ZodSerializationException(parsed.error);
+      }
+      endpointResponse.body = parsed.data;
     }
     const res = injectedMethodParams[resKey];
     const httpAdapterHost: HttpAdapterHost = this[httpAdapterHostKey];
