@@ -391,7 +391,6 @@ export function endpoint<
       httpAdapter.reply(res, JSON.stringify(null));
       return;
     }
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-return
     return body;
   };
   // configure method parameters
