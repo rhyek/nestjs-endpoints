@@ -1,10 +1,13 @@
 import { Writable } from 'node:stream';
-import { ArgumentsHost, Catch, type ExceptionFilter } from '@nestjs/common';
-import { APP_FILTER, HttpAdapterHost } from '@nestjs/core';
+import { ArgumentsHost, Catch } from '@nestjs/common';
+import { APP_FILTER, BaseExceptionFilter } from '@nestjs/core';
 import { Test, TestingModule } from '@nestjs/testing';
-import { setupEndpoints } from 'nestjs-endpoints';
+import {
+  setupEndpoints,
+  ZodSerializationException,
+  ZodValidationException,
+} from 'nestjs-endpoints';
 import request from 'supertest';
-import { ZodError } from 'zod';
 import { AppModule } from '../src/app.module';
 import { AppointmentRepositoryToken } from '../src/user/appointment/appointment-repository.interface';
 import { AppointmentRepository } from '../src/user/appointment/appointment.repository';
@@ -13,24 +16,22 @@ import { createApp } from './create-app';
 
 describe('api', () => {
   async function setup() {
-    const exceptionSpy = jest.fn();
+    const validationExceptionSpy = jest.fn();
+    const serializationExceptionSpy = jest.fn();
 
-    @Catch(ZodError)
-    class ZodErrorExceptionFilter implements ExceptionFilter {
-      constructor(private readonly httpAdapterHost: HttpAdapterHost) {}
+    @Catch(ZodValidationException)
+    class ZodValidationExceptionFilter extends BaseExceptionFilter {
+      catch(exception: ZodValidationException, host: ArgumentsHost) {
+        validationExceptionSpy(exception);
+        super.catch(exception, host);
+      }
+    }
 
-      catch(exception: ZodError, host: ArgumentsHost): void {
-        exceptionSpy(exception);
-        const { httpAdapter } = this.httpAdapterHost;
-        const ctx = host.switchToHttp();
-        httpAdapter.reply(
-          ctx.getResponse(),
-          {
-            statusCode: 500,
-            message: 'Internal server error',
-          },
-          500,
-        );
+    @Catch(ZodSerializationException)
+    class ZodSerializationExceptionFilter extends BaseExceptionFilter {
+      catch(exception: ZodSerializationException, host: ArgumentsHost) {
+        serializationExceptionSpy(exception);
+        super.catch(exception, host);
       }
     }
 
@@ -39,7 +40,11 @@ describe('api', () => {
       providers: [
         {
           provide: APP_FILTER,
-          useClass: ZodErrorExceptionFilter,
+          useClass: ZodValidationExceptionFilter,
+        },
+        {
+          provide: APP_FILTER,
+          useClass: ZodSerializationExceptionFilter,
         },
       ],
     }).compile();
@@ -53,19 +58,29 @@ describe('api', () => {
     );
     const req = request(app.getHttpServer());
 
-    return { userService, appointmentsRepository, req, exceptionSpy };
+    return {
+      userService,
+      appointmentsRepository,
+      req,
+      validationExceptionSpy,
+      serializationExceptionSpy,
+    };
   }
 
   test.concurrent('error endpoint throws', async () => {
-    const { req } = await setup();
+    const { req, validationExceptionSpy, serializationExceptionSpy } =
+      await setup();
     await req.get('/test/error').expect(500, {
       statusCode: 500,
       message: 'Internal server error',
     });
+    expect(validationExceptionSpy).toHaveBeenCalledTimes(0);
+    expect(serializationExceptionSpy).toHaveBeenCalledTimes(0);
   });
 
   test.concurrent('user find input validation throws', async () => {
-    const { req } = await setup();
+    const { req, validationExceptionSpy, serializationExceptionSpy } =
+      await setup();
     await req.get('/user/find').expect(400, {
       statusCode: 400,
       message: 'Validation failed',
@@ -79,6 +94,8 @@ describe('api', () => {
         },
       ],
     });
+    expect(validationExceptionSpy).toHaveBeenCalledTimes(1);
+    expect(serializationExceptionSpy).toHaveBeenCalledTimes(0);
   });
 
   test.concurrent('user find can return null value', async () => {
@@ -100,7 +117,8 @@ describe('api', () => {
   });
 
   test.concurrent('user create input validation throws', async () => {
-    const { req } = await setup();
+    const { req, validationExceptionSpy, serializationExceptionSpy } =
+      await setup();
     await req
       .post('/user/create')
       .send({ namez: 'John', email: 'john@example.com' })
@@ -117,29 +135,43 @@ describe('api', () => {
           },
         ],
       });
+    expect(validationExceptionSpy).toHaveBeenCalledTimes(1);
+    expect(serializationExceptionSpy).toHaveBeenCalledTimes(0);
   });
 
-  test.concurrent('user find output validation throws ZodError', async () => {
-    const { req, userService, exceptionSpy } = await setup();
-    jest.spyOn(userService, 'find').mockReturnValueOnce({
-      id: 1,
-      namez: 'John',
-      email: 'john@example.com',
-    } as any);
-    exceptionSpy.mockImplementation((exception) => {
-      expect(exception).toBeInstanceOf(ZodError);
-      expect((exception as ZodError).errors).toMatchObject([
-        {
-          code: 'invalid_type',
-          expected: 'string',
-          received: 'undefined',
-          path: ['name'],
-          message: 'Required',
-        },
-      ]);
-    });
-    await req.get('/user/find?id=1').expect(500);
-  });
+  test.concurrent(
+    'user find output validation throws ZodSerializationException',
+    async () => {
+      const {
+        req,
+        userService,
+        validationExceptionSpy,
+        serializationExceptionSpy,
+      } = await setup();
+      jest.spyOn(userService, 'find').mockReturnValueOnce({
+        id: 1,
+        namez: 'John',
+        email: 'john@example.com',
+      } as any);
+      serializationExceptionSpy.mockImplementation((exception) => {
+        expect(exception).toBeInstanceOf(ZodSerializationException);
+        expect(
+          (exception as ZodSerializationException).getZodError().errors,
+        ).toMatchObject([
+          {
+            code: 'invalid_type',
+            expected: 'string',
+            received: 'undefined',
+            path: ['name'],
+            message: 'Required',
+          },
+        ]);
+      });
+      await req.get('/user/find?id=1').expect(500);
+      expect(validationExceptionSpy).toHaveBeenCalledTimes(0);
+      expect(serializationExceptionSpy).toHaveBeenCalledTimes(1);
+    },
+  );
 
   test.concurrent('appointment create requires auth', async () => {
     const { req } = await setup();
@@ -153,7 +185,8 @@ describe('api', () => {
   });
 
   test.concurrent('appointment create input validation throws', async () => {
-    const { req } = await setup();
+    const { req, validationExceptionSpy, serializationExceptionSpy } =
+      await setup();
     await req
       .post('/user/appointment/create')
       .set('Authorization', 'secret')
@@ -167,12 +200,15 @@ describe('api', () => {
           { code: 'invalid_date', path: ['date'], message: 'Invalid date' },
         ],
       });
+    expect(validationExceptionSpy).toHaveBeenCalledTimes(1);
+    expect(serializationExceptionSpy).toHaveBeenCalledTimes(0);
   });
 
   test.concurrent(
     'appointment create can return 400 with first schema of union',
     async () => {
-      const { req } = await setup();
+      const { req, validationExceptionSpy, serializationExceptionSpy } =
+        await setup();
       const date1 = new Date();
       await req
         .post('/user/appointment/create')
@@ -182,6 +218,8 @@ describe('api', () => {
           date: date1.toISOString(),
         })
         .expect(400, 'User not found');
+      expect(validationExceptionSpy).toHaveBeenCalledTimes(0);
+      expect(serializationExceptionSpy).toHaveBeenCalledTimes(0);
     },
   );
 
@@ -216,7 +254,8 @@ describe('api', () => {
   test.concurrent(
     'appointment create can return 400 with second schema of union',
     async () => {
-      const { req } = await setup();
+      const { req, validationExceptionSpy, serializationExceptionSpy } =
+        await setup();
       await req
         .post('/user/create')
         .send({
@@ -244,13 +283,20 @@ describe('api', () => {
           message: 'Appointment has conflict',
           errorCode: 'APPOINTMENT_CONFLICT',
         });
+      expect(validationExceptionSpy).toHaveBeenCalledTimes(0);
+      expect(serializationExceptionSpy).toHaveBeenCalledTimes(0);
     },
   );
 
   test.concurrent(
-    'appointment create output validation throws ZodError',
+    'appointment create output validation throws ZodSerializationException',
     async () => {
-      const { req, appointmentsRepository, exceptionSpy } = await setup();
+      const {
+        req,
+        appointmentsRepository,
+        validationExceptionSpy,
+        serializationExceptionSpy,
+      } = await setup();
       await req
         .post('/user/create')
         .send({
@@ -265,9 +311,11 @@ describe('api', () => {
         date: date.toISOString(), // should fail since zod output schema expects a Date
         address: '127.0.0.1',
       } as any);
-      exceptionSpy.mockImplementationOnce((exception) => {
-        expect(exception).toBeInstanceOf(ZodError);
-        expect((exception as ZodError).errors).toMatchObject([
+      serializationExceptionSpy.mockImplementationOnce((exception) => {
+        expect(exception).toBeInstanceOf(ZodSerializationException);
+        expect(
+          (exception as ZodSerializationException).getZodError().errors,
+        ).toMatchObject([
           {
             code: 'invalid_type',
             expected: 'date',
@@ -286,8 +334,10 @@ describe('api', () => {
         })
         .expect(500, {
           statusCode: 500,
-          message: 'Internal server error',
+          message: 'Internal Server Error',
         });
+      expect(validationExceptionSpy).toHaveBeenCalledTimes(0);
+      expect(serializationExceptionSpy).toHaveBeenCalledTimes(1);
     },
   );
 

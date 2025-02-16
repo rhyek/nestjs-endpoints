@@ -1,6 +1,6 @@
-import { EndpointsModule } from "nestjs-endpoints";
-import error from "./error.endpoint";
-import status from "./status.endpoint";
+import { EndpointsModule } from 'nestjs-endpoints';
+import error from './error.endpoint';
+import status from './status.endpoint';
 
 @EndpointsModule({
   endpoints: [error, status],
