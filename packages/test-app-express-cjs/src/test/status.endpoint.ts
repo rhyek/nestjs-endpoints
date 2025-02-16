@@ -1,4 +1,4 @@
-import { endpoint } from "nestjs-endpoints";
+import { endpoint } from 'nestjs-endpoints';
 
 export default endpoint({
   handler: () => {

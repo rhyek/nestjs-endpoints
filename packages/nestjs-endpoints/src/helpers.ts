@@ -43,7 +43,7 @@ export function getEndpointHttpPath() {
   const pathSegments: string[] = [];
   let start = path.dirname(file);
   let lastDirPathSegment: string | null = null;
-  // eslint-disable-next-line no-constant-condition
+
   while (true) {
     if (shortCircuitDirs[start] || start === path.parse(start).root) {
       break;

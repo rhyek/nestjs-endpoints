@@ -4,5 +4,5 @@ export const CurrentUser = createParamDecorator(() => {
   return {
     name: 'John Smith',
     isSuperAdmin: true,
-  }
+  };
 });

@@ -1,9 +1,9 @@
+import { Inject } from '@nestjs/common';
 import { decorated, endpoint, z } from 'nestjs-endpoints';
 import {
   AppointmentRepositoryToken,
   IAppointmentRepository,
 } from '../appointment-repository.interface';
-import { Inject } from '@nestjs/common';
 
 export default endpoint({
   input: z.object({

@@ -1,13 +1,13 @@
 import { forwardRef, Type } from '@nestjs/common';
 import { EndpointsModule } from 'nestjs-endpoints';
 import { UserModule } from '../user.module';
-import { AppointmentRepository } from './appointment.repository';
 import {
   AppointmentRepositoryToken,
   type IAppointmentRepository,
 } from './appointment-repository.interface';
-import create from './endpoints/create/create.endpoint';
+import { AppointmentRepository } from './appointment.repository';
 import count from './endpoints/count.endpoint';
+import create from './endpoints/create/create.endpoint';
 
 @EndpointsModule({
   imports: [forwardRef(() => UserModule)],
