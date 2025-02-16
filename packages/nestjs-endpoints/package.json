@@ -21,13 +21,24 @@
     "zod"
   ],
   "files": [
+    "src",
     "dist"
   ],
-  "main": "./dist/index.js",
-  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "require": {
+        "default": "./dist/cjs/index.js",
+        "types": "./dist/cjs/index.d.ts"
+      },
+      "import": {
+        "default": "./dist/esm/index.js",
+        "types": "./dist/esm/index.d.ts"
+      }
+    }
+  },
+  "types": "./dist/cjs/index.d.ts",
   "scripts": {
-    "dev": "tsc --watch --preserveWatchOutput",
-    "build": "tsc"
+    "dev": "tsc --watch --preserveWatchOutput"
   },
   "dependencies": {
     "callsites": "^3.1.0",
@@ -41,6 +52,7 @@
   },
   "devDependencies": {
     "@types/node": "^22.13.1",
+    "tsc-alias": "^1.8.10",
     "typescript": "^5.7.3"
   }
 }
