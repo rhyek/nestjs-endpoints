@@ -1,9 +1,10 @@
 {
   "compilerOptions": {
-    "target": "ES2022",
     "module": "commonjs",
+    "lib": ["esnext"],
+    "target": "esnext",
     "rootDir": "./src",
-    "outDir": "./dist",
+    "outDir": "./dist/cjs",
     "declaration": true,
     "declarationMap": true,
     "sourceMap": true,
