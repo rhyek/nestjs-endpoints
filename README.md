@@ -8,6 +8,20 @@
 
 It utilizes file-based routing, [zod](https://zod.dev/) input and output validation, comprehensive type-inference, and `@nestjs/swagger` + [nestjs-zod](https://github.com/BenLorantfy/nestjs-zod) to speed up development and optionally automatically generate an OpenAPI spec file which can be used to then generate client SDKs using something like [orval](https://orval.dev/).
 
+An endpoint can be as simple as this:
+
+```ts
+// src/hell-world.endpoint.ts
+export default endpoint({
+  handler: () => 'Hello, World!',
+});
+```
+
+```bash
+❯ curl 'http://localhost:3000/hello-world'
+Hello, World!%
+```
+
 ## Features
 
 - **No Setup Required** if the OpenAPI spec is not needed. Otherwise, just call `setupEndpoints` during app start-up.
@@ -94,10 +108,14 @@ export default endpoint({
   inject: {
     db: DbService,
   },
-  handler: ({ input, db }) => ({
-    id: db.user.create(input).id,
-    extra: 'This will be stripped', // Removed during zod validation
-  }),
+  handler: async ({ input, db }) => {
+    const user = await db.user.create(input);
+    return {
+      id: user.id,
+      // Removed during zod validation
+      extra: 'This will be stripped',
+    };
+  },
 });
 ```
 
