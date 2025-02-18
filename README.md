@@ -11,7 +11,7 @@ It utilizes file-based routing, [zod](https://zod.dev/) input and output validat
 An endpoint can be as simple as this:
 
 ```ts
-// src/hell-world.endpoint.ts
+// src/hello-world.endpoint.ts
 export default endpoint({
   handler: () => 'Hello, World!',
 });
