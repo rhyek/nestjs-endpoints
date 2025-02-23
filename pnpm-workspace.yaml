@@ -1,2 +1,4 @@
 packages:
   - 'packages/*'
+  - 'packages/test-endpoints-module/*'
+  - 'packages/test-endpoints-router-module/*'

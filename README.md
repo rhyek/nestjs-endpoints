@@ -4,9 +4,9 @@
 
 ## Introduction
 
-**nestjs-endpoints** is a tool for easily and succinctly writing HTTP APIs with NestJS inspired by the [REPR pattern](https://www.apitemplatepack.com/docs/introduction/repr-pattern/), the [Fast Endpoints](https://fast-endpoints.com/) .NET library, and [tRPC](https://trpc.io/).
+**nestjs-endpoints** is a tool for easily and succinctly writing HTTP APIs with NestJS inspired by the [REPR pattern](https://www.apitemplatepack.com/docs/introduction/repr-pattern/), the [Fast Endpoints](https://fast-endpoints.com/) .NET library, [tRPC](https://trpc.io/), and Next.js' file-based routing.
 
-It utilizes file-based routing, [zod](https://zod.dev/) input and output validation, comprehensive type-inference, and `@nestjs/swagger` + [nestjs-zod](https://github.com/BenLorantfy/nestjs-zod) to speed up development and optionally automatically generate an OpenAPI spec file which can be used to then generate client SDKs using something like [orval](https://orval.dev/).
+It features [zod](https://zod.dev/) input and output validation, comprehensive type-inference, and `@nestjs/swagger` + [nestjs-zod](https://github.com/BenLorantfy/nestjs-zod) to optionally automatically generate an OpenAPI spec file which can be used to then generate client SDKs using something like [orval](https://orval.dev/).
 
 An endpoint can be as simple as this:
 
@@ -24,10 +24,11 @@ Hello, World!%
 
 ## Features
 
-- **No Setup Required** if the OpenAPI spec is not needed. Otherwise, just call `setupEndpoints` during app start-up.
-- **User-Friendly API:** Supports file-based routing and both basic and advanced per-endpoint configuration.
-- **Fully Typed:** Compile and run-time validation of input and output values using Zod schemas.
-- **HTTP Adapter agnostic:** Works with both Express and Fastify NestJS applications.
+- **Easy setup:** Automatically scans your entire project for endpoint files and loads them.
+- **File-based routing:** Each endpoint's HTTP path is based on their path on disk.
+- **User-Friendly API:** Supports both basic and advanced per-endpoint configuration.
+- **Fully typed:** Compile and run-time validation of input and output values using Zod schemas.
+- **HTTP adapter agnostic:** Works with both Express and Fastify NestJS applications.
 - **Stable:** Produces regular **NestJS Controllers** under the hood.
 
 ## Getting Started
@@ -38,36 +39,29 @@ Hello, World!%
 npm install nestjs-endpoints @nestjs/swagger zod
 ```
 
-### OpenAPI Setup (optional)
+### Setup
 
 ```typescript
-// src/main.ts
-import { setupEndpoints } from 'nestjs-endpoints';
+// src/app.module.ts
 
-async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
-  // Only necessary if you plan on using the spec file.
-  const { document, changed } = await setupEndpoints(app, {
-    openapi: {
-      configure: (builder) => builder.setTitle('My Api'),
-      outputFile: 'openapi.json',
-    },
-  });
-  // optional: Generate client SDK with orval using
-  // above openapi.json
-  if (changed) {
-    await import('orval').then(({ generate }) => {
-      void generate();
-    });
-  }
-  await app.listen(3000);
-}
+import { EndpointsRouterModule } from 'nestjs-endpoints';
+
+@Module({
+  imports: [
+    EndpointsRouterModule.forRoot({
+      rootDirectory: './endpoints',
+      providers: [DbService], // available to all endpoints
+    }),
+  ],
+})
+export class AppModule {}
 ```
 
 ## Basic Usage
 
 ```typescript
-// src/user/find.endpoint.ts
+// src/endpoints/user/find.endpoint.ts
+
 import { endpoint, z } from 'nestjs-endpoints';
 
 export default endpoint({
@@ -93,7 +87,8 @@ export default endpoint({
 ```
 
 ```typescript
-// src/user/create.endpoint.ts
+// src/endpoints/user/create.endpoint.ts
+
 import { endpoint, z } from 'nestjs-endpoints';
 
 export default endpoint({
@@ -117,20 +112,6 @@ export default endpoint({
     };
   },
 });
-```
-
-```typescript
-// src/user/user.module.ts
-import { EndpointsModule } from 'nestjs-endpoints';
-import create from './create.endpoint';
-import find from './find.endpoint';
-// ...
-
-@EndpointsModule({
-  endpoints: [create, find],
-  providers: [DbService],
-})
-export class UserModule {}
 ```
 
 You call the above using:
@@ -166,31 +147,66 @@ null%
 {"id":1}%
 ```
 
-### File-based routing
+## File-based routing
 
-File-based routing works using a naming convention consisting of `*.module.ts` and `*.endpoint.ts` files and their location relative to each other. The http path will resemble the folder structure, but you need a `*.module.ts` with an `EndpointsModule` inside each folder you want to include as an http path segment.
+HTTP paths for endpoints are determined by looking at the file's absolute path on disk,
+stripping `rootDirectory`, then removing any path segments that start with an underscore (`_`).
+Filenames must either end in `.endpoint.ts` or be `endpoint.ts` (`js`, `cjs`, `mjs`, `mts` are also supported).
 
-Bundled projects via Webpack or similar are not supported.
+Examples (assume `rootDirectory` is `./endpoints`):
+
+- `src/endpoints/user/find-all.endpoint.ts` => `user/find-all`
+- `src/endpoints/user/_mutations/create/endpoint.ts` => `user/create`
+
+> _**Note**_: Bundled projects via Webpack or similar are not supported.
 
 ## Advanced Usage
 
-Depending on the project's requirements, the above should ideally suffice most of the time. In case you need access to more of NestJS' features like Interceptors, Guards, access to the request object, etc, here is a more complete example:
+Depending on the project's requirements, the above should ideally suffice most of the time. In case you need access to more of NestJS' features like Interceptors, Guards, access to the request object, etc, or if you'd rather have isolated NestJS modules per feature with their own providers, here is a more complete example:
 
 > _**Note**_: You are also welcome to use both NestJS Controllers and endpoints in the same project.
 
-> _**Note**_: Assume `src/user/user.module.ts` and `src/user/appointment/appointment.module.ts` files exist.
+```typescript
+// src/app.module.ts
+
+import { EndpointsRouterModule } from 'nestjs-endpoints';
+
+@Module({
+  imports: [
+    EndpointsRouterModule.forRoot({
+      rootDirectory: './',
+      autoLoadEndpoints: false, // manually load endpoints
+    }),
+  ],
+})
+export class AppModule {}
+```
 
 ```typescript
-// src/user/appointment/endpoints/create/create.endpoint.ts
+// src/user/user.module.ts
+
+import { EndpointsModule } from 'nestjs-endpoints';
+import create from './appointment/_endpoints/create/endpoint';
+
+@EndpointsModule({
+  endpoints: [create],
+  providers: [
+    DbService,
+    {
+      provide: AppointmentRepositoryToken,
+      useClass: AppointmentRepository as IAppointmentRepository,
+    },
+  ],
+})
+export class UserModule {}
+```
+
+```typescript
+// src/user/appointment/_endpoints/create/endpoint.ts
+
 import { Inject, Req, UseGuards } from '@nestjs/common';
 import type { Request } from 'express';
 import { decorated, endpoint, schema, z } from 'nestjs-endpoints';
-import { AuthGuard } from '../../../../auth.guard';
-import { DbService } from '../../../../db.service';
-import {
-  AppointmentRepositoryToken,
-  IAppointmentRepository,
-} from '../../appointment-repository.interface';
 
 export default endpoint({
   method: 'post',
@@ -259,7 +275,7 @@ export default endpoint({
 });
 ```
 
-To call it:
+To call this endpoint:
 
 ```bash
 ❯ curl -X 'POST' 'http://localhost:3000/user/appointment/create' \
@@ -267,4 +283,32 @@ To call it:
 -H 'Authorization: secret' \
 -d '{"userId": 1, "date": "2021-11-03"}'
 {"id":1,"date":"2021-11-03T00:00:00.000Z","address":"::1"}%
+```
+
+## OpenAPI, Codegen setup (optional)
+
+It's a common practice to automatically generate a client SDK for your API that
+you can use in other backend or frontend projects and have the benefit of full-stack type-safety. tRPC and similar libraries make this easy for you.
+
+We can achieve the same here in two steps. We first build an OpenAPI document, then use that document's
+output with [orval](https://orval.dev/):
+
+```typescript
+// src/main.ts
+
+import { setupOpenAPI } from 'nestjs-endpoints';
+
+async function bootstrap() {
+  const app = await NestFactory.create(AppModule);
+  const { document, changed } = await setupOpenAPI(app, {
+    configure: (builder) => builder.setTitle('My Api'),
+    outputFile: 'openapi.json',
+  });
+  if (changed) {
+    await import('orval').then(({ generate }) => {
+      void generate();
+    });
+  }
+  await app.listen(3000);
+}
 ```

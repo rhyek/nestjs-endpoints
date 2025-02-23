@@ -1,33 +1,26 @@
-import fs from 'node:fs';
 import path from 'node:path';
 import { applyDecorators } from '@nestjs/common';
 import { ApiQuery, ApiQueryOptions } from '@nestjs/swagger';
 import callsites from 'callsites';
 import { zodToOpenAPI } from 'nestjs-zod';
 import { z, ZodRawShape } from 'zod';
+import { endpointFileRegex, settings } from './consts';
 
-const isDirPathSegmentCache = new Map<string, boolean>();
 function isDirPathSegment(dir: string) {
-  if (isDirPathSegmentCache.has(dir)) {
-    return isDirPathSegmentCache.get(dir)!;
+  const segment = path.basename(dir);
+  if (!segment.startsWith('_')) {
+    return true;
   }
-  const files = fs.readdirSync(dir);
-  for (const f of files) {
-    if (f.match(/module\.[^/.]+$/)) {
-      const file = path.join(dir, f);
-      const content = fs.readFileSync(file, 'utf-8');
-      if (content.includes('EndpointsModule')) {
-        isDirPathSegmentCache.set(dir, true);
-        return true;
-      }
-    }
-  }
-  isDirPathSegmentCache.set(dir, false);
   return false;
 }
-const shortCircuitDirs: Record<string, boolean> = {};
-export function getEndpointHttpPath() {
-  const file = callsites()
+const shortCircuitDirs: Record<string, boolean> = {
+  [process.cwd()]: true,
+};
+export function getEndpointHttpPath(_callsites: callsites.CallSite[]) {
+  if (settings.rootDirectory) {
+    shortCircuitDirs[settings.rootDirectory] = true;
+  }
+  const file = _callsites
     .map((callsite) => {
       const fileName = callsite.getFileName();
       if (!fileName || fileName.includes('node_modules')) {
@@ -35,7 +28,7 @@ export function getEndpointHttpPath() {
       }
       return fileName.replace(/^file:\/\//, '');
     })
-    .find((f) => f && f.match(/\.endpoint\.[^/.]+$/));
+    .find((f) => f && f.match(endpointFileRegex));
   if (!file) {
     throw new Error('Endpoint file not found');
   }
@@ -45,7 +38,14 @@ export function getEndpointHttpPath() {
   let lastDirPathSegment: string | null = null;
 
   while (true) {
-    if (shortCircuitDirs[start] || start === path.parse(start).root) {
+    if (
+      Object.keys(shortCircuitDirs).some(
+        (d) =>
+          path.normalize(d + path.sep) ===
+          path.normalize(start + path.sep),
+      ) ||
+      start === path.parse(start).root
+    ) {
       break;
     }
     if (isDirPathSegment(start)) {
@@ -59,12 +59,12 @@ export function getEndpointHttpPath() {
   }
   pathSegments.reverse();
 
-  const leaf = path
-    .basename(file, path.extname(file))
-    .split('.endpoint')[0];
-  pathSegments.push(leaf);
+  const basename = path.basename(file, path.extname(file));
+  if (basename !== 'endpoint') {
+    const leaf = basename.split('.endpoint')[0];
+    pathSegments.push(leaf);
+  }
   const httpPath = path.join(...pathSegments);
-
   const httpPathPascalName = httpPath
     .replace(/^[a-z]/, (letter) => letter.toUpperCase())
     .replace(/[/-]([a-z])/g, (_, letter: string) => letter.toUpperCase());
