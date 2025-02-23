@@ -184,25 +184,32 @@ describe('api', () => {
       .expect(401);
   });
 
-  test.concurrent('appointment create input validation throws', async () => {
-    const { req, validationExceptionSpy, serializationExceptionSpy } =
-      await setup();
-    await req
-      .post('/user/appointment/create')
-      .set('Authorization', 'secret')
-      .send({
-        userId: 1,
-      })
-      .expect(400, {
-        statusCode: 400,
-        message: 'Validation failed',
-        errors: [
-          { code: 'invalid_date', path: ['date'], message: 'Invalid date' },
-        ],
-      });
-    expect(validationExceptionSpy).toHaveBeenCalledTimes(1);
-    expect(serializationExceptionSpy).toHaveBeenCalledTimes(0);
-  });
+  test.concurrent(
+    'appointment create input validation throws',
+    async () => {
+      const { req, validationExceptionSpy, serializationExceptionSpy } =
+        await setup();
+      await req
+        .post('/user/appointment/create')
+        .set('Authorization', 'secret')
+        .send({
+          userId: 1,
+        })
+        .expect(400, {
+          statusCode: 400,
+          message: 'Validation failed',
+          errors: [
+            {
+              code: 'invalid_date',
+              path: ['date'],
+              message: 'Invalid date',
+            },
+          ],
+        });
+      expect(validationExceptionSpy).toHaveBeenCalledTimes(1);
+      expect(serializationExceptionSpy).toHaveBeenCalledTimes(0);
+    },
+  );
 
   test.concurrent(
     'appointment create can return 400 with first schema of union',

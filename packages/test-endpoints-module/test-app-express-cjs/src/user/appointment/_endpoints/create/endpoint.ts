@@ -70,7 +70,11 @@ export default endpoint({
     }
     return response(
       201,
-      await appointmentsRepository.create(input.userId, input.date, req.ip),
+      await appointmentsRepository.create(
+        input.userId,
+        input.date,
+        req.ip,
+      ),
     );
   },
 });
