@@ -1,7 +1,7 @@
 {
   "name": "nestjs-endpoints",
   "version": "0.0.0",
-  "description": "A tool for easily and succinctly writing HTTP APIs with NestJS",
+  "description": "A tool for easily and succinctly writing HTTP APIs with NestJS that foments the REPR design pattern, colocation of code, and the single responsibility principle.",
   "author": "Carlos González <carlos.rgn@gmail.com>",
   "license": "MIT",
   "repository": {

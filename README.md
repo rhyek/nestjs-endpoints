@@ -4,13 +4,14 @@
 
 ## Introduction
 
-**nestjs-endpoints** is a tool for easily and succinctly writing HTTP APIs with NestJS inspired by the [REPR pattern](https://www.apitemplatepack.com/docs/introduction/repr-pattern/), the [Fast Endpoints](https://fast-endpoints.com/) .NET library, [tRPC](https://trpc.io/), and Next.js' file-based routing.
+**nestjs-endpoints** is a tool for easily and succinctly writing HTTP APIs with NestJS that foments the REPR design pattern, colocation of code, and the single responsibility principle.
 
-It features [zod](https://zod.dev/) input and output validation, comprehensive type-inference, and `@nestjs/swagger` + [nestjs-zod](https://github.com/BenLorantfy/nestjs-zod) to optionally automatically generate an OpenAPI spec file which can be used to then generate client SDKs using something like [orval](https://orval.dev/).
+It's inspired by the [Fast Endpoints](https://fast-endpoints.com/) .NET library, [tRPC](https://trpc.io/), and Next.js' file-based routing.
 
 An endpoint can be as simple as this:
 
 `src/hello-world.endpoint.ts`
+
 ```ts
 export default endpoint({
   handler: () => 'Hello, World!',
@@ -27,9 +28,10 @@ Hello, World!%
 - **Easy setup:** Automatically scans your entire project for endpoint files and loads them.
 - **File-based routing:** Each endpoint's HTTP path is based on their path on disk.
 - **User-Friendly API:** Supports both basic and advanced per-endpoint configuration.
-- **Fully typed:** Compile and run-time validation of input and output values using Zod schemas.
+- **Schema validation:** Compile and run-time validation of input and output values using Zod schemas.
 - **HTTP adapter agnostic:** Works with both Express and Fastify NestJS applications.
 - **Stable:** Produces regular **NestJS Controllers** under the hood.
+- **Client SDK codegen:** Annotates endpoints using `@nestjs/swagger` and [nestjs-zod](https://github.com/BenLorantfy/nestjs-zod) internally to output an OpenAPI document which [orval](https://orval.dev/) can use to generate a client library.
 
 ## Getting Started
 
@@ -42,6 +44,7 @@ npm install nestjs-endpoints @nestjs/swagger zod
 ### Setup
 
 `src/app.module.ts`
+
 ```typescript
 import { EndpointsRouterModule } from 'nestjs-endpoints';
 
@@ -59,6 +62,7 @@ export class AppModule {}
 ## Basic Usage
 
 `src/endpoints/user/find.endpoint.ts`
+
 ```typescript
 import { endpoint, z } from 'nestjs-endpoints';
 
@@ -83,7 +87,9 @@ export default endpoint({
   handler: ({ input, db }) => db.user.find(input.id),
 });
 ```
+
 `src/endpoints/user/create.endpoint.ts`
+
 ```typescript
 import { endpoint, z } from 'nestjs-endpoints';
 
@@ -145,9 +151,13 @@ null%
 
 ## File-based routing
 
-HTTP paths for endpoints are determined by looking at the file's absolute path on disk,
-stripping `rootDirectory`, then removing any path segments that start with an underscore (`_`).
-Filenames must either end in `.endpoint.ts` or be `endpoint.ts` (`js`, `cjs`, `mjs`, `mts` are also supported).
+HTTP paths for endpoints are derived by the file's path on disk:
+
+- `rootDirectory` is removed from the start
+- Path segments that begin with an underscore (`_`) are removed
+- Filenames must either end in `.endpoint.ts` or be `endpoint.ts`
+- `js`, `cjs`, `mjs`, `mts` are also supported.
+- Route parameters are **not** suported (`user/:userId`)
 
 Examples (assume `rootDirectory` is `./endpoints`):
 
@@ -163,6 +173,7 @@ Depending on the project's requirements, the above should ideally suffice most o
 > _**Note:**_ You are also welcome to use both NestJS Controllers and endpoints in the same project.
 
 `src/app.module.ts`
+
 ```typescript
 import { EndpointsRouterModule } from 'nestjs-endpoints';
 
@@ -176,7 +187,9 @@ import { EndpointsRouterModule } from 'nestjs-endpoints';
 })
 export class AppModule {}
 ```
+
 `src/user/user.module.ts`
+
 ```typescript
 import { EndpointsModule } from 'nestjs-endpoints';
 import create from './appointment/_endpoints/create/endpoint';
@@ -193,7 +206,9 @@ import create from './appointment/_endpoints/create/endpoint';
 })
 export class UserModule {}
 ```
+
 `src/user/appointment/_endpoints/create/endpoint.ts`
+
 ```typescript
 import { Inject, Req, UseGuards } from '@nestjs/common';
 import type { Request } from 'express';
@@ -285,6 +300,7 @@ We can achieve the same here in two steps. We first build an OpenAPI document, t
 output with [orval](https://orval.dev/):
 
 `src/main.ts`
+
 ```typescript
 import { setupOpenAPI } from 'nestjs-endpoints';
 
