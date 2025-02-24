@@ -10,9 +10,8 @@ It features [zod](https://zod.dev/) input and output validation, comprehensive t
 
 An endpoint can be as simple as this:
 
+`src/hello-world.endpoint.ts`
 ```ts
-// src/hello-world.endpoint.ts
-
 export default endpoint({
   handler: () => 'Hello, World!',
 });
