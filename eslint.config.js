@@ -1,6 +1,7 @@
 // @ts-check
 import eslint from '@eslint/js';
 import importPlugin from 'eslint-plugin-import';
+import pluginJest from 'eslint-plugin-jest';
 import eslintConfigPrettier from 'eslint-plugin-prettier/recommended';
 import unusedImports from 'eslint-plugin-unused-imports';
 import tseslint from 'typescript-eslint';
@@ -77,6 +78,16 @@ export default tseslint.config(
     files: ['packages/nestjs-endpoints/**'],
     rules: {
       'no-console': 'error',
+    },
+  },
+  {
+    files: ['packages/**/*.e2e-spec.ts'],
+    ...pluginJest.configs['flat/recommended'],
+    rules: {
+      ...pluginJest.configs['flat/recommended'].rules,
+      'jest/expect-expect': 'off',
+      'jest/no-disabled-tests': 'error',
+      'jest/no-focused-tests': 'error',
     },
   },
 );
