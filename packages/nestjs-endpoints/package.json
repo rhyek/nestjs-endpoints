@@ -1,7 +1,7 @@
 {
   "name": "nestjs-endpoints",
   "version": "0.0.0",
-  "description": "NestJS Endpoints",
+  "description": "A tool for easily and succinctly writing HTTP APIs with NestJS",
   "author": "Carlos González <carlos.rgn@gmail.com>",
   "license": "MIT",
   "repository": {
@@ -18,7 +18,9 @@
     "routing",
     "rest",
     "schema",
-    "zod"
+    "zod",
+    "codegen",
+    "trpc"
   ],
   "files": [
     "src",
