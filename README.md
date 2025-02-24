@@ -295,9 +295,7 @@ async function bootstrap() {
     outputFile: 'openapi.json',
   });
   if (changed) {
-    void import('orval').then(({ generate }) => {
-      void generate();
-    });
+    void import('orval').then(({ generate }) => generate());
   }
   await app.listen(3000);
 }
