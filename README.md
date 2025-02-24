@@ -42,9 +42,8 @@ npm install nestjs-endpoints @nestjs/swagger zod
 
 ### Setup
 
+`src/app.module.ts`
 ```typescript
-// src/app.module.ts
-
 import { EndpointsRouterModule } from 'nestjs-endpoints';
 
 @Module({
@@ -60,9 +59,8 @@ export class AppModule {}
 
 ## Basic Usage
 
+`src/endpoints/user/find.endpoint.ts`
 ```typescript
-// src/endpoints/user/find.endpoint.ts
-
 import { endpoint, z } from 'nestjs-endpoints';
 
 export default endpoint({
@@ -86,10 +84,8 @@ export default endpoint({
   handler: ({ input, db }) => db.user.find(input.id),
 });
 ```
-
+`src/endpoints/user/create.endpoint.ts`
 ```typescript
-// src/endpoints/user/create.endpoint.ts
-
 import { endpoint, z } from 'nestjs-endpoints';
 
 export default endpoint({
@@ -167,9 +163,8 @@ Depending on the project's requirements, the above should ideally suffice most o
 
 > _**Note:**_ You are also welcome to use both NestJS Controllers and endpoints in the same project.
 
+`src/app.module.ts`
 ```typescript
-// src/app.module.ts
-
 import { EndpointsRouterModule } from 'nestjs-endpoints';
 
 @Module({
@@ -182,10 +177,8 @@ import { EndpointsRouterModule } from 'nestjs-endpoints';
 })
 export class AppModule {}
 ```
-
+`src/user/user.module.ts`
 ```typescript
-// src/user/user.module.ts
-
 import { EndpointsModule } from 'nestjs-endpoints';
 import create from './appointment/_endpoints/create/endpoint';
 
@@ -201,10 +194,8 @@ import create from './appointment/_endpoints/create/endpoint';
 })
 export class UserModule {}
 ```
-
+`src/user/appointment/_endpoints/create/endpoint.ts`
 ```typescript
-// src/user/appointment/_endpoints/create/endpoint.ts
-
 import { Inject, Req, UseGuards } from '@nestjs/common';
 import type { Request } from 'express';
 import { decorated, endpoint, schema, z } from 'nestjs-endpoints';
@@ -294,9 +285,8 @@ you can use in other backend or frontend projects and have the benefit of full-s
 We can achieve the same here in two steps. We first build an OpenAPI document, then use that document's
 output with [orval](https://orval.dev/):
 
+`src/main.ts`
 ```typescript
-// src/main.ts
-
 import { setupOpenAPI } from 'nestjs-endpoints';
 
 async function bootstrap() {
