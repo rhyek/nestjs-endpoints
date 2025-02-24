@@ -398,6 +398,29 @@ describe('api', () => {
         ],
       });
   });
+
+  test.concurrent('can override a provider', async () => {
+    const moduleFixture: TestingModule = await Test.createTestingModule({
+      imports: [AppModule],
+    })
+      .overrideProvider(UserService)
+      .useValue({
+        find: () => ({
+          id: 34,
+          name: 'John',
+          email: 'john@hotmail.com',
+        }),
+      })
+      .compile();
+    const app = await createApp(moduleFixture);
+    app.useLogger(false);
+    const req = request(app.getHttpServer());
+    await req.get('/user/find?id=1').expect(200, {
+      id: 34,
+      name: 'John',
+      email: 'john@hotmail.com',
+    });
+  });
 });
 
 it('spec works', async () => {
