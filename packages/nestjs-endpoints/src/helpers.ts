@@ -17,9 +17,12 @@ const shortCircuitDirs: Record<string, boolean> = {
   [process.cwd()]: true,
 };
 export function getEndpointHttpPath(_callsites: callsites.CallSite[]) {
-  if (settings.rootDirectory) {
-    shortCircuitDirs[settings.rootDirectory] = true;
+  if (!settings.rootDirectory) {
+    throw new Error(
+      'nestjs-endpoints root directory not set. Did you configure EndpointsRouterModule?',
+    );
   }
+  shortCircuitDirs[settings.rootDirectory] = true;
   const file = _callsites
     .map((callsite) => {
       const fileName = callsite.getFileName();
