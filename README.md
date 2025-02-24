@@ -12,6 +12,7 @@ An endpoint can be as simple as this:
 
 ```ts
 // src/hello-world.endpoint.ts
+
 export default endpoint({
   handler: () => 'Hello, World!',
 });
@@ -155,16 +156,16 @@ Filenames must either end in `.endpoint.ts` or be `endpoint.ts` (`js`, `cjs`, `m
 
 Examples (assume `rootDirectory` is `./endpoints`):
 
-- `src/endpoints/user/find-all.endpoint.ts` => `user/find-all`
-- `src/endpoints/user/_mutations/create/endpoint.ts` => `user/create`
+- `src/endpoints/user/find-all.endpoint.ts` -> `user/find-all`
+- `src/endpoints/user/_mutations/create/endpoint.ts` -> `user/create`
 
-> _**Note**_: Bundled projects via Webpack or similar are not supported.
+> _**Note:**_ Bundled projects via Webpack or similar are not supported.
 
 ## Advanced Usage
 
 Depending on the project's requirements, the above should ideally suffice most of the time. In case you need access to more of NestJS' features like Interceptors, Guards, access to the request object, etc, or if you'd rather have isolated NestJS modules per feature with their own providers, here is a more complete example:
 
-> _**Note**_: You are also welcome to use both NestJS Controllers and endpoints in the same project.
+> _**Note:**_ You are also welcome to use both NestJS Controllers and endpoints in the same project.
 
 ```typescript
 // src/app.module.ts
