@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "test": "./scripts/test.sh",
-    "dev": "pnpm --filter nestjs-endpoints --filter test-app-express-cjs run --parallel dev"
+    "dev": "pnpm --filter nestjs-endpoints --filter test-app-express-cjs run --parallel dev",
+    "prepare": "husky"
   },
   "devDependencies": {
     "@eslint/js": "^9.20.0",
@@ -19,6 +20,8 @@
     "eslint-plugin-import": "^2.31.0",
     "eslint-plugin-prettier": "^5.0.0",
     "eslint-plugin-unused-imports": "^4.1.4",
+    "husky": "^9.1.7",
+    "lint-staged": "^15.4.3",
     "prettier": "^3.0.0",
     "typescript-eslint": "^8.24.0",
     "zod": "^3.24.1"

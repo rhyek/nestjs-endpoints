@@ -1,6 +1,7 @@
 {
   "eslint.enable": true,
   "eslint.format.enable": true,
+  "eslint.useFlatConfig": true,
   "editor.formatOnType": false, // required
   "editor.formatOnPaste": true,
   "editor.formatOnSave": true,

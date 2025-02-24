@@ -4,6 +4,7 @@ import {
   Controller,
   Delete,
   Get,
+  Head,
   Inject,
   Patch,
   Post,
@@ -14,21 +15,24 @@ import {
 } from '@nestjs/common';
 import { HttpAdapterHost } from '@nestjs/core';
 import { ApiBody, ApiOperation, ApiResponse } from '@nestjs/swagger';
+import callsites from 'callsites';
 import {
   createZodDto,
   ZodSerializationException,
   ZodValidationException,
 } from 'nestjs-zod';
 import { z, ZodSchema } from 'zod';
+import { settings } from './consts';
 import { ApiQueries, getEndpointHttpPath } from './helpers';
 
-type HttpMethod = 'get' | 'post' | 'put' | 'delete' | 'patch';
+type HttpMethod = 'get' | 'post' | 'put' | 'delete' | 'patch' | 'head';
 const httpMethodDecorators = {
   get: Get,
   post: Post,
   put: Put,
   delete: Delete,
   patch: Patch,
+  head: Head,
 } satisfies Record<HttpMethod, () => MethodDecorator>;
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -250,6 +254,15 @@ export function endpoint<
           status: Status,
           body: Body,
         ) => EndpointResponse<Status, Body>;
+      } & {
+        schemas: object &
+          (InputSchema extends undefined
+            ? object
+            : {
+                input: ExtractSchemaFromSchemaDef<
+                  NonNullable<InputSchema>
+                >;
+              });
       },
   ) => OutputSchema extends undefined
     ? MaybePromise<any>
@@ -273,185 +286,192 @@ export function endpoint<
     decorators,
     handler,
   } = params;
-  const { httpPath, httpPathPascalName, httpPathSegments } =
-    getEndpointHttpPath();
-  let outputSchemas: Record<number, Schema | SchemaDef> | null = null;
-  if (output) {
-    if (
-      output.constructor === Object &&
-      Object.keys(output).length > 0 &&
-      Object.keys(output).every((k) => Number.isInteger(Number(k)))
-    ) {
-      outputSchemas = output as any;
-    } else {
-      outputSchemas = { 200: output as any };
-    }
-  }
-
-  // class
   class cls {}
-  Object.defineProperty(cls, 'name', {
-    value: `${httpPathPascalName}Endpoint`,
-  });
-  const controllerDecorator = applyDecorators(Controller(httpPath));
-  controllerDecorator(cls);
-  const httpAdapterHostKey = Symbol('httpAdapterHost');
-  Inject(HttpAdapterHost)(cls.prototype, httpAdapterHostKey);
-  if (inject) {
-    for (const [key, token] of Object.entries(inject)) {
-      if (token instanceof WithDecorator) {
-        (token.decorator as PropertyDecorator)(cls.prototype, key);
+  const _callsites = callsites();
+  settings.decorateEndpointFns.push(() => {
+    const { httpPath, httpPathPascalName, httpPathSegments } =
+      getEndpointHttpPath(_callsites);
+    let outputSchemas: Record<number, Schema | SchemaDef> | null = null;
+    if (output) {
+      if (
+        output.constructor === Object &&
+        Object.keys(output).length > 0 &&
+        Object.keys(output).every((k) => Number.isInteger(Number(k)))
+      ) {
+        outputSchemas = output as any;
       } else {
-        Inject(token)(cls.prototype, key);
+        outputSchemas = { 200: output as any };
       }
     }
-  }
 
-  // define method parameters
-  const inputKey = Symbol('input');
-  const resKey = Symbol('res');
-  const methodParamDecorators: Record<
-    string | symbol,
-    ParameterDecorator
-  >[] = [{ [resKey]: Res({ passthrough: true }) }];
-  if (input) {
-    methodParamDecorators.push({
-      [inputKey]: httpMethod === 'get' ? Query() : Body(),
+    // class
+    Object.defineProperty(cls, 'name', {
+      value: `${httpPathPascalName}Endpoint`,
     });
-  }
-  if (injectMethod) {
-    for (const [key, wd] of Object.entries(injectMethod)) {
+    const controllerDecorator = applyDecorators(Controller(httpPath));
+    controllerDecorator(cls);
+    const httpAdapterHostKey = Symbol('httpAdapterHost');
+    Inject(HttpAdapterHost)(cls.prototype, httpAdapterHostKey);
+    if (inject) {
+      for (const [key, token] of Object.entries(inject)) {
+        if (token instanceof WithDecorator) {
+          (token.decorator as PropertyDecorator)(cls.prototype, key);
+        } else {
+          Inject(token)(cls.prototype, key);
+        }
+      }
+    }
+
+    // define method parameters
+    const inputKey = Symbol('input');
+    const resKey = Symbol('res');
+    const methodParamDecorators: Record<
+      string | symbol,
+      ParameterDecorator
+    >[] = [{ [resKey]: Res({ passthrough: true }) }];
+    if (input) {
       methodParamDecorators.push({
-        [key]: wd.decorator as ParameterDecorator,
+        [inputKey]: httpMethod === 'get' ? Query() : Body(),
       });
     }
-  }
-
-  // handler method
-  const response = (s: number, b: any) => new EndpointResponse(s, b);
-  (cls.prototype as any).handler = async function (...params: any[]) {
-    const injectedMethodParams: Record<string | symbol, any> =
-      Object.fromEntries(
-        methodParamDecorators.map((p, i) => {
-          const key = Reflect.ownKeys(p)[0];
-          return [key, params[i]] as const;
-        }),
-      );
-    const handlerParams: Record<string | symbol, any> = { response };
-    if (inject) {
-      for (const key of Object.keys(inject)) {
-        handlerParams[key] = this[key];
-      }
-    }
     if (injectMethod) {
-      for (const key of Object.keys(injectMethod)) {
-        handlerParams[key] = injectedMethodParams[key];
+      for (const [key, wd] of Object.entries(injectMethod)) {
+        methodParamDecorators.push({
+          [key]: wd.decorator as ParameterDecorator,
+        });
       }
     }
+
+    // handler method
+    const response = (s: number, b: any) => new EndpointResponse(s, b);
+    (cls.prototype as any).handler = async function (...params: any[]) {
+      const injectedMethodParams: Record<string | symbol, any> =
+        Object.fromEntries(
+          methodParamDecorators.map((p, i) => {
+            const key = Reflect.ownKeys(p)[0];
+            return [key, params[i]] as const;
+          }),
+        );
+      const handlerParams: Record<string | symbol, any> = {
+        response,
+        schemas: {},
+      };
+      if (inject) {
+        for (const key of Object.keys(inject)) {
+          handlerParams[key] = this[key];
+        }
+      }
+      if (injectMethod) {
+        for (const key of Object.keys(injectMethod)) {
+          handlerParams[key] = injectedMethodParams[key];
+        }
+      }
+      if (input) {
+        const schema: ZodSchema =
+          input instanceof SchemaDef ? input.schema : input;
+        const parsed = schema.safeParse(injectedMethodParams[inputKey]);
+        if (parsed.error) {
+          throw new ZodValidationException(parsed.error);
+        }
+        handlerParams.input = parsed.data;
+        handlerParams.schemas.input = schema;
+      }
+      // eslint-disable-next-line @typescript-eslint/await-thenable
+      const result: any = await handler(handlerParams as any);
+      let endpointResponse: EndpointResponse;
+      if (result instanceof EndpointResponse) {
+        endpointResponse = result;
+      } else {
+        endpointResponse = new EndpointResponse(200, result);
+      }
+      if (outputSchemas) {
+        const schema = outputSchemas[endpointResponse.status];
+        if (!schema) {
+          throw new Error(
+            `Did not find schema for status code ${endpointResponse.status}`,
+          );
+        }
+        const s = schema instanceof SchemaDef ? schema.schema : schema;
+        const parsed = s.safeParse(endpointResponse.body);
+        if (parsed.error) {
+          throw new ZodSerializationException(parsed.error);
+        }
+        endpointResponse.body = parsed.data;
+      }
+      const res = injectedMethodParams[resKey];
+      const httpAdapterHost: HttpAdapterHost = this[httpAdapterHostKey];
+      const httpAdapter = httpAdapterHost.httpAdapter;
+      const { status, body } = endpointResponse;
+      httpAdapter.status(res, status);
+      if (typeof body !== 'string') {
+        httpAdapter.setHeader(res, 'Content-Type', 'application/json');
+      }
+      if (body === null) {
+        httpAdapter.reply(res, JSON.stringify(null));
+        return;
+      }
+      return body;
+    };
+    // configure method parameters
+    for (let i = 0; i < methodParamDecorators.length; i++) {
+      const paramDecorator = methodParamDecorators[i];
+      const key = Reflect.ownKeys(paramDecorator)[0];
+      const decorator = paramDecorator[key];
+      decorator(cls.prototype, 'handler', i);
+    }
+
+    // method
+    const _tags: string[] = [];
+    for (let i = 0; i < httpPathSegments.length - 1; i++) {
+      const tag = httpPathSegments.slice(0, i + 1).join('/');
+      _tags.push(tag);
+    }
+    const methodDecorators: MethodDecorator[] = [
+      ApiOperation({
+        operationId: httpPathPascalName,
+        tags: [..._tags, ...(tags ?? [])],
+        summary: summary ?? '',
+      }),
+      httpMethodDecorators[httpMethod](''),
+      ...(decorators ?? []),
+    ];
     if (input) {
-      const schema: ZodSchema =
-        input instanceof SchemaDef ? input.schema : input;
-      const parsed = schema.safeParse(injectedMethodParams[inputKey]);
-      if (parsed.error) {
-        throw new ZodValidationException(parsed.error);
+      const schema = input instanceof SchemaDef ? input.schema : input;
+      const dto = createZodDto(schema as any);
+      const schemaName = httpPathPascalName + 'Input';
+      Object.defineProperty(dto, 'name', { value: schemaName });
+      if (httpMethod === 'get') {
+        methodDecorators.push(ApiQueries(dto.schema as any));
+      } else {
+        methodDecorators.push(ApiBody({ type: dto }));
       }
-      handlerParams.input = parsed.data;
-    }
-    // eslint-disable-next-line @typescript-eslint/await-thenable
-    const result: any = await handler(handlerParams as any);
-    let endpointResponse: EndpointResponse;
-    if (result instanceof EndpointResponse) {
-      endpointResponse = result;
-    } else {
-      endpointResponse = new EndpointResponse(200, result);
     }
     if (outputSchemas) {
-      const schema = outputSchemas[endpointResponse.status];
-      if (!schema) {
-        throw new Error(
-          `Did not find schema for status code ${endpointResponse.status}`,
+      for (const [status, schema] of Object.entries(outputSchemas)) {
+        const s = schema instanceof SchemaDef ? schema.schema : schema;
+        const dto = createZodDto(s as any);
+        const schemaName =
+          httpPathPascalName +
+          `${status === '200' ? '' : status}` +
+          'Output';
+        Object.defineProperty(dto, 'name', { value: schemaName });
+        methodDecorators.push(
+          ApiResponse({
+            status: Number(status),
+            type: dto,
+            description:
+              schema instanceof SchemaDef ? schema.description : undefined,
+          }),
         );
       }
-      const s = schema instanceof SchemaDef ? schema.schema : schema;
-      const parsed = s.safeParse(endpointResponse.body);
-      if (parsed.error) {
-        throw new ZodSerializationException(parsed.error);
-      }
-      endpointResponse.body = parsed.data;
     }
-    const res = injectedMethodParams[resKey];
-    const httpAdapterHost: HttpAdapterHost = this[httpAdapterHostKey];
-    const httpAdapter = httpAdapterHost.httpAdapter;
-    const { status, body } = endpointResponse;
-    httpAdapter.status(res, status);
-    if (typeof body !== 'string') {
-      httpAdapter.setHeader(res, 'Content-Type', 'application/json');
-    }
-    if (body === null) {
-      httpAdapter.reply(res, JSON.stringify(null));
-      return;
-    }
-    return body;
-  };
-  // configure method parameters
-  for (let i = 0; i < methodParamDecorators.length; i++) {
-    const paramDecorator = methodParamDecorators[i];
-    const key = Reflect.ownKeys(paramDecorator)[0];
-    const decorator = paramDecorator[key];
-    decorator(cls.prototype, 'handler', i);
-  }
-
-  // method
-  const _tags: string[] = [];
-  for (let i = 0; i < httpPathSegments.length - 1; i++) {
-    const tag = httpPathSegments.slice(0, i + 1).join('/');
-    _tags.push(tag);
-  }
-  const methodDecorators: MethodDecorator[] = [
-    ApiOperation({
-      operationId: httpPathPascalName,
-      tags: [..._tags, ...(tags ?? [])],
-      summary: summary ?? '',
-    }),
-    httpMethodDecorators[httpMethod](''),
-    ...(decorators ?? []),
-  ];
-  if (input) {
-    const schema = input instanceof SchemaDef ? input.schema : input;
-    const dto = createZodDto(schema as any);
-    const schemaName = httpPathPascalName + 'Input';
-    Object.defineProperty(dto, 'name', { value: schemaName });
-    if (httpMethod === 'get') {
-      methodDecorators.push(ApiQueries(dto.schema as any));
-    } else {
-      methodDecorators.push(ApiBody({ type: dto }));
-    }
-  }
-  if (outputSchemas) {
-    for (const [status, schema] of Object.entries(outputSchemas)) {
-      const s = schema instanceof SchemaDef ? schema.schema : schema;
-      const dto = createZodDto(s as any);
-      const schemaName =
-        httpPathPascalName +
-        `${status === '200' ? '' : status}` +
-        'Output';
-      Object.defineProperty(dto, 'name', { value: schemaName });
-      methodDecorators.push(
-        ApiResponse({
-          status: Number(status),
-          type: dto,
-          description:
-            schema instanceof SchemaDef ? schema.description : undefined,
-        }),
-      );
-    }
-  }
-  const methodDecorator = applyDecorators(...methodDecorators);
-  const descriptor = Object.getOwnPropertyDescriptor(
-    cls.prototype,
-    'handler',
-  );
-  methodDecorator(cls.prototype, 'handler', descriptor);
+    const methodDecorator = applyDecorators(...methodDecorators);
+    const descriptor = Object.getOwnPropertyDescriptor(
+      cls.prototype,
+      'handler',
+    );
+    methodDecorator(cls.prototype, 'handler', descriptor);
+  });
 
   return cls;
 }

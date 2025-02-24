@@ -10,9 +10,10 @@ export default tseslint.config(
     ignores: [
       '**/node_modules',
       '**/dist',
-      'packages/*',
-      '!packages/nestjs-endpoints/',
-      '!packages/test-app-express-cjs/',
+      'packages/test-endpoints-module/*',
+      '!packages/test-endpoints-module/test-app-express-cjs/',
+      'packages/test-endpoints-router-module/*',
+      '!packages/test-endpoints-router-module/test-app-express-cjs/',
     ],
   },
   eslint.configs.recommended,
