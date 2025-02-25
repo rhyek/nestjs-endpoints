@@ -1,4 +1,4 @@
-import { type AxiosRequestConfig, type AxiosInstance } from 'axios';
+import type { AxiosRequestConfig, AxiosInstance } from 'axios';
 
 let AXIOS_INSTANCE: AxiosInstance | null = null;
 
