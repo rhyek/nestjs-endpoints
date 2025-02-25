@@ -294,7 +294,7 @@ To call this endpoint:
 ## OpenAPI, Codegen setup (optional)
 
 It's a common practice to automatically generate a client SDK for your API that
-you can use in other backend or frontend projects and have the benefit of full-stack type-safety. tRPC and similar libraries make this easy for you.
+you can use in other backend or frontend projects and have the benefit of full-stack type-safety. tRPC and similar libraries have been written to facilitate this.
 
 We can achieve the same here in two steps. We first build an OpenAPI document, then use that document's
 output with [orval](https://orval.dev/):
@@ -316,3 +316,11 @@ async function bootstrap() {
   await app.listen(3000);
 }
 ```
+
+And then you could have something like this available:
+
+```typescript
+const { id } = await userCreate({ name: 'Tom', email: 'tom@gmail.com' });
+```
+
+Have a look at [this](https://github.com/rhyek/nestjs-endpoints/tree/main/packages/test-endpoints-module/test-app-express-cjs) test project to see how you might configure orval to generate an axios-based client and [here](https://github.com/rhyek/nestjs-endpoints/tree/main/packages/test-endpoints-module/test-app-express-cjs/test/client.e2e-spec.ts) to understand how you would use it.

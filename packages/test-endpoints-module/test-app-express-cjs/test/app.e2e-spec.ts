@@ -9,9 +9,9 @@ import {
 } from 'nestjs-endpoints';
 import request from 'supertest';
 import { AppModule } from '../src/app.module';
-import { AppointmentRepositoryToken } from '../src/user/appointment/appointment-repository.interface';
-import { AppointmentRepository } from '../src/user/appointment/appointment.repository';
-import { UserService } from '../src/user/user.service';
+import { AppointmentRepositoryToken } from '../src/endpoints/user/appointment/appointment-repository.interface';
+import { AppointmentRepository } from '../src/endpoints/user/appointment/appointment.repository';
+import { UserService } from '../src/endpoints/user/user.service';
 import { createApp } from './create-app';
 
 describe('api', () => {

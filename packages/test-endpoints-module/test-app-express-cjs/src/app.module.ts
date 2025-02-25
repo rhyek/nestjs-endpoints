@@ -12,8 +12,8 @@ import {
 } from 'nestjs-endpoints';
 import { Observable, catchError, throwError } from 'rxjs';
 import { ZodError } from 'zod';
-import { TestModule } from './test/test.module';
-import { UserModule } from './user/user.module';
+import { TestModule } from './endpoints/test/test.module';
+import { UserModule } from './endpoints/user/user.module';
 
 @Injectable()
 export class ZodErrorInterceptor implements NestInterceptor {
@@ -35,7 +35,7 @@ export class ZodErrorInterceptor implements NestInterceptor {
 @Module({
   imports: [
     EndpointsRouterModule.forRoot({
-      rootDirectory: './',
+      rootDirectory: './endpoints',
       autoLoadEndpoints: false,
     }),
     UserModule,

@@ -1,2 +1,6 @@
 node_modules/
 openapi.json
+*.e2e-spec.ts
+!packages/test-endpoints-module/test-app-express-cjs/**/*.e2e-spec.ts
+generated/
+!packages/test-endpoints-module/test-app-express-cjs/generated
