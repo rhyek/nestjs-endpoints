@@ -320,7 +320,10 @@ async function bootstrap() {
 And then you could have something like this available:
 
 ```typescript
-const { id } = await userCreate({ name: 'Tom', email: 'tom@gmail.com' });
+const { id } = await userCreate({
+  name: 'Tom',
+  email: 'tom@gmail.com',
+});
 ```
 
 Have a look at [this](https://github.com/rhyek/nestjs-endpoints/tree/main/packages/test-endpoints-module/test-app-express-cjs) test project to see how you might configure orval to generate an axios-based client and [here](https://github.com/rhyek/nestjs-endpoints/tree/main/packages/test-endpoints-module/test-app-express-cjs/test/client.e2e-spec.ts) to understand how you would use it.
