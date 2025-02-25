@@ -1,8 +1,8 @@
 import assert from 'node:assert';
 import { Inject, Req, UseGuards } from '@nestjs/common';
 import { decorated, endpoint, schema, z } from 'nestjs-endpoints';
-import { AuthGuard } from '../../../../auth.guard';
-import { CurrentUser } from '../../../../decorators/current-user.decorator';
+import { AuthGuard } from '../../../../../auth.guard';
+import { CurrentUser } from '../../../../../decorators/current-user.decorator';
 import { UserService } from '../../../user.service';
 import {
   AppointmentRepositoryToken,
