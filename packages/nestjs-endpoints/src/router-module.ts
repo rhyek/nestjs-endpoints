@@ -11,7 +11,8 @@ import { endpointFileRegex, settings } from './consts';
 
 @Module({})
 export class EndpointsRouterModule {
-  static forRoot(params: {
+  // eslint-disable-next-line @typescript-eslint/require-await
+  static async forRoot(params: {
     /**
      * The root directory to load endpoints from recursively. Relative and absolute
      * paths are supported.
@@ -29,23 +30,25 @@ export class EndpointsRouterModule {
     imports?: ModuleMetadata['imports'];
     exports?: ModuleMetadata['exports'];
     providers?: ModuleMetadata['providers'];
-  }): DynamicModule {
+  }): Promise<DynamicModule> {
     let rootDirectory = params.rootDirectory;
     if (!path.isAbsolute(rootDirectory)) {
-      const calledFrom = callsites()[1]?.getFileName();
+      const calledFrom = callsites()[1]
+        ?.getFileName()
+        ?.replace(/^file:/, '');
       if (!calledFrom) {
         throw new Error('Cannot determine call site');
       }
       rootDirectory = path.join(path.dirname(calledFrom), rootDirectory);
     }
     settings.rootDirectory = rootDirectory;
-    let endpoints: Type[] = [];
+    const endpoints: Type[] = [];
     if (params.autoLoadEndpoints ?? true) {
       const endopointFiles = findEndpoints(rootDirectory);
-      endpoints = endopointFiles.map(
+      for (const f of endopointFiles) {
         // eslint-disable-next-line @typescript-eslint/no-require-imports
-        (f) => require(f).default,
-      );
+        endpoints.push(require(f).default);
+      }
     }
     for (const fn of settings.decorateEndpointFns) {
       fn();
