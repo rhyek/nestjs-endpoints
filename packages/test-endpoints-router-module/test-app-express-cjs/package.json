@@ -6,17 +6,10 @@
   "private": true,
   "license": "UNLICENSED",
   "scripts": {
-    "build": "nest build",
-    "dev": "tsx watch --include ./node_modules/nestjs-endpoints/dist --clear-screen=false ./src/main.ts",
-    "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
-    "start": "nest start",
-    "start:dev": "nest start --watch",
-    "start:debug": "nest start --debug --watch",
+    "build": "rm -rf ./dist && pnpm tsc --project tsconfig.build.json",
+    "start": "pnpm build && pnpm start:prod",
     "start:prod": "node dist/main",
-    "test": "jest",
-    "test:watch": "jest --watch",
-    "test:cov": "jest --coverage",
-    "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
+    "dev": "tsx watch --inspect=0 --clear-screen=false ./src/main.ts",
     "test:e2e": "jest --config ./test/jest-e2e.json"
   },
   "dependencies": {
