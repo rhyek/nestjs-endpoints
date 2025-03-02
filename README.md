@@ -4,9 +4,9 @@
 
 ## Introduction
 
-**nestjs-endpoints** is a tool for easily and succinctly writing HTTP APIs with NestJS inspired by the [REPR pattern](https://www.apitemplatepack.com/docs/introduction/repr-pattern/), the [Fast Endpoints](https://fast-endpoints.com/) .NET library, [tRPC](https://trpc.io/), and Next.js' file-based routing.
+**nestjs-endpoints** is a lightweight tool for writing clean and succinct HTTP APIs with NestJS that encourages the [REPR](https://www.apitemplatepack.com/docs/introduction/repr-pattern/) design pattern, code colocation, and the Single Responsibility Principle.
 
-It features [zod](https://zod.dev/) input and output validation, comprehensive type-inference, and `@nestjs/swagger` + [nestjs-zod](https://github.com/BenLorantfy/nestjs-zod) to optionally automatically generate an OpenAPI spec file which can be used to then generate client SDKs using something like [orval](https://orval.dev/).
+It's inspired by the [Fast Endpoints](https://fast-endpoints.com/) .NET library, [tRPC](https://trpc.io/), and Next.js' file-based routing.
 
 An endpoint can be as simple as this:
 
@@ -28,9 +28,10 @@ Hello, World!%
 - **Easy setup:** Automatically scans your entire project for endpoint files and loads them.
 - **File-based routing:** Each endpoint's HTTP path is based on their path on disk.
 - **User-Friendly API:** Supports both basic and advanced per-endpoint configuration.
-- **Fully typed:** Compile and run-time validation of input and output values using Zod schemas.
+- **Schema validation:** Compile and run-time validation of input and output values using Zod schemas.
 - **HTTP adapter agnostic:** Works with both Express and Fastify NestJS applications.
 - **Stable:** Produces regular **NestJS Controllers** under the hood.
+- **Client SDK codegen:** Annotates endpoints using `@nestjs/swagger` and [nestjs-zod](https://github.com/BenLorantfy/nestjs-zod) internally to output an OpenAPI document which [orval](https://orval.dev/) can use to generate a client library.
 
 ## Getting Started
 
@@ -150,9 +151,13 @@ null%
 
 ## File-based routing
 
-HTTP paths for endpoints are determined by looking at the file's absolute path on disk,
-stripping `rootDirectory`, then removing any path segments that start with an underscore (`_`).
-Filenames must either end in `.endpoint.ts` or be `endpoint.ts` (`js`, `cjs`, `mjs`, `mts` are also supported).
+HTTP paths for endpoints are derived by the file's path on disk:
+
+- `rootDirectory` is removed from the start
+- Path segments that begin with an underscore (`_`) are removed
+- Filenames must either end in `.endpoint.ts` or be `endpoint.ts`
+- `js`, `cjs`, `mjs`, `mts` are also supported.
+- Route parameters are **not** suported (`user/:userId`)
 
 Examples (assume `rootDirectory` is `./endpoints`):
 
@@ -289,7 +294,7 @@ To call this endpoint:
 ## OpenAPI, Codegen setup (optional)
 
 It's a common practice to automatically generate a client SDK for your API that
-you can use in other backend or frontend projects and have the benefit of full-stack type-safety. tRPC and similar libraries make this easy for you.
+you can use in other backend or frontend projects and have the benefit of full-stack type-safety. tRPC and similar libraries have been written to facilitate this.
 
 We can achieve the same here in two steps. We first build an OpenAPI document, then use that document's
 output with [orval](https://orval.dev/):
@@ -311,3 +316,14 @@ async function bootstrap() {
   await app.listen(3000);
 }
 ```
+
+And then you could have something like this available:
+
+```typescript
+const { id } = await userCreate({
+  name: 'Tom',
+  email: 'tom@gmail.com',
+});
+```
+
+Have a look at [this](https://github.com/rhyek/nestjs-endpoints/tree/main/packages/test-endpoints-module/test-app-express-cjs) test project to see how you might configure orval to generate an axios-based client and [here](https://github.com/rhyek/nestjs-endpoints/tree/main/packages/test-endpoints-module/test-app-express-cjs/test/client.e2e-spec.ts) to understand how you would use it.
