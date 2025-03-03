@@ -42,16 +42,26 @@ export class EndpointsRouterModule {
       rootDirectory = path.join(path.dirname(calledFrom), rootDirectory);
     }
     settings.rootDirectory = rootDirectory;
-    const endpoints: Type[] = [];
+    let endpoints: Type[] = [];
     if (params.autoLoadEndpoints ?? true) {
       const endopointFiles = findEndpoints(rootDirectory);
       for (const f of endopointFiles) {
         // eslint-disable-next-line @typescript-eslint/no-require-imports
-        endpoints.push(require(f).default);
+        const endpoint = require(f).default;
+        if (endpoint) {
+          endpoints.push(endpoint);
+        }
       }
     }
     for (const fn of settings.decorateEndpointFns) {
       fn();
+    }
+    if (endpoints.length > 0) {
+      endpoints = endpoints.filter((e) => {
+        return Reflect.getMetadataKeys(e).some(
+          (k) => k === 'endpoints:path',
+        );
+      });
     }
 
     return {

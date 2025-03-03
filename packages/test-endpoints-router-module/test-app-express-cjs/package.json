@@ -8,6 +8,7 @@
   "scripts": {
     "build": "rm -rf ./dist && pnpm tsc --project tsconfig.build.json",
     "start": "pnpm build && pnpm start:prod",
+    "start:dev": "nest start --watch",
     "start:prod": "node dist/main",
     "dev": "tsx watch --inspect=0 --clear-screen=false ./src/main.ts",
     "test:e2e": "jest --config ./test/jest-e2e.json"
