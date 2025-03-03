@@ -471,6 +471,7 @@ export function endpoint<
       'handler',
     );
     methodDecorator(cls.prototype, 'handler', descriptor);
+    Reflect.defineMetadata('endpoints:path', httpPath, cls);
   });
 
   return cls;
