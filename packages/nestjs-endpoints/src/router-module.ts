@@ -6,8 +6,8 @@ import {
   ModuleMetadata,
   Type,
 } from '@nestjs/common';
-import callsites from 'callsites';
 import { endpointFileRegex, settings } from './consts';
+import { getCallsiteFile } from './helpers';
 
 @Module({})
 export class EndpointsRouterModule {
@@ -33,12 +33,7 @@ export class EndpointsRouterModule {
   }): Promise<DynamicModule> {
     let rootDirectory = params.rootDirectory;
     if (!path.isAbsolute(rootDirectory)) {
-      const calledFrom = callsites()[1]
-        ?.getFileName()
-        ?.replace(/^file:/, '');
-      if (!calledFrom) {
-        throw new Error('Cannot determine call site');
-      }
+      const calledFrom = getCallsiteFile();
       rootDirectory = path.join(path.dirname(calledFrom), rootDirectory);
     }
     settings.rootDirectory = rootDirectory;

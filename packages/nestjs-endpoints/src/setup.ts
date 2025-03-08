@@ -4,6 +4,7 @@ import { Writable } from 'node:stream';
 import { INestApplication } from '@nestjs/common';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { patchNestJsSwagger } from 'nestjs-zod';
+import { getCallsiteFile } from './helpers';
 
 export async function setupOpenAPI(
   app: INestApplication,
@@ -36,7 +37,7 @@ export async function setupOpenAPI(
     } else {
       const documentFile = path.isAbsolute(outputFile)
         ? outputFile
-        : path.resolve(process.cwd(), outputFile);
+        : path.resolve(path.dirname(getCallsiteFile()), outputFile);
       const currentDocument = await readFile(documentFile, 'utf-8').catch(
         () => '',
       );

@@ -308,7 +308,7 @@ async function bootstrap() {
   const app = await NestFactory.create(AppModule);
   const { document, changed } = await setupOpenAPI(app, {
     configure: (builder) => builder.setTitle('My Api'),
-    outputFile: 'openapi.json',
+    outputFile: process.cwd() + '/openapi.json',
   });
   if (changed) {
     void import('orval').then(({ generate }) => generate());
