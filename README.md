@@ -26,11 +26,11 @@ Hello, World!%
 ## Features
 
 - **Easy setup:** Automatically scans your entire project for endpoint files and loads them.
+- **Stable:** Produces regular **NestJS Controllers** under the hood.
 - **File-based routing:** Each endpoint's HTTP path is based on their path on disk.
 - **User-Friendly API:** Supports both basic and advanced per-endpoint configuration.
 - **Schema validation:** Compile and run-time validation of input and output values using Zod schemas.
 - **HTTP adapter agnostic:** Works with both Express and Fastify NestJS applications.
-- **Stable:** Produces regular **NestJS Controllers** under the hood.
 - **Client SDK codegen:** Annotates endpoints using `@nestjs/swagger` and [nestjs-zod](https://github.com/BenLorantfy/nestjs-zod) internally to output an OpenAPI document which [orval](https://orval.dev/) can use to generate a client library.
 
 ## Getting Started
@@ -151,7 +151,7 @@ null%
 
 ## File-based routing
 
-HTTP paths for endpoints are derived by the file's path on disk:
+HTTP paths for endpoints are derived from the file's path on disk:
 
 - `rootDirectory` is removed from the start
 - Path segments that begin with an underscore (`_`) are removed
