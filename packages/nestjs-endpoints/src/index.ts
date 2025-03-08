@@ -1,6 +1,6 @@
 export { z } from 'zod';
 export { EndpointsModule } from './decorators';
-export { endpoint, decorated, schema } from './fns';
+export { endpoint, decorated, schema } from './endpoint-fn';
 export {
   ZodValidationException,
   ZodSerializationException,

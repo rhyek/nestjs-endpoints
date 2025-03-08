@@ -101,3 +101,15 @@ export const ApiQueries = <T extends z.ZodObject<ZodRawShape>>(
 export function shouldJson(value: unknown) {
   return typeof value !== 'string';
 }
+
+export function getCallsiteFile() {
+  const callsite = callsites()[2];
+  if (!callsite) {
+    throw new Error('Callsite not found');
+  }
+  const result = callsite.getFileName()?.replace(/^file:\/\//, '');
+  if (!result) {
+    throw new Error('Callsite file not found');
+  }
+  return result;
+}
