@@ -109,8 +109,8 @@ export default endpoint({
     const user = await db.user.create(input);
     return {
       id: user.id,
-      // Removed during zod validation
-      extra: 'This will be stripped',
+      // Stripped during zod validation
+      name: user.name,
     };
   },
 });
