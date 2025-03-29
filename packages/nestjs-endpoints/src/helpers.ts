@@ -4,7 +4,6 @@ import { ApiQuery, ApiQueryOptions } from '@nestjs/swagger';
 import callsites from 'callsites';
 import { zodToOpenAPI } from 'nestjs-zod';
 import { z, ZodRawShape } from 'zod';
-import { endpointFileRegex, settings } from './consts';
 
 function isDirPathSegment(dir: string) {
   const segment = path.basename(dir);
@@ -16,27 +15,13 @@ function isDirPathSegment(dir: string) {
 const shortCircuitDirs: Record<string, boolean> = {
   [process.cwd()]: true,
 };
-export function getEndpointHttpPath(_callsites: callsites.CallSite[]) {
-  if (!settings.rootDirectory) {
-    throw new Error(
-      'nestjs-endpoints root directory not set. Did you configure EndpointsRouterModule?',
-    );
-  }
-  shortCircuitDirs[settings.rootDirectory] = true;
-  const file = _callsites
-    .map((callsite) => {
-      const fileName = callsite.getFileName();
-      if (!fileName || fileName.includes('node_modules')) {
-        return null;
-      }
-      return fileName.replace(/^file:\/\//, '');
-    })
-    .find((f) => f && f.match(endpointFileRegex));
-  if (!file) {
-    throw new Error('Endpoint file not found');
-  }
-
-  const pathSegments: string[] = [];
+export function getEndpointHttpPath(
+  rootDirectory: string,
+  basePath: string,
+  file: string,
+) {
+  shortCircuitDirs[rootDirectory] = true;
+  let pathSegments: string[] = [];
   let start = path.dirname(file);
   let lastDirPathSegment: string | null = null;
 
@@ -60,7 +45,8 @@ export function getEndpointHttpPath(_callsites: callsites.CallSite[]) {
   if (lastDirPathSegment) {
     shortCircuitDirs[path.dirname(lastDirPathSegment)] = true;
   }
-  pathSegments.reverse();
+  const basePathSegments = basePath.split('/').filter(Boolean);
+  pathSegments = [...basePathSegments, ...pathSegments.reverse()];
 
   const basename = path.basename(file, path.extname(file));
   if (basename !== 'endpoint') {

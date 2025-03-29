@@ -2,21 +2,12 @@
 set -e
 __dirname=$(realpath "$(dirname "$0")")
 
-pnpm --filter "./packages/test-endpoints-module/test-app-express-cjs" run codegen
+pnpm --filter "./packages/test/test-app-express-cjs" run codegen
 
-pnpm --filter "./packages/test-endpoints-module/*" --filter "!test-app-express-cjs" exec sh -c "\
+pnpm --filter "./packages/test/*" --filter "!test-app-express-cjs" exec sh -c "\
   rsync -ar ../test-app-express-cjs/src/ ./src/ && \
   rsync -ar ../test-app-express-cjs/generated/ ./generated/ && \
   rsync -ar ../test-app-express-cjs/test/ ./test/ --exclude=create-app.ts
-"
-
-pnpm --filter "./packages/test-endpoints-router-module/*" --filter "!test-app-router-module-express-cjs" exec sh -c "\
-  rsync -ar ../test-app-express-cjs/src/ ./src/
-"
-
-pnpm --filter "./packages/test-endpoints-router-module/*" exec sh -c "\
-  rsync -ar ../../test-endpoints-module/test-app-express-cjs/generated/ ./generated/ && \
-  rsync -ar ../../test-endpoints-module/test-app-express-cjs/test/ ./test/ --exclude=create-app.ts
 "
 
 pnpm --filter "test-app-*" run test:e2e --no-cache
@@ -25,16 +16,24 @@ pnpm --filter "test-app-*" run test:e2e --no-cache
 test_real_run() {
   local type=$1
   
-  cd $__dirname/../packages/test-endpoints-router-module/test-app-express-$type
+  cd $__dirname/../packages/test/test-app-express-$type
   # enable job control so we get a new process group for the server
   set -m
   pnpm start &
-  set +m
   SERVER_PID=$!
+  set +m
 
   wget -qO- https://raw.githubusercontent.com/eficode/wait-for/v2.2.3/wait-for | sh -s -- http://localhost:3000/test/status --timeout=5 -- echo $type success
 
-  kill -9 -- -$(ps -o pgid= -p $SERVER_PID)
+  # Get the process group ID and ensure it's a valid number before using it
+  PGID=$(ps -o pgid= -p $SERVER_PID | tr -d ' ')
+  if [[ -n "$PGID" && "$PGID" =~ ^[0-9]+$ ]]; then
+    kill -9 -- -$PGID
+  else
+    # Fallback to killing just the server process if we can't get the group
+    kill -9 $SERVER_PID 2>/dev/null || true
+  fi
+  
   wait $SERVER_PID 2>/dev/null || true
 }
 

@@ -31,9 +31,13 @@ jobs:
 
       - run: cp README.md ./packages/nestjs-endpoints/README.md
 
+      - name: Extract changelog entry
+        run: ./scripts/change-log-entry.sh ${{ github.ref_name }} > ${{ github.workspace }}/RELEASE_BODY.txt
+
       - name: GitHub Release
         uses: softprops/action-gh-release@v2
         with:
+          body_path: ${{ github.workspace }}/RELEASE_BODY.txt
           files: |
             packages/nestjs-endpoints/package.json
             packages/nestjs-endpoints/README.md
