@@ -1,9 +1,13 @@
 export const endpointFileRegex = /\bendpoint\.(js|ts|mjs|cjs|mts)$/;
 
 export const settings: {
-  rootDirectory: string | null;
-  decorateEndpointFns: (() => void)[];
+  endpoints: {
+    file: string;
+    setupFn: (settings: {
+      rootDirectory: string;
+      basePath: string;
+    }) => void;
+  }[];
 } = {
-  rootDirectory: null,
-  decorateEndpointFns: [],
+  endpoints: [],
 };

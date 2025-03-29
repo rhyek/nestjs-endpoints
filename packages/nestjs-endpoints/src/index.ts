@@ -1,5 +1,4 @@
 export { z } from 'zod';
-export { EndpointsModule } from './decorators';
 export { endpoint, decorated, schema } from './endpoint-fn';
 export {
   ZodValidationException,
@@ -7,4 +6,4 @@ export {
 } from 'nestjs-zod';
 export * from './helpers';
 export * from './setup';
-export { EndpointsRouterModule } from './router-module';
+export { EndpointsRouterModule } from './endpoints-router.module';

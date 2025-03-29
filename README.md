@@ -50,7 +50,7 @@ import { EndpointsRouterModule } from 'nestjs-endpoints';
 
 @Module({
   imports: [
-    EndpointsRouterModule.forRoot({
+    EndpointsRouterModule.register({
       rootDirectory: './endpoints',
       providers: [DbService], // available to all endpoints
     }),
@@ -125,7 +125,7 @@ null%
 # bad input
 ❯ curl -s -X 'POST' 'http://localhost:3000/user/create' \
 -H 'Content-Type: application/json' \
--d '{"name": "Art", "emailTYPO": "art@vandelayindustries.com"}' | jq
+-d '{"name": "Art", "emailTYPO": "art@gmail.com"}' | jq
 {
   "statusCode": 400,
   "message": "Validation failed",
@@ -153,7 +153,8 @@ null%
 
 HTTP paths for endpoints are derived from the file's path on disk:
 
-- `rootDirectory` is removed from the start
+- `rootDirectory` is trimmed from the start
+- Optional `basePath` is prepended
 - Path segments that begin with an underscore (`_`) are removed
 - Filenames must either end in `.endpoint.ts` or be `endpoint.ts`
 - `js`, `cjs`, `mjs`, `mts` are also supported.
@@ -168,20 +169,25 @@ Examples (assume `rootDirectory` is `./endpoints`):
 
 ## Advanced Usage
 
-Depending on the project's requirements, the above should ideally suffice most of the time. In case you need access to more of NestJS' features like Interceptors, Guards, access to the request object, etc, or if you'd rather have isolated NestJS modules per feature with their own providers, here is a more complete example:
+Depending on the project's requirements, the above should ideally suffice most of the time. In case you need access to more of NestJS' features like Interceptors, Guards, access to the request object, etc, or if you'd rather have contained NestJS modules per feature with their own endpoints
+and providers, here is a more complete example (view full example [here](https://github.com/rhyek/nestjs-endpoints/tree/main/packages/test/test-app-express-cjs)):
 
 > _**Note:**_ You are also welcome to use both NestJS Controllers and endpoints in the same project.
 
 `src/app.module.ts`
 
 ```typescript
+import { Module } from '@nestjs/common';
 import { EndpointsRouterModule } from 'nestjs-endpoints';
 
 @Module({
   imports: [
-    EndpointsRouterModule.forRoot({
-      rootDirectory: './',
-      autoLoadEndpoints: false, // manually load endpoints
+    // Contained user module with endpoints
+    UserModule,
+    // Other endpoints
+    EndpointsRouterModule.register({
+      rootDirectory: './endpoints',
+      providers: [DbService],
     }),
   ],
 })
@@ -191,17 +197,22 @@ export class AppModule {}
 `src/user/user.module.ts`
 
 ```typescript
-import { EndpointsModule } from 'nestjs-endpoints';
-import create from './appointment/_endpoints/create/endpoint';
+import { Module } from '@nestjs/common';
+import { EndpointsRouterModule } from 'nestjs-endpoints';
 
-@EndpointsModule({
-  endpoints: [create],
-  providers: [
-    DbService,
-    {
-      provide: AppointmentRepositoryToken,
-      useClass: AppointmentRepository as IAppointmentRepository,
-    },
+@Module({
+  imports: [
+    EndpointsRouterModule.register({
+      rootDirectory: './',
+      basePath: 'user',
+      providers: [
+        DbService,
+        {
+          provide: AppointmentRepositoryToken,
+          useClass: AppointmentRepository as IAppointmentRepository,
+        },
+      ],
+    }),
   ],
 })
 export class UserModule {}
@@ -326,4 +337,4 @@ const { id } = await userCreate({
 });
 ```
 
-Have a look at [this](https://github.com/rhyek/nestjs-endpoints/tree/main/packages/test-endpoints-module/test-app-express-cjs) test project to see how you might configure orval to generate an axios-based client and [here](https://github.com/rhyek/nestjs-endpoints/tree/main/packages/test-endpoints-module/test-app-express-cjs/test/client.e2e-spec.ts) to understand how you would use it.
+Have a look at [this](https://github.com/rhyek/nestjs-endpoints/tree/main/packages/test/test-app-express-cjs) test project to see how you might configure orval to generate an axios-based client and [here](https://github.com/rhyek/nestjs-endpoints/tree/main/packages/test/test-app-express-cjs/test/client.e2e-spec.ts) to understand how you would use it.
