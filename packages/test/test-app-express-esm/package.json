@@ -11,20 +11,21 @@
     "start": "pnpm build && pnpm start:prod",
     "start:prod": "node dist/main",
     "dev": "tsx watch --inspect=0 --clear-screen=false ./src/main.ts",
-    "test:e2e": "jest --config ./test/jest-e2e.json"
+    "test:e2e": "jest --config ./test/jest-e2e.json",
+    "codegen": "tsx ./src/codegen.ts"
   },
   "dependencies": {
-    "@nestjs/common": "^11.0.8",
-    "@nestjs/core": "^11.0.8",
-    "@nestjs/platform-express": "^11.0.8",
+    "@nestjs/common": "^11.0.13",
+    "@nestjs/core": "^11.0.13",
+    "@nestjs/platform-express": "^11.0.13",
     "nestjs-endpoints": "workspace:*",
     "reflect-metadata": "^0.1.13",
     "rxjs": "^7.8.1"
   },
   "devDependencies": {
-    "@nestjs/cli": "^11.0.2",
-    "@nestjs/schematics": "^11.0.0",
-    "@nestjs/testing": "^11.0.8",
+    "@nestjs/cli": "^11.0.6",
+    "@nestjs/schematics": "^11.0.3",
+    "@nestjs/testing": "^11.0.13",
     "@types/express": "^5.0.0",
     "@types/jest": "^29.5.2",
     "@types/node": "^20.3.1",

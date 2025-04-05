@@ -2,13 +2,16 @@
 set -e
 __dirname=$(realpath "$(dirname "$0")")
 
-pnpm --filter "./packages/test/test-app-express-cjs" run codegen
+pnpm --filter "./packages/test/*" exec rm -rf generated
 
 pnpm --filter "./packages/test/*" --filter "!test-app-express-cjs" exec sh -c "\
   rsync -ar ../test-app-express-cjs/src/ ./src/ && \
-  rsync -ar ../test-app-express-cjs/generated/ ./generated/ && \
   rsync -ar ../test-app-express-cjs/test/ ./test/ --exclude=create-app.ts
 "
+
+pnpm --filter "./packages/test/*" run codegen
+
+sleep 2
 
 pnpm --filter "test-app-*" run test:e2e --no-cache
 

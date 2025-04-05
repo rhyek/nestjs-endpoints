@@ -1,13 +1,15 @@
 import { NestFactory } from '@nestjs/core';
-import { setupOpenAPI } from 'nestjs-endpoints';
-import { generate } from 'orval';
+import { setupCodegen } from 'nestjs-endpoints';
 import { AppModule } from './app.module';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
-  await setupOpenAPI(app, {
-    outputFile: process.cwd() + '/openapi.json',
+  await setupCodegen(app, {
+    clients: {
+      axios: {
+        outputFile: process.cwd() + '/generated/axios-client.ts',
+      },
+    },
   });
-  void generate();
 }
 void bootstrap();
