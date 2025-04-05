@@ -13,12 +13,10 @@ export async function setupCodegen(
       outputFile?: string | Writable;
       configure?: (documentBuilder: DocumentBuilder) => void;
     };
-    clients: Record<
-      'axios',
-      {
-        outputFile: string;
-      }
-    >;
+    clients: {
+      type: 'axios' | 'react-query';
+      outputFile: string;
+    }[];
   },
 ) {
   const openapiOutputFile =
@@ -28,35 +26,27 @@ export async function setupCodegen(
     ...params.openapi,
     outputFile: openapiOutputFile,
   });
-  const outputFileExists = Object.fromEntries(
-    await Promise.all(
-      Object.entries(params.clients).map(async ([k, v]) => {
-        return [
-          k,
-          await fs
-            .stat(v.outputFile)
-            .then(() => true)
-            .catch(() => false),
-        ] as const;
-      }),
+  const outputFileExists = await Promise.all(
+    params.clients.map((client) =>
+      fs
+        .stat(client.outputFile)
+        .then(() => true)
+        .catch(() => false),
     ),
   );
-  if (
-    changed ||
-    Object.values(outputFileExists).some((exists) => !exists)
-  ) {
+  if (changed || outputFileExists.some((exists) => !exists)) {
     await import('orval').then(async ({ generate }) => {
       await Promise.all(
-        Object.entries(params.clients)
-          .filter(([k]) => changed || !outputFileExists[k])
-          .map(async ([k, v]) => {
-            if (k === 'axios') {
+        params.clients
+          .filter((_, index) => changed || !outputFileExists[index])
+          .map(async (client) => {
+            if (client.type === 'axios') {
               await generate({
                 input: {
                   target: document as any,
                 },
                 output: {
-                  target: v.outputFile,
+                  target: client.outputFile,
                   client: axiosBuilder,
                   mode: 'single',
                   indexFiles: false,
