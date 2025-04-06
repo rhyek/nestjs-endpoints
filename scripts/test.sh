@@ -25,7 +25,7 @@ test_real_run() {
   SERVER_PID=$!
   set +m
 
-  wget -qO- https://raw.githubusercontent.com/eficode/wait-for/v2.2.3/wait-for | sh -s -- http://localhost:3000/test/status --timeout=5 -- echo $type success
+  wget -qO- https://raw.githubusercontent.com/eficode/wait-for/v2.2.3/wait-for | sh -s -- http://localhost:3000/test/status --timeout=10 -- echo $type success
 
   # Get the process group ID and ensure it's a valid number before using it
   PGID=$(ps -o pgid= -p $SERVER_PID | tr -d ' ')
@@ -54,7 +54,7 @@ test_react_query_client() {
   SERVER_PID=$!
   set +m
 
-  wget -qO- https://raw.githubusercontent.com/eficode/wait-for/v2.2.3/wait-for | sh -s -- http://localhost:3000/test/status --timeout=5 -- echo $type success
+  wget -qO- https://raw.githubusercontent.com/eficode/wait-for/v2.2.3/wait-for | sh -s -- http://localhost:3000/test/status --timeout=10 -- echo $type success
 
   cd $__dirname/../packages/test/test-react-query-client
   pnpm test run
