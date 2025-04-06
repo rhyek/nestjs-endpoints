@@ -29,18 +29,25 @@ export function UserPage() {
 
   return (
     <div>
-      {!purged || (status === 'pending' && <div>Loading...</div>)}
-      {error && (
-        <div>
-          Error: {(error.response?.data as { message: string }).message}
-        </div>
+      {!purged || status === 'pending' ? (
+        <div>Loading...</div>
+      ) : (
+        <>
+          {error && (
+            <div>
+              Error:{' '}
+              {(error.response?.data as { message: string }).message}
+            </div>
+          )}
+          {data && (
+            <div>
+              <div>Name: {data.name}</div>
+              <div>Email: {data.email}</div>
+            </div>
+          )}
+        </>
       )}
-      {data && (
-        <div>
-          <div>Name: {data.name}</div>
-          <div>Email: {data.email}</div>
-        </div>
-      )}
+
       <div>
         <button
           onClick={async () => {
