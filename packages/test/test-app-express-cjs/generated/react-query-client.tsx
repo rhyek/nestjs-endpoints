@@ -5,7 +5,9 @@
  */
 import { useMutation, useQuery } from '@tanstack/react-query';
 import type {
+  DataTag,
   MutationFunction,
+  QueryClient,
   QueryFunction,
   QueryKey,
   UseMutationOptions,
@@ -73,11 +75,24 @@ export type UserFindOutput = {
   email: string;
 } | null;
 
+/**
+ * @nullable
+ */
+export type UserGetOutput = {
+  id: number;
+  name: string;
+  email: string;
+} | null;
+
 export type UserAppointmentCountParams = {
   userId: number;
 };
 
 export type UserFindParams = {
+  id: number;
+};
+
+export type UserGetParams = {
   id: number;
 };
 
@@ -149,6 +164,22 @@ export const createApiClient = (
     });
   };
 
+  const userGet = (
+    params: UserGetParams,
+    options?: AxiosRequestConfig,
+  ): Promise<AxiosResponse<UserGetOutput>> => {
+    return axios.get(`/user/get`, {
+      ...options,
+      params: { ...params, ...options?.params },
+    });
+  };
+
+  const userPurge = (
+    options?: AxiosRequestConfig,
+  ): Promise<AxiosResponse<void>> => {
+    return axios.post(`/user/purge`, undefined, options);
+  };
+
   return {
     authLogin,
     testError,
@@ -157,6 +188,8 @@ export const createApiClient = (
     userAppointmentCreate,
     userCreate,
     userFind,
+    userGet,
+    userPurge,
     axios,
   };
 };
@@ -193,7 +226,7 @@ export const getAuthLoginMutationOptions = <
   TContext = unknown,
 >(options: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<ApiClient['authLogin']>>,
+    Awaited<ReturnType<ApiClient['authLogin']>>['data'],
     TError,
     { data: AuthLoginInput },
     TContext
@@ -201,7 +234,7 @@ export const getAuthLoginMutationOptions = <
   axios?: AxiosRequestConfig;
   client: ApiClient;
 }): UseMutationOptions<
-  Awaited<ReturnType<ApiClient['authLogin']>>,
+  Awaited<ReturnType<ApiClient['authLogin']>>['data'],
   TError,
   { data: AuthLoginInput },
   TContext
@@ -216,19 +249,21 @@ export const getAuthLoginMutationOptions = <
     : { mutation: { mutationKey }, axios: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<ApiClient['authLogin']>>,
+    Awaited<ReturnType<ApiClient['authLogin']>>['data'],
     { data: AuthLoginInput }
   > = (props) => {
     const { data } = props ?? {};
 
-    return options.client.authLogin(data, axiosOptions);
+    return options.client
+      .authLogin(data, axiosOptions)
+      .then((res) => res.data);
   };
 
   return { mutationFn, ...mutationOptions };
 };
 
 export type AuthLoginMutationResult = NonNullable<
-  Awaited<ReturnType<ApiClient['authLogin']>>
+  Awaited<ReturnType<ApiClient['authLogin']>>['data']
 >;
 export type AuthLoginMutationBody = AuthLoginInput;
 export type AuthLoginMutationError = AxiosError<unknown>;
@@ -236,21 +271,24 @@ export type AuthLoginMutationError = AxiosError<unknown>;
 export const useAuthLogin = <
   TError = AxiosError<unknown>,
   TContext = unknown,
->(options?: {
-  mutation?: UseMutationOptions<
-    Awaited<ReturnType<ApiClient['authLogin']>>,
-    TError,
-    { data: AuthLoginInput },
-    TContext
-  >;
-  axios?: AxiosRequestConfig;
-}) => {
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<ApiClient['authLogin']>>['data'],
+      TError,
+      { data: AuthLoginInput },
+      TContext
+    >;
+    axios?: AxiosRequestConfig;
+  },
+  queryClient?: QueryClient,
+) => {
   const client = useApiClient();
   const mutationOptions = getAuthLoginMutationOptions(
     Object.assign({ client }, options),
   );
 
-  return useMutation(mutationOptions);
+  return useMutation(mutationOptions, queryClient);
 };
 
 export const getTestErrorQueryKey = () => {
@@ -258,13 +296,15 @@ export const getTestErrorQueryKey = () => {
 };
 
 export const getTestErrorQueryOptions = <
-  TData = Awaited<ReturnType<ApiClient['testError']>>,
+  TData = Awaited<ReturnType<ApiClient['testError']>>['data'],
   TError = AxiosError<unknown>,
 >(options: {
-  query?: UseQueryOptions<
-    Awaited<ReturnType<ApiClient['testError']>>,
-    TError,
-    TData
+  query?: Partial<
+    UseQueryOptions<
+      Awaited<ReturnType<ApiClient['testError']>>['data'],
+      TError,
+      TData
+    >
   >;
   axios?: AxiosRequestConfig;
   client: ApiClient;
@@ -274,41 +314,51 @@ export const getTestErrorQueryOptions = <
   const queryKey = queryOptions?.queryKey ?? getTestErrorQueryKey();
 
   const queryFn: QueryFunction<
-    Awaited<ReturnType<ApiClient['testError']>>
+    Awaited<ReturnType<ApiClient['testError']>>['data']
   > = ({ signal }) =>
-    options.client.testError({ signal, ...axiosOptions });
+    options.client
+      .testError({ signal, ...axiosOptions })
+      .then((res) => res.data);
 
   return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
-    Awaited<ReturnType<ApiClient['testError']>>,
+    Awaited<ReturnType<ApiClient['testError']>>['data'],
     TError,
     TData
-  > & { queryKey: QueryKey };
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
 };
 
 export type TestErrorQueryResult = NonNullable<
-  Awaited<ReturnType<ApiClient['testError']>>
+  Awaited<ReturnType<ApiClient['testError']>>['data']
 >;
 export type TestErrorQueryError = AxiosError<unknown>;
 
 export function useTestError<
-  TData = Awaited<ReturnType<ApiClient['testError']>>,
+  TData = Awaited<ReturnType<ApiClient['testError']>>['data'],
   TError = AxiosError<unknown>,
->(options?: {
-  query?: UseQueryOptions<
-    Awaited<ReturnType<ApiClient['testError']>>,
-    TError,
-    TData
-  >;
-  axios?: AxiosRequestConfig;
-}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<ApiClient['testError']>>['data'],
+        TError,
+        TData
+      >
+    >;
+    axios?: AxiosRequestConfig;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & {
+  queryKey: DataTag<QueryKey, TData, TError>;
+} {
   const client = useApiClient();
   const queryOptions = getTestErrorQueryOptions(
     Object.assign({ client }, options),
   );
 
-  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
-    queryKey: QueryKey;
-  };
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<
+    TData,
+    TError
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
 
   query.queryKey = queryOptions.queryKey;
 
@@ -320,13 +370,15 @@ export const getTestStatusQueryKey = () => {
 };
 
 export const getTestStatusQueryOptions = <
-  TData = Awaited<ReturnType<ApiClient['testStatus']>>,
+  TData = Awaited<ReturnType<ApiClient['testStatus']>>['data'],
   TError = AxiosError<unknown>,
 >(options: {
-  query?: UseQueryOptions<
-    Awaited<ReturnType<ApiClient['testStatus']>>,
-    TError,
-    TData
+  query?: Partial<
+    UseQueryOptions<
+      Awaited<ReturnType<ApiClient['testStatus']>>['data'],
+      TError,
+      TData
+    >
   >;
   axios?: AxiosRequestConfig;
   client: ApiClient;
@@ -336,41 +388,51 @@ export const getTestStatusQueryOptions = <
   const queryKey = queryOptions?.queryKey ?? getTestStatusQueryKey();
 
   const queryFn: QueryFunction<
-    Awaited<ReturnType<ApiClient['testStatus']>>
+    Awaited<ReturnType<ApiClient['testStatus']>>['data']
   > = ({ signal }) =>
-    options.client.testStatus({ signal, ...axiosOptions });
+    options.client
+      .testStatus({ signal, ...axiosOptions })
+      .then((res) => res.data);
 
   return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
-    Awaited<ReturnType<ApiClient['testStatus']>>,
+    Awaited<ReturnType<ApiClient['testStatus']>>['data'],
     TError,
     TData
-  > & { queryKey: QueryKey };
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
 };
 
 export type TestStatusQueryResult = NonNullable<
-  Awaited<ReturnType<ApiClient['testStatus']>>
+  Awaited<ReturnType<ApiClient['testStatus']>>['data']
 >;
 export type TestStatusQueryError = AxiosError<unknown>;
 
 export function useTestStatus<
-  TData = Awaited<ReturnType<ApiClient['testStatus']>>,
+  TData = Awaited<ReturnType<ApiClient['testStatus']>>['data'],
   TError = AxiosError<unknown>,
->(options?: {
-  query?: UseQueryOptions<
-    Awaited<ReturnType<ApiClient['testStatus']>>,
-    TError,
-    TData
-  >;
-  axios?: AxiosRequestConfig;
-}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<ApiClient['testStatus']>>['data'],
+        TError,
+        TData
+      >
+    >;
+    axios?: AxiosRequestConfig;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & {
+  queryKey: DataTag<QueryKey, TData, TError>;
+} {
   const client = useApiClient();
   const queryOptions = getTestStatusQueryOptions(
     Object.assign({ client }, options),
   );
 
-  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
-    queryKey: QueryKey;
-  };
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<
+    TData,
+    TError
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
 
   query.queryKey = queryOptions.queryKey;
 
@@ -384,15 +446,17 @@ export const getUserAppointmentCountQueryKey = (
 };
 
 export const getUserAppointmentCountQueryOptions = <
-  TData = Awaited<ReturnType<ApiClient['userAppointmentCount']>>,
+  TData = Awaited<ReturnType<ApiClient['userAppointmentCount']>>['data'],
   TError = AxiosError<unknown>,
 >(
   params: UserAppointmentCountParams,
   options: {
-    query?: UseQueryOptions<
-      Awaited<ReturnType<ApiClient['userAppointmentCount']>>,
-      TError,
-      TData
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<ApiClient['userAppointmentCount']>>['data'],
+        TError,
+        TData
+      >
     >;
     axios?: AxiosRequestConfig;
     client: ApiClient;
@@ -404,48 +468,53 @@ export const getUserAppointmentCountQueryOptions = <
     queryOptions?.queryKey ?? getUserAppointmentCountQueryKey(params);
 
   const queryFn: QueryFunction<
-    Awaited<ReturnType<ApiClient['userAppointmentCount']>>
+    Awaited<ReturnType<ApiClient['userAppointmentCount']>>['data']
   > = ({ signal }) =>
-    options.client.userAppointmentCount(params, {
-      signal,
-      ...axiosOptions,
-    });
+    options.client
+      .userAppointmentCount(params, { signal, ...axiosOptions })
+      .then((res) => res.data);
 
   return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
-    Awaited<ReturnType<ApiClient['userAppointmentCount']>>,
+    Awaited<ReturnType<ApiClient['userAppointmentCount']>>['data'],
     TError,
     TData
-  > & { queryKey: QueryKey };
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
 };
 
 export type UserAppointmentCountQueryResult = NonNullable<
-  Awaited<ReturnType<ApiClient['userAppointmentCount']>>
+  Awaited<ReturnType<ApiClient['userAppointmentCount']>>['data']
 >;
 export type UserAppointmentCountQueryError = AxiosError<unknown>;
 
 export function useUserAppointmentCount<
-  TData = Awaited<ReturnType<ApiClient['userAppointmentCount']>>,
+  TData = Awaited<ReturnType<ApiClient['userAppointmentCount']>>['data'],
   TError = AxiosError<unknown>,
 >(
   params: UserAppointmentCountParams,
   options?: {
-    query?: UseQueryOptions<
-      Awaited<ReturnType<ApiClient['userAppointmentCount']>>,
-      TError,
-      TData
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<ApiClient['userAppointmentCount']>>['data'],
+        TError,
+        TData
+      >
     >;
     axios?: AxiosRequestConfig;
   },
-): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & {
+  queryKey: DataTag<QueryKey, TData, TError>;
+} {
   const client = useApiClient();
   const queryOptions = getUserAppointmentCountQueryOptions(
     params,
     Object.assign({ client }, options),
   );
 
-  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
-    queryKey: QueryKey;
-  };
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<
+    TData,
+    TError
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
 
   query.queryKey = queryOptions.queryKey;
 
@@ -460,7 +529,7 @@ export const getUserAppointmentCreateMutationOptions = <
   TContext = unknown,
 >(options: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<ApiClient['userAppointmentCreate']>>,
+    Awaited<ReturnType<ApiClient['userAppointmentCreate']>>['data'],
     TError,
     { data: UserAppointmentCreateInput },
     TContext
@@ -468,7 +537,7 @@ export const getUserAppointmentCreateMutationOptions = <
   axios?: AxiosRequestConfig;
   client: ApiClient;
 }): UseMutationOptions<
-  Awaited<ReturnType<ApiClient['userAppointmentCreate']>>,
+  Awaited<ReturnType<ApiClient['userAppointmentCreate']>>['data'],
   TError,
   { data: UserAppointmentCreateInput },
   TContext
@@ -483,19 +552,21 @@ export const getUserAppointmentCreateMutationOptions = <
     : { mutation: { mutationKey }, axios: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<ApiClient['userAppointmentCreate']>>,
+    Awaited<ReturnType<ApiClient['userAppointmentCreate']>>['data'],
     { data: UserAppointmentCreateInput }
   > = (props) => {
     const { data } = props ?? {};
 
-    return options.client.userAppointmentCreate(data, axiosOptions);
+    return options.client
+      .userAppointmentCreate(data, axiosOptions)
+      .then((res) => res.data);
   };
 
   return { mutationFn, ...mutationOptions };
 };
 
 export type UserAppointmentCreateMutationResult = NonNullable<
-  Awaited<ReturnType<ApiClient['userAppointmentCreate']>>
+  Awaited<ReturnType<ApiClient['userAppointmentCreate']>>['data']
 >;
 export type UserAppointmentCreateMutationBody = UserAppointmentCreateInput;
 export type UserAppointmentCreateMutationError =
@@ -507,21 +578,24 @@ export type UserAppointmentCreateMutationError =
 export const useUserAppointmentCreate = <
   TError = AxiosError<UserAppointmentCreate400Output>,
   TContext = unknown,
->(options?: {
-  mutation?: UseMutationOptions<
-    Awaited<ReturnType<ApiClient['userAppointmentCreate']>>,
-    TError,
-    { data: UserAppointmentCreateInput },
-    TContext
-  >;
-  axios?: AxiosRequestConfig;
-}) => {
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<ApiClient['userAppointmentCreate']>>['data'],
+      TError,
+      { data: UserAppointmentCreateInput },
+      TContext
+    >;
+    axios?: AxiosRequestConfig;
+  },
+  queryClient?: QueryClient,
+) => {
   const client = useApiClient();
   const mutationOptions = getUserAppointmentCreateMutationOptions(
     Object.assign({ client }, options),
   );
 
-  return useMutation(mutationOptions);
+  return useMutation(mutationOptions, queryClient);
 };
 
 export const getUserCreateMutationOptions = <
@@ -529,7 +603,7 @@ export const getUserCreateMutationOptions = <
   TContext = unknown,
 >(options: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<ApiClient['userCreate']>>,
+    Awaited<ReturnType<ApiClient['userCreate']>>['data'],
     TError,
     { data: UserCreateInput },
     TContext
@@ -537,7 +611,7 @@ export const getUserCreateMutationOptions = <
   axios?: AxiosRequestConfig;
   client: ApiClient;
 }): UseMutationOptions<
-  Awaited<ReturnType<ApiClient['userCreate']>>,
+  Awaited<ReturnType<ApiClient['userCreate']>>['data'],
   TError,
   { data: UserCreateInput },
   TContext
@@ -552,19 +626,21 @@ export const getUserCreateMutationOptions = <
     : { mutation: { mutationKey }, axios: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<ApiClient['userCreate']>>,
+    Awaited<ReturnType<ApiClient['userCreate']>>['data'],
     { data: UserCreateInput }
   > = (props) => {
     const { data } = props ?? {};
 
-    return options.client.userCreate(data, axiosOptions);
+    return options.client
+      .userCreate(data, axiosOptions)
+      .then((res) => res.data);
   };
 
   return { mutationFn, ...mutationOptions };
 };
 
 export type UserCreateMutationResult = NonNullable<
-  Awaited<ReturnType<ApiClient['userCreate']>>
+  Awaited<ReturnType<ApiClient['userCreate']>>['data']
 >;
 export type UserCreateMutationBody = UserCreateInput;
 export type UserCreateMutationError = AxiosError<unknown>;
@@ -572,21 +648,24 @@ export type UserCreateMutationError = AxiosError<unknown>;
 export const useUserCreate = <
   TError = AxiosError<unknown>,
   TContext = unknown,
->(options?: {
-  mutation?: UseMutationOptions<
-    Awaited<ReturnType<ApiClient['userCreate']>>,
-    TError,
-    { data: UserCreateInput },
-    TContext
-  >;
-  axios?: AxiosRequestConfig;
-}) => {
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<ApiClient['userCreate']>>['data'],
+      TError,
+      { data: UserCreateInput },
+      TContext
+    >;
+    axios?: AxiosRequestConfig;
+  },
+  queryClient?: QueryClient,
+) => {
   const client = useApiClient();
   const mutationOptions = getUserCreateMutationOptions(
     Object.assign({ client }, options),
   );
 
-  return useMutation(mutationOptions);
+  return useMutation(mutationOptions, queryClient);
 };
 
 export const getUserFindQueryKey = (params: UserFindParams) => {
@@ -594,15 +673,17 @@ export const getUserFindQueryKey = (params: UserFindParams) => {
 };
 
 export const getUserFindQueryOptions = <
-  TData = Awaited<ReturnType<ApiClient['userFind']>>,
+  TData = Awaited<ReturnType<ApiClient['userFind']>>['data'],
   TError = AxiosError<unknown>,
 >(
   params: UserFindParams,
   options: {
-    query?: UseQueryOptions<
-      Awaited<ReturnType<ApiClient['userFind']>>,
-      TError,
-      TData
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<ApiClient['userFind']>>['data'],
+        TError,
+        TData
+      >
     >;
     axios?: AxiosRequestConfig;
     client: ApiClient;
@@ -613,47 +694,200 @@ export const getUserFindQueryOptions = <
   const queryKey = queryOptions?.queryKey ?? getUserFindQueryKey(params);
 
   const queryFn: QueryFunction<
-    Awaited<ReturnType<ApiClient['userFind']>>
+    Awaited<ReturnType<ApiClient['userFind']>>['data']
   > = ({ signal }) =>
-    options.client.userFind(params, { signal, ...axiosOptions });
+    options.client
+      .userFind(params, { signal, ...axiosOptions })
+      .then((res) => res.data);
 
   return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
-    Awaited<ReturnType<ApiClient['userFind']>>,
+    Awaited<ReturnType<ApiClient['userFind']>>['data'],
     TError,
     TData
-  > & { queryKey: QueryKey };
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
 };
 
 export type UserFindQueryResult = NonNullable<
-  Awaited<ReturnType<ApiClient['userFind']>>
+  Awaited<ReturnType<ApiClient['userFind']>>['data']
 >;
 export type UserFindQueryError = AxiosError<unknown>;
 
 export function useUserFind<
-  TData = Awaited<ReturnType<ApiClient['userFind']>>,
+  TData = Awaited<ReturnType<ApiClient['userFind']>>['data'],
   TError = AxiosError<unknown>,
 >(
   params: UserFindParams,
   options?: {
-    query?: UseQueryOptions<
-      Awaited<ReturnType<ApiClient['userFind']>>,
-      TError,
-      TData
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<ApiClient['userFind']>>['data'],
+        TError,
+        TData
+      >
     >;
     axios?: AxiosRequestConfig;
   },
-): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & {
+  queryKey: DataTag<QueryKey, TData, TError>;
+} {
   const client = useApiClient();
   const queryOptions = getUserFindQueryOptions(
     params,
     Object.assign({ client }, options),
   );
 
-  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
-    queryKey: QueryKey;
-  };
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<
+    TData,
+    TError
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
 
   query.queryKey = queryOptions.queryKey;
 
   return query;
 }
+
+export const getUserGetQueryKey = (params: UserGetParams) => {
+  return [`/user/get`, ...(params ? [params] : [])] as const;
+};
+
+export const getUserGetQueryOptions = <
+  TData = Awaited<ReturnType<ApiClient['userGet']>>['data'],
+  TError = AxiosError<unknown>,
+>(
+  params: UserGetParams,
+  options: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<ApiClient['userGet']>>['data'],
+        TError,
+        TData
+      >
+    >;
+    axios?: AxiosRequestConfig;
+    client: ApiClient;
+  },
+) => {
+  const { query: queryOptions, axios: axiosOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getUserGetQueryKey(params);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<ApiClient['userGet']>>['data']
+  > = ({ signal }) =>
+    options.client
+      .userGet(params, { signal, ...axiosOptions })
+      .then((res) => res.data);
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<ApiClient['userGet']>>['data'],
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
+
+export type UserGetQueryResult = NonNullable<
+  Awaited<ReturnType<ApiClient['userGet']>>['data']
+>;
+export type UserGetQueryError = AxiosError<unknown>;
+
+export function useUserGet<
+  TData = Awaited<ReturnType<ApiClient['userGet']>>['data'],
+  TError = AxiosError<unknown>,
+>(
+  params: UserGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<ApiClient['userGet']>>['data'],
+        TError,
+        TData
+      >
+    >;
+    axios?: AxiosRequestConfig;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & {
+  queryKey: DataTag<QueryKey, TData, TError>;
+} {
+  const client = useApiClient();
+  const queryOptions = getUserGetQueryOptions(
+    params,
+    Object.assign({ client }, options),
+  );
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<
+    TData,
+    TError
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  query.queryKey = queryOptions.queryKey;
+
+  return query;
+}
+
+export const getUserPurgeMutationOptions = <
+  TError = AxiosError<unknown>,
+  TContext = unknown,
+>(options: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<ApiClient['userPurge']>>['data'],
+    TError,
+    void,
+    TContext
+  >;
+  axios?: AxiosRequestConfig;
+  client: ApiClient;
+}): UseMutationOptions<
+  Awaited<ReturnType<ApiClient['userPurge']>>['data'],
+  TError,
+  void,
+  TContext
+> => {
+  const mutationKey = ['userPurge'];
+  const { mutation: mutationOptions, axios: axiosOptions } = options
+    ? options.mutation &&
+      'mutationKey' in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, axios: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<ApiClient['userPurge']>>['data'],
+    void
+  > = () => {
+    return options.client.userPurge(axiosOptions).then((res) => res.data);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UserPurgeMutationResult = NonNullable<
+  Awaited<ReturnType<ApiClient['userPurge']>>['data']
+>;
+
+export type UserPurgeMutationError = AxiosError<unknown>;
+
+export const useUserPurge = <
+  TError = AxiosError<unknown>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<ApiClient['userPurge']>>['data'],
+      TError,
+      void,
+      TContext
+    >;
+    axios?: AxiosRequestConfig;
+  },
+  queryClient?: QueryClient,
+) => {
+  const client = useApiClient();
+  const mutationOptions = getUserPurgeMutationOptions(
+    Object.assign({ client }, options),
+  );
+
+  return useMutation(mutationOptions, queryClient);
+};

@@ -18,4 +18,8 @@ export class UserRepository {
   find(id: number) {
     return this.users.find((user) => user.id === id) ?? null;
   }
+
+  purge() {
+    this.users = [];
+  }
 }

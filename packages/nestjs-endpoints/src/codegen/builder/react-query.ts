@@ -123,19 +123,19 @@ export const useApiClient = () => {
           },
         );
         result.implementation = result.implementation.replace(
-          /return\s+(.+\(data,axiosOptions\))/,
-          (_, captured) => {
-            return `return options.client.${captured}`;
-          },
+          /return\s+(.+)\((?:data,)?axiosOptions\)/,
+          (match, captured) =>
+            `${match.replace(captured, `options.client.${captured}`)}.then((res) => res.data);`,
         );
         result.implementation = result.implementation.replace(
-          /const queryFn.+=>\s+(.+\((?:params, )?{ signal, ...axiosOptions })/,
+          /const queryFn.+=>\s+(.+\()(?:params, )?{ signal, ...axiosOptions }\)/,
           (match, captured) =>
-            match.replace(captured, `options.client.${captured}`),
+            `${match.replace(captured, `options.client.${captured}`)}.then((res) => res.data)`,
         );
         result.implementation = result.implementation.replaceAll(
-          /ReturnType<typeof (.+?)>/g,
-          (match, captured) => `ReturnType<ApiClient['${captured}']>`,
+          /Awaited<ReturnType<typeof (.+?)>>/g,
+          (match, captured) =>
+            `Awaited<ReturnType<ApiClient['${captured}']>>['data']`,
         );
         return result;
       },

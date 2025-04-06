@@ -16,6 +16,15 @@ describe('generated client', () => {
         baseURL: await app.getUrl(),
       });
       const client = createApiClient(axios);
+      await expect(client.userGet({ id: 1 })).rejects.toMatchObject({
+        response: {
+          status: 404,
+          data: {
+            statusCode: 404,
+            message: 'User not found',
+          },
+        },
+      });
       const {
         data: { id },
       } = await client.userCreate({
@@ -43,6 +52,15 @@ describe('generated client', () => {
     try {
       const client = createApiClient({
         baseURL: await app.getUrl(),
+      });
+      await expect(client.userGet({ id: 1 })).rejects.toMatchObject({
+        response: {
+          status: 404,
+          data: {
+            statusCode: 404,
+            message: 'User not found',
+          },
+        },
       });
       const {
         data: { id },

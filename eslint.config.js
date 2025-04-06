@@ -92,6 +92,13 @@ export default tseslint.config(
     },
   },
   {
+    files: ['packages/test/test-react-query-client/**'],
+    rules: {
+      'no-console': 'off',
+      '@typescript-eslint/no-misused-promises': 'off',
+    },
+  },
+  {
     files: ['packages/test/*/generated/**'],
     rules: {
       '@typescript-eslint/no-unnecessary-type-assertion': 'off',

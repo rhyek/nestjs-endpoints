@@ -60,11 +60,24 @@ export type UserFindOutput = {
   email: string;
 } | null;
 
+/**
+ * @nullable
+ */
+export type UserGetOutput = {
+  id: number;
+  name: string;
+  email: string;
+} | null;
+
 export type UserAppointmentCountParams = {
   userId: number;
 };
 
 export type UserFindParams = {
+  id: number;
+};
+
+export type UserGetParams = {
   id: number;
 };
 
@@ -143,6 +156,22 @@ export const createApiClient = (
     });
   };
 
+  const userGet = <TData = AxiosResponse<UserGetOutput>>(
+    params: UserGetParams,
+    options?: AxiosRequestConfig,
+  ): Promise<TData> => {
+    return axios.get(`/user/get`, {
+      ...options,
+      params: { ...params, ...options?.params },
+    });
+  };
+
+  const userPurge = <TData = AxiosResponse<void>>(
+    options?: AxiosRequestConfig,
+  ): Promise<TData> => {
+    return axios.post(`/user/purge`, undefined, options);
+  };
+
   return {
     authLogin,
     testError,
@@ -151,6 +180,8 @@ export const createApiClient = (
     userAppointmentCreate,
     userCreate,
     userFind,
+    userGet,
+    userPurge,
     axios,
   };
 };
@@ -163,3 +194,5 @@ export type UserAppointmentCreateResult =
   AxiosResponse<UserAppointmentCreate201Output>;
 export type UserCreateResult = AxiosResponse<UserCreateOutput>;
 export type UserFindResult = AxiosResponse<UserFindOutput>;
+export type UserGetResult = AxiosResponse<UserGetOutput>;
+export type UserPurgeResult = AxiosResponse<void>;

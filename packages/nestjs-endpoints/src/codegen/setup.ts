@@ -74,6 +74,10 @@ export async function setupCodegen(
                 },
               });
             } else if (client.type === 'react-query') {
+              const queryOptions: QueryOptions = {
+                version: 5,
+                ...client.options,
+              };
               await generate({
                 input: {
                   target: document as any,
@@ -83,11 +87,9 @@ export async function setupCodegen(
                   client: reactQuery(),
                   mode: 'single',
                   indexFiles: false,
-                  ...(client.options && {
-                    override: {
-                      query: client.options,
-                    },
-                  }),
+                  override: {
+                    query: queryOptions,
+                  },
                 },
               });
             }
