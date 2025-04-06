@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.2.0 (2025-04-05)
+
+### Features
+
+- Integrated orval setup for axios and react-query clients using `setupCodegen`. No longer necessary for users to set this up themselves.
+
 ## 1.1.0 (2025-03-29)
 
 ### Breaking Changes
