@@ -27,7 +27,7 @@ Hello, World!%
 // axios client
 const msg = await client.helloWorld();
 
-// @tanstack/react-query client
+// react-query client
 const { data: msg, error, status } = useHelloWorld();
 ```
 
@@ -224,7 +224,7 @@ const { id } = await client.userCreate({
 });
 ```
 
-### @tanstack/react-query
+### react-query
 
 ```typescript
 import {
@@ -264,6 +264,8 @@ export function UserPage() {
   // You can also use the api client, directly
   const client = useApiClient();
   const handler = () => client.userCreate({ ... });
+
+  ...
 }
 ```
 
