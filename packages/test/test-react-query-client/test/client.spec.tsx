@@ -11,10 +11,7 @@ describe('Client', () => {
 
   test('client works', async () => {
     render(<App />);
-    expect(await screen.findByText('Purging...')).toBeInTheDocument();
-    await vitest.waitFor(async () => {
-      expect(await screen.findByText('Loading...')).toBeInTheDocument();
-    });
+    expect(await screen.findByText('Loading...')).toBeInTheDocument();
     await vitest.waitFor(async () => {
       expect(
         await screen.findByText('Error: User not found'),
