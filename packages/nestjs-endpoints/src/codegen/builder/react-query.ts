@@ -53,6 +53,7 @@ ${operationNames.map((name) => `    ${name},`).join('\n')}
 
 export type ApiClient = ReturnType<typeof createApiClient>;
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export const ApiClientContext = React.createContext<ApiClient>(null as any);
 export const ApiClientProvider = ({ client, children }: { client: ApiClient; children: React.ReactNode }) => {
   return <ApiClientContext.Provider value={client}>{children}</ApiClientContext.Provider>
@@ -128,7 +129,7 @@ export const useApiClient = () => {
             `${match.replace(captured, `options.client.${captured}`)}.then((res) => res.data);`,
         );
         result.implementation = result.implementation.replace(
-          /const queryFn.+=>\s+(.+\()(?:params, )?{ signal, ...axiosOptions }\)/,
+          /const queryFn.+=>\s+(.+\().+\)/,
           (match, captured) =>
             `${match.replace(captured, `options.client.${captured}`)}.then((res) => res.data)`,
         );

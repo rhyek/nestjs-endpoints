@@ -23,9 +23,17 @@ export default endpoint({
 Hello, World!%
 ```
 
+```ts
+// axios client
+const msg = await client.helloWorld();
+
+// @tanstack/react-query client
+const { data: msg, error, status } = useHelloWorld();
+```
+
 ## Features
 
-- **Easy setup:** Automatically scans your entire project for endpoint files and loads them.
+- **Easy setup:** Automatically scans your project for endpoint files.
 - **Stable:** Produces regular **NestJS Controllers** under the hood.
 - **File-based routing:** Endpoints' HTTP paths are based on their path on disk.
 - **Schema validation:** Compile and run-time validation of input and output values using Zod schemas.
@@ -166,9 +174,82 @@ Examples (assume `rootDirectory` is `./endpoints`):
 
 > _**Note:**_ Bundled projects via Webpack or similar are not supported.
 
+## Codegen (optional)
+
+You can automatically generate a client SDK for your API that can be used in other backend or frontend projects with the benefit of end-to-end type safety. This will use [orval](https://orval.dev/) internally.
+
+### Simple
+
+This is the preferred way of configuring codegen with nestjs-endpoints.
+
+`src/main.ts`
+
+```typescript
+import { setupCodegen } from 'nestjs-endpoints';
+
+async function bootstrap() {
+  const app = await NestFactory.create(AppModule);
+  await setupCodegen(app, {
+    clients: [
+      {
+        type: 'axios',
+        outputFile: process.cwd() + '/generated/axios-client.ts',
+      },
+      {
+        type: 'react-query',
+        outputFile: process.cwd() + '/generated/react-query-client.tsx',
+      },
+    ],
+  });
+  await app.listen(3000);
+}
+```
+
+And then you'll have these available to use:
+
+```typescript
+// axios
+const { id } = await userCreate({
+  name: 'Tom',
+  email: 'tom@gmail.com',
+});
+const user = await userFind({ id });
+
+// react-query
+const userCreate = useUserCreate();
+const { data: user, error, status } = useUserFind({ id: 1 });
+```
+
+Have a look at these examples to see to set up and consume these libraries:
+
+- [axios](https://github.com/rhyek/nestjs-endpoints/blob/f9fc77c0af9439e35e2ed3f26aa3e645795ed44f/packages/test/test-app-express-cjs/test/client.e2e-spec.ts#L15)
+- [react-query](https://github.com/rhyek/nestjs-endpoints/tree/main/packages/test/test-react-query-client)
+
+### Manual
+
+If you prefer to configure orval yourself and just need the OpenAPI spec file, you can do the following:
+
+`src/main.ts`
+
+```typescript
+import { setupOpenAPI } from 'nestjs-endpoints';
+
+async function bootstrap() {
+  const app = await NestFactory.create(AppModule);
+  const { document, changed } = await setupOpenAPI(app, {
+    configure: (builder) => builder.setTitle('My Api'),
+    outputFile: process.cwd() + '/openapi.json',
+  });
+  if (changed) {
+    void import('orval').then(({ generate }) => generate());
+  }
+  await app.listen(3000);
+}
+```
+
 ## Advanced Usage
 
-Depending on the project's requirements, the above should ideally suffice most of the time. In case you need access to more of NestJS' features like Interceptors, Guards, access to the request object, etc, or if you'd rather have contained NestJS modules per feature with their own endpoints
+When you need access to more of NestJS' features like Interceptors, Guards, access to the request object, etc, or if you'd rather have contained NestJS modules per feature with their own endpoints
 and providers, here is a more complete example (view full example [here](https://github.com/rhyek/nestjs-endpoints/tree/main/packages/test/test-app-express-cjs)):
 
 > _**Note:**_ You are also welcome to use both NestJS Controllers and endpoints in the same project.
@@ -299,77 +380,4 @@ To call this endpoint:
 -H 'Authorization: secret' \
 -d '{"userId": 1, "date": "2021-11-03"}'
 {"id":1,"date":"2021-11-03T00:00:00.000Z","address":"::1"}%
-```
-
-## Codegen (optional)
-
-You can automatically generate a client SDK for your API that can be used in other backend or frontend projects and have the benefit of end-to-end type safety. This will use [orval](https://orval.dev/) internally.
-
-### Simple
-
-This is the preferred way of configuring codegen with nestjs-endpoints.
-
-`src/main.ts`
-
-```typescript
-import { setupCodegen } from 'nestjs-endpoints';
-
-async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
-  await setupCodegen(app, {
-    clients: [
-      {
-        type: 'axios',
-        outputFile: process.cwd() + '/generated/axios-client.ts',
-      },
-      {
-        type: 'react-query',
-        outputFile: process.cwd() + '/generated/react-query-client.tsx',
-      },
-    ],
-  });
-  await app.listen(3000);
-}
-```
-
-And then you'll have these available to use:
-
-```typescript
-// axios
-const { id } = await userCreate({
-  name: 'Tom',
-  email: 'tom@gmail.com',
-});
-const user = await userFind({ id });
-
-// react-query
-const userCreate = useUserCreate();
-const { data: user, error, status } = useUserFind({ id: 1 });
-```
-
-Have a look at these examples to see to set up and consume these libraries:
-
-- [axios](https://github.com/rhyek/nestjs-endpoints/tree/main/packages/test/test-app-express-cjs/test/client.e2e-spec.ts)
-- [react-query](https://github.com/rhyek/nestjs-endpoints/tree/main/packages/test/test-react-query-client)
-
-### Manual
-
-If you prefer to configure orval yourself and just need the OpenAPI spec file, you can do the following:
-
-`src/main.ts`
-
-```typescript
-import { setupOpenAPI } from 'nestjs-endpoints';
-
-async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
-  const { document, changed } = await setupOpenAPI(app, {
-    configure: (builder) => builder.setTitle('My Api'),
-    outputFile: process.cwd() + '/openapi.json',
-  });
-  if (changed) {
-    void import('orval').then(({ generate }) => generate());
-  }
-  await app.listen(3000);
-}
 ```

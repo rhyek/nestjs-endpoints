@@ -30,7 +30,7 @@ export async function setupCodegen(
      * If true, the codegen will be forced to run even if the output file already exists
      * or the OpenAPI document has not changed.
      */
-    forceGenerate?: boolean;
+    forceGenerate?: boolean | undefined;
   },
 ) {
   const openapiOutputFile =
