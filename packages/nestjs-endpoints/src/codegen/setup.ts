@@ -3,8 +3,10 @@ import path from 'node:path';
 import { Writable } from 'node:stream';
 import { INestApplication } from '@nestjs/common';
 import { DocumentBuilder } from '@nestjs/swagger';
+import type { QueryOptions } from 'orval';
 import { setupOpenAPI } from '../setup';
-import { axiosBuilder } from './builder/axios';
+import { axios } from './builder/axios';
+import { reactQuery } from './builder/react-query';
 
 export async function setupCodegen(
   app: INestApplication,
@@ -13,10 +15,22 @@ export async function setupCodegen(
       outputFile?: string | Writable;
       configure?: (documentBuilder: DocumentBuilder) => void;
     };
-    clients: {
-      type: 'axios' | 'react-query';
+    clients: ({
       outputFile: string;
-    }[];
+    } & (
+      | {
+          type: 'axios';
+        }
+      | {
+          type: 'react-query';
+          options?: QueryOptions;
+        }
+    ))[];
+    /**
+     * If true, the codegen will be forced to run even if the output file already exists
+     * or the OpenAPI document has not changed.
+     */
+    forceGenerate?: boolean;
   },
 ) {
   const openapiOutputFile =
@@ -34,11 +48,18 @@ export async function setupCodegen(
         .catch(() => false),
     ),
   );
-  if (changed || outputFileExists.some((exists) => !exists)) {
+  if (
+    params.forceGenerate ||
+    changed ||
+    outputFileExists.some((exists) => !exists)
+  ) {
     await import('orval').then(async ({ generate }) => {
       await Promise.all(
         params.clients
-          .filter((_, index) => changed || !outputFileExists[index])
+          .filter(
+            (_, index) =>
+              params.forceGenerate || changed || !outputFileExists[index],
+          )
           .map(async (client) => {
             if (client.type === 'axios') {
               await generate({
@@ -47,9 +68,26 @@ export async function setupCodegen(
                 },
                 output: {
                   target: client.outputFile,
-                  client: axiosBuilder,
+                  client: axios(),
                   mode: 'single',
                   indexFiles: false,
+                },
+              });
+            } else if (client.type === 'react-query') {
+              await generate({
+                input: {
+                  target: document as any,
+                },
+                output: {
+                  target: client.outputFile,
+                  client: reactQuery(),
+                  mode: 'single',
+                  indexFiles: false,
+                  ...(client.options && {
+                    override: {
+                      query: client.options,
+                    },
+                  }),
                 },
               });
             }

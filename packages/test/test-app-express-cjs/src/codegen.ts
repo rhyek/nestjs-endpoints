@@ -10,7 +10,12 @@ async function bootstrap() {
         type: 'axios',
         outputFile: process.cwd() + '/generated/axios-client.ts',
       },
+      {
+        type: 'react-query',
+        outputFile: process.cwd() + '/generated/react-query-client.tsx',
+      },
     ],
+    forceGenerate: true,
   });
 }
 void bootstrap();

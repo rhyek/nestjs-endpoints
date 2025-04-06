@@ -23,7 +23,10 @@
     "@nestjs/common": "^11.0.13",
     "@nestjs/core": "^11.0.13",
     "@nestjs/platform-fastify": "^11.0.13",
+    "@tanstack/react-query": "^5.71.10",
+    "@types/react": "^19.1.0",
     "nestjs-endpoints": "workspace:*",
+    "react": "^19.1.0",
     "reflect-metadata": "^0.1.13",
     "rxjs": "^7.8.1",
     "tsx": "^4.19.3"
