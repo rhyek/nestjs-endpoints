@@ -4,7 +4,7 @@
 
 ## Introduction
 
-**nestjs-endpoints** is a lightweight tool for writing clean, succinct, end-to-end type-safe HTTP APIs with NestJS that encourages the [REPR](https://www.apitemplatepack.com/docs/introduction/repr-pattern/) design pattern, code colocation, and the Single Responsibility Principle.
+**nestjs-endpoints** is a lightweight tool for writing clean, succinct, end-to-end type-safe REST APIs with NestJS that encourages the [REPR](https://www.apitemplatepack.com/docs/introduction/repr-pattern/) design pattern, code colocation, and the Single Responsibility Principle.
 
 It's inspired by the [Fast Endpoints](https://fast-endpoints.com/) .NET library, [tRPC](https://trpc.io/), and Next.js' file-based routing.
 
@@ -176,9 +176,9 @@ Examples (assume `rootDirectory` is `./endpoints`):
 
 ## Codegen (optional)
 
-You can automatically generate a client SDK for your API that can be used in other backend or frontend projects with the benefit of end-to-end type safety. This will use [orval](https://orval.dev/) internally.
+You can automatically generate a client SDK for your API that can be used in other backend or frontend projects with the benefit of end-to-end type safety. It uses [orval](https://orval.dev/) internally.
 
-### Simple
+### Using `setupCodegen`
 
 This is the preferred way of configuring codegen with nestjs-endpoints.
 
@@ -205,22 +205,69 @@ async function bootstrap() {
 }
 ```
 
-And then you'll have these available to use:
+### axios
 
-```typescript
-// axios
-const { id } = await userCreate({
+```ts
+import { createApiClient } from './generated/axios-client.ts';
+
+const client = createApiClient({
+  baseURL: process.env.API_BASE_URL,
+  headers: {
+    'x-test': 'test-1',
+  },
+});
+client.axios.defaults.headers.common['x-test'] = 'test-2';
+
+const { id } = await client.userCreate({
   name: 'Tom',
   email: 'tom@gmail.com',
 });
-const user = await userFind({ id });
-
-// react-query
-const userCreate = useUserCreate();
-const { data: user, error, status } = useUserFind({ id: 1 });
 ```
 
-Have a look at these examples to see to set up and consume these libraries:
+### @tanstack/react-query
+
+```typescript
+import {
+  ApiClientProvider,
+  createApiClient,
+} from './generated/react-query-client.tsx';
+
+export function App() {
+  const queryClient = useMemo(() => new QueryClient({}), []);
+  const apiClient = useMemo(
+    () =>
+      createApiClient({
+        baseURL: import.meta.env.VITE_API_BASE_URL,
+      }),
+    [],
+  );
+
+  return (
+    <QueryClientProvider client={queryClient}>
+      <ApiClientProvider client={apiClient}>
+        <UserPage />
+      </ApiClientProvider>
+    </QueryClientProvider>
+  );
+}
+--
+import {
+  useUserCreate,
+  useApiClient,
+} from './generated/react-query-client.tsx';
+
+export function UserPage() {
+  // react-query mutation hook
+  const userCreate = useUserCreate();
+  const handler = () => userCreate.mutateAsync({ ... });
+
+  // You can also use the api client, directly
+  const client = useApiClient();
+  const handler = () => client.userCreate({ ... });
+}
+```
+
+More examples:
 
 - [axios](https://github.com/rhyek/nestjs-endpoints/blob/f9fc77c0af9439e35e2ed3f26aa3e645795ed44f/packages/test/test-app-express-cjs/test/client.e2e-spec.ts#L15)
 - [react-query](https://github.com/rhyek/nestjs-endpoints/tree/main/packages/test/test-react-query-client)

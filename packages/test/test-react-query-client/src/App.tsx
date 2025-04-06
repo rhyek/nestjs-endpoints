@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useMemo } from 'react';
 import { createApiClient } from '../../test-app-express-cjs/generated/react-query-client';
 import { ApiClientProvider } from '../../test-app-express-cjs/generated/react-query-client';
 import { UserPage } from './UserPage';
@@ -13,18 +13,6 @@ export function App() {
       }),
     [],
   );
-
-  const [purged, setPurged] = useState(false);
-  useEffect(() => {
-    void (async () => {
-      await apiClient.userPurge();
-      setPurged(true);
-    })();
-  }, []);
-
-  if (!purged) {
-    return <div>Purging...</div>;
-  }
 
   return (
     <QueryClientProvider client={queryClient}>
