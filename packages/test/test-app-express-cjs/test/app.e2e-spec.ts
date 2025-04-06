@@ -78,6 +78,15 @@ describe('api', () => {
     expect(serializationExceptionSpy).toHaveBeenCalledTimes(0);
   });
 
+  test.concurrent('user get inexistent user returns 404', async () => {
+    const { req } = await setup();
+    await req.get('/user/get?id=1').expect(404, {
+      statusCode: 404,
+      message: 'User not found',
+      error: 'Not Found',
+    });
+  });
+
   test.concurrent('user find input validation throws', async () => {
     const { req, validationExceptionSpy, serializationExceptionSpy } =
       await setup();

@@ -91,4 +91,18 @@ export default tseslint.config(
       'jest/no-focused-tests': 'error',
     },
   },
+  {
+    files: ['packages/test/test-react-query-client/**'],
+    rules: {
+      'no-console': 'off',
+      '@typescript-eslint/no-misused-promises': 'off',
+    },
+  },
+  {
+    files: ['packages/test/*/generated/**'],
+    rules: {
+      '@typescript-eslint/no-unnecessary-type-assertion': 'off',
+      'import/order': 'off',
+    },
+  },
 );

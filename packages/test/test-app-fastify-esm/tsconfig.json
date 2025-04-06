@@ -3,7 +3,7 @@
     "module": "esnext",
     "target": "esnext",
     "moduleResolution": "Bundler",
-
+    "jsx": "react",
     "esModuleInterop": true,
     "emitDecoratorMetadata": true,
     "experimentalDecorators": true,

@@ -6,4 +6,5 @@ export {
 } from 'nestjs-zod';
 export * from './helpers';
 export * from './setup';
+export * from './codegen';
 export { EndpointsRouterModule } from './endpoints-router.module';

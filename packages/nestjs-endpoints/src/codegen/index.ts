@@ -1,0 +1,1 @@
+export { setupCodegen } from './setup';

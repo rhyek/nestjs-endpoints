@@ -1,0 +1,20 @@
+{
+  "compilerOptions": {
+    "module": "esnext",
+    "target": "esnext",
+    "lib": ["ESNext", "DOM"],
+    "moduleResolution": "Bundler",
+    "jsx": "react",
+    "esModuleInterop": true,
+    "types": ["vite/client", "vitest/globals"],
+    "strict": true,
+    "strictNullChecks": true
+  },
+  "include": [
+    "src/**/*",
+    "test/**/*",
+    "../test-app-express-cjs/generated/react-query-client.tsx",
+    "vitest.config.ts",
+    "vitest.setup.ts"
+  ]
+}

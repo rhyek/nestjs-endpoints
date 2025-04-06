@@ -73,7 +73,7 @@ export const ApiQueries = <T extends z.ZodObject<ZodRawShape>>(
       acc.push({
         name,
         required: !zodType.isOptional(),
-        schema: zodToOpenAPI(zodType),
+        schema: (zodToOpenAPI as any)(zodType),
       });
 
     return acc;

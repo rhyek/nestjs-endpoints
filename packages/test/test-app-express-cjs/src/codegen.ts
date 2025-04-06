@@ -1,13 +1,21 @@
 import { NestFactory } from '@nestjs/core';
-import { setupOpenAPI } from 'nestjs-endpoints';
-import { generate } from 'orval';
+import { setupCodegen } from 'nestjs-endpoints';
 import { AppModule } from './app.module';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
-  await setupOpenAPI(app, {
-    outputFile: process.cwd() + '/openapi.json',
+  await setupCodegen(app, {
+    clients: [
+      {
+        type: 'axios',
+        outputFile: process.cwd() + '/generated/axios-client.ts',
+      },
+      {
+        type: 'react-query',
+        outputFile: process.cwd() + '/generated/react-query-client.tsx',
+      },
+    ],
+    forceGenerate: true,
   });
-  void generate();
 }
 void bootstrap();
