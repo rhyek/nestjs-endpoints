@@ -4,7 +4,7 @@ import { createApiClient } from '../generated/axios-client';
 import { AppModule } from '../src/app.module';
 
 describe('generated client', () => {
-  test.concurrent('create user - axios instance', async () => {
+  test.concurrent('create user - axios config', async () => {
     const moduleFixture: TestingModule = await Test.createTestingModule({
       imports: [AppModule],
     }).compile();
@@ -12,10 +12,9 @@ describe('generated client', () => {
     await app.init();
     await app.listen(0);
     try {
-      const axios = Axios.create({
+      const client = createApiClient({
         baseURL: await app.getUrl(),
       });
-      const client = createApiClient(axios);
       await expect(client.userGet({ id: 1 })).rejects.toMatchObject({
         response: {
           status: 404,
@@ -42,7 +41,7 @@ describe('generated client', () => {
     }
   });
 
-  test.concurrent('create user - axios config', async () => {
+  test.concurrent('create user - axios instance', async () => {
     const moduleFixture: TestingModule = await Test.createTestingModule({
       imports: [AppModule],
     }).compile();
@@ -50,9 +49,10 @@ describe('generated client', () => {
     await app.init();
     await app.listen(0);
     try {
-      const client = createApiClient({
+      const axios = Axios.create({
         baseURL: await app.getUrl(),
       });
+      const client = createApiClient(axios);
       await expect(client.userGet({ id: 1 })).rejects.toMatchObject({
         response: {
           status: 404,

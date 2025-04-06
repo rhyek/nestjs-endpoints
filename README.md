@@ -4,7 +4,7 @@
 
 ## Introduction
 
-**nestjs-endpoints** is a lightweight tool for writing clean and succinct HTTP APIs with NestJS that encourages the [REPR](https://www.apitemplatepack.com/docs/introduction/repr-pattern/) design pattern, code colocation, and the Single Responsibility Principle.
+**nestjs-endpoints** is a lightweight tool for writing clean, succinct, end-to-end type-safe HTTP APIs with NestJS that encourages the [REPR](https://www.apitemplatepack.com/docs/introduction/repr-pattern/) design pattern, code colocation, and the Single Responsibility Principle.
 
 It's inspired by the [Fast Endpoints](https://fast-endpoints.com/) .NET library, [tRPC](https://trpc.io/), and Next.js' file-based routing.
 
@@ -27,11 +27,10 @@ Hello, World!%
 
 - **Easy setup:** Automatically scans your entire project for endpoint files and loads them.
 - **Stable:** Produces regular **NestJS Controllers** under the hood.
-- **File-based routing:** Each endpoint's HTTP path is based on their path on disk.
-- **User-Friendly API:** Supports both basic and advanced per-endpoint configuration.
+- **File-based routing:** Endpoints' HTTP paths are based on their path on disk.
 - **Schema validation:** Compile and run-time validation of input and output values using Zod schemas.
+- **End-to-end type safety:** Auto-generates `axios` and `@tanstack/react-query` client libraries. Internally uses `@nestjs/swagger`, [nestjs-zod](https://github.com/BenLorantfy/nestjs-zod), and [orval](https://orval.dev/).
 - **HTTP adapter agnostic:** Works with both Express and Fastify NestJS applications.
-- **Client SDK codegen:** Annotates endpoints using `@nestjs/swagger` and [nestjs-zod](https://github.com/BenLorantfy/nestjs-zod) internally to output an OpenAPI document which [orval](https://orval.dev/) can use to generate a client library.
 
 ## Getting Started
 
@@ -302,13 +301,60 @@ To call this endpoint:
 {"id":1,"date":"2021-11-03T00:00:00.000Z","address":"::1"}%
 ```
 
-## OpenAPI, Codegen setup (optional)
+## Codegen (optional)
 
-It's a common practice to automatically generate a client SDK for your API that
-you can use in other backend or frontend projects and have the benefit of full-stack type-safety. tRPC and similar libraries have been written to facilitate this.
+You can automatically generate a client SDK for your API that can be used in other backend or frontend projects and have the benefit of end-to-end type safety. This will use [orval](https://orval.dev/) internally.
 
-We can achieve the same here in two steps. We first build an OpenAPI document, then use that document's
-output with [orval](https://orval.dev/):
+### Simple
+
+This is the preferred way of configuring codegen with nestjs-endpoints.
+
+`src/main.ts`
+
+```typescript
+import { setupCodegen } from 'nestjs-endpoints';
+
+async function bootstrap() {
+  const app = await NestFactory.create(AppModule);
+  await setupCodegen(app, {
+    clients: [
+      {
+        type: 'axios',
+        outputFile: process.cwd() + '/generated/axios-client.ts',
+      },
+      {
+        type: 'react-query',
+        outputFile: process.cwd() + '/generated/react-query-client.tsx',
+      },
+    ],
+  });
+  await app.listen(3000);
+}
+```
+
+And then you'll have these available to use:
+
+```typescript
+// axios
+const { id } = await userCreate({
+  name: 'Tom',
+  email: 'tom@gmail.com',
+});
+const user = await userFind({ id });
+
+// react-query
+const userCreate = useUserCreate();
+const { data: user, error, status } = useUserFind({ id: 1 });
+```
+
+Have a look at these examples to see to set up and consume these libraries:
+
+- [axios](https://github.com/rhyek/nestjs-endpoints/tree/main/packages/test/test-app-express-cjs/test/client.e2e-spec.ts)
+- [react-query](https://github.com/rhyek/nestjs-endpoints/tree/main/packages/test/test-react-query-client)
+
+### Manual
+
+If you prefer to configure orval yourself and just need the OpenAPI spec file, you can do the following:
 
 `src/main.ts`
 
@@ -327,14 +373,3 @@ async function bootstrap() {
   await app.listen(3000);
 }
 ```
-
-And then you could have something like this available:
-
-```typescript
-const { id } = await userCreate({
-  name: 'Tom',
-  email: 'tom@gmail.com',
-});
-```
-
-Have a look at [this](https://github.com/rhyek/nestjs-endpoints/tree/main/packages/test/test-app-express-cjs) test project to see how you might configure orval to generate an axios-based client and [here](https://github.com/rhyek/nestjs-endpoints/tree/main/packages/test/test-app-express-cjs/test/client.e2e-spec.ts) to understand how you would use it.
