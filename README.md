@@ -264,7 +264,6 @@ export function UserPage() {
   // You can also use the api client, directly
   const client = useApiClient();
   const handler = () => client.userCreate({ ... });
-
   ...
 }
 ```
