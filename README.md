@@ -275,7 +275,7 @@ More examples:
 
 ### Manual
 
-If you prefer to configure orval yourself and just need the OpenAPI spec file, you can do the following:
+If you just need the OpenAPI spec file or prefer to configure orval or some other tool yourself, you can do the following:
 
 `src/main.ts`
 
