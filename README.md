@@ -50,7 +50,9 @@ npm install nestjs-endpoints @nestjs/swagger zod
 
 ## Usage
 
-### Option 1. Scanned endpoints/file-based routing
+You can opt for either an automatic setup with endpoint scanning + file-based routing or a traditional one with manual imports and HTTP paths. You can also mix both in a single project.
+
+### Option 1. Automatic setup
 
 `src/app.module.ts`
 
