@@ -494,6 +494,23 @@ describe('api', () => {
       await expect(userListNoPath.invoke()).resolves.toEqual([]);
       await expect(
         userCreate.invoke({
+          email: 'john@example.com',
+        } as any),
+      ).rejects.toMatchObject({
+        error: {
+          issues: [
+            {
+              code: 'invalid_type',
+              expected: 'string',
+              received: 'undefined',
+              path: ['name'],
+              message: 'Required',
+            },
+          ],
+        },
+      });
+      await expect(
+        userCreate.invoke({
           name: 'John',
           email: 'john@example.com',
         }),
