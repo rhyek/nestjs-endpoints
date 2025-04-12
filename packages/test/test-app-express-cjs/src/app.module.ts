@@ -19,10 +19,11 @@ import {
   IAppointmentRepository,
 } from './endpoints/user/appointment/appointment-repository.interface';
 import { AppointmentRepository } from './endpoints/user/appointment/appointment.repository';
+import { UserListModule } from './endpoints/user/list/user-list.module';
 import { UserRepository } from './endpoints/user/user.repository';
+import { UserRepositoryToken } from './endpoints/user/user.repository.token';
 import {
   IUserRepository,
-  UserRepositoryToken,
   UserService,
 } from './endpoints/user/user.service';
 
@@ -61,6 +62,7 @@ export class ZodErrorInterceptor implements NestInterceptor {
         },
       ],
     }),
+    UserListModule,
   ],
   providers: [
     {

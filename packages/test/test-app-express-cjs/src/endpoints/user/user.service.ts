@@ -1,12 +1,11 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { User } from './user.entity';
+import { UserRepositoryToken } from './user.repository.token';
 
 export type IUserRepository = {
   create: (data: { name: string; email: string }) => { id: number };
   find: (id: number) => User | null;
 };
-
-export const UserRepositoryToken = Symbol('UserRepository');
 
 @Injectable()
 export class UserService {

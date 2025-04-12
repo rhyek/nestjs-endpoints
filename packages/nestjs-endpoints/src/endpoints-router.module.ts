@@ -7,11 +7,10 @@ import {
   Type,
 } from '@nestjs/common';
 import { endpointFileRegex, settings } from './consts';
-import { getCallsiteFile } from './helpers';
+import { getCallsiteFile, moduleAls } from './helpers';
 
 @Module({})
 export class EndpointsRouterModule {
-  // eslint-disable-next-line @typescript-eslint/require-await
   static async register(params?: {
     /**
      * The root directory to load endpoints from recursively. Relative and absolute
@@ -40,15 +39,21 @@ export class EndpointsRouterModule {
       : definedAtDir;
     let endpoints: Type[] = [];
     const endopointFiles = findEndpoints(rootDirectory);
-    for (const f of endopointFiles) {
-      // eslint-disable-next-line @typescript-eslint/no-require-imports
-      const endpoint = require(f).default;
-      if (endpoint) {
-        endpoints.push(endpoint);
+    const endpointFilesNotImported = endopointFiles.filter((f) =>
+      settings.endpoints.every((e) => e.file !== f),
+    );
+    // eslint-disable-next-line @typescript-eslint/require-await -- needed since we are replacing the require with await import during build for esm
+    await moduleAls.run(true, async () => {
+      for (const f of endpointFilesNotImported) {
+        // eslint-disable-next-line @typescript-eslint/no-require-imports
+        const endpoint = require(f).default;
+        if (endpoint) {
+          endpoints.push(endpoint);
+        }
       }
-    }
+    });
     for (const { setupFn } of settings.endpoints.filter((e) =>
-      endopointFiles.some((f) => f === e.file),
+      endpointFilesNotImported.some((f) => f === e.file),
     )) {
       setupFn({ rootDirectory, basePath: params?.basePath ?? '/' });
     }

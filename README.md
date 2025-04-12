@@ -33,22 +33,24 @@ const { data: msg, error, status } = useHelloWorld();
 
 ## Features
 
-- **Easy setup:** Automatically scans your project for endpoint files.
 - **Stable:** Produces regular **NestJS Controllers** under the hood.
-- **File-based routing:** Endpoints' HTTP paths are based on their path on disk.
+- **Automatic setup**:
+  - Scans your project for endpoint files.
+  - **File-based routing:** Endpoints' HTTP paths are based on their path on disk.
+- **Traditional setup**: Explicitly set HTTP paths and import endpoints like regular controlllers.
 - **Schema validation:** Compile and run-time validation of input and output values using Zod schemas.
 - **End-to-end type safety:** Auto-generates `axios` and `@tanstack/react-query` client libraries. Internally uses `@nestjs/swagger`, [nestjs-zod](https://github.com/BenLorantfy/nestjs-zod), and [orval](https://orval.dev/).
 - **HTTP adapter agnostic:** Works with both Express and Fastify NestJS applications.
 
-## Getting Started
-
-### Installation
+## Installation
 
 ```bash
 npm install nestjs-endpoints @nestjs/swagger zod
 ```
 
-### Setup
+## Usage
+
+### Option 1. Scanned endpoints/file-based routing
 
 `src/app.module.ts`
 
@@ -65,8 +67,6 @@ import { EndpointsRouterModule } from 'nestjs-endpoints';
 })
 export class AppModule {}
 ```
-
-## Basic Usage
 
 `src/endpoints/user/find.endpoint.ts`
 
@@ -156,7 +156,7 @@ null%
 {"id":1}%
 ```
 
-## File-based routing
+### File-based routing
 
 HTTP paths for endpoints are derived from the file's path on disk:
 
@@ -174,9 +174,36 @@ Examples (assume `rootDirectory` is `./endpoints`):
 
 > _**Note:**_ Bundled projects via Webpack or similar are not supported.
 
+### Option 2. Traditional imports and paths
+
+You can import endpoints like regular NestJS controllers. No need for `EndpointsRouterModule` in this case.
+
+`src/app.module.ts`
+
+```typescript
+import { Module } from '@nestjs/common';
+import { healthCheck } from './health-check.ts';
+
+@Module({
+  controllers: [healthCheck],
+})
+class AppModule {}
+```
+
+`src/health-check.ts`
+
+```typescript
+import { endpoint, z } from 'nestjs-endpoints';
+
+export const healthCheck = endpoint({
+  path: '/status/health',
+  handler: () => 'ok',
+});
+```
+
 ## Codegen (optional)
 
-You can automatically generate a client SDK for your API that can be used in other backend or frontend projects with the benefit of end-to-end type safety. It uses [orval](https://orval.dev/) internally.
+You can automatically generate a client SDK for your API that can be used in other backend or frontend projects with the benefit of end-to-end type safety. It uses [orval](https://orval.dev/) internally. It works with both scanned and manually imported endpoints.
 
 ### Using `setupCodegen`
 
@@ -273,7 +300,7 @@ More examples:
 - [axios](https://github.com/rhyek/nestjs-endpoints/blob/f9fc77c0af9439e35e2ed3f26aa3e645795ed44f/packages/test/test-app-express-cjs/test/client.e2e-spec.ts#L15)
 - [react-query](https://github.com/rhyek/nestjs-endpoints/tree/main/packages/test/test-react-query-client)
 
-### Manual
+### Manual codegen with OpenAPI spec file
 
 If you just need the OpenAPI spec file or prefer to configure orval or some other tool yourself, you can do the following:
 
@@ -428,4 +455,70 @@ To call this endpoint:
 -H 'Authorization: secret' \
 -d '{"userId": 1, "date": "2021-11-03"}'
 {"id":1,"date":"2021-11-03T00:00:00.000Z","address":"::1"}%
+```
+
+## Testing
+
+You can write end-to-end or integration tests for your endpoints.
+
+### End-to-end tests
+
+Use either the generated client libraries, or regular HTTP requests using `supertest`.
+
+```ts
+test('client library', async () => {
+  const moduleFixture: TestingModule = await Test.createTestingModule({
+    imports: [AppModule],
+  }).compile();
+  const app = moduleFixture.createNestApplication();
+  await app.init();
+  await app.listen(0);
+  const client = createApiClient({
+    baseURL: await app.getUrl(),
+  });
+  await expect(client.userFind({ id: 1 })).resolves.toMatchObject({
+    data: {
+      id: 1,
+      email: 'john@hotmail.com',
+    },
+  });
+});
+
+test('supertest', async () => {
+  const moduleFixture: TestingModule = await Test.createTestingModule({
+    imports: [AppModule],
+  }).compile();
+  const app = moduleFixture.createNestApplication();
+  await request(app.getHttpServer())
+    .get('/user/find?id=1')
+    .expect(200)
+    .then((resp) => {
+      expect(resp.body).toMatchObject({
+        id: 1,
+        email: 'john@hotmail.com',
+      });
+    });
+});
+```
+
+### Integration tests
+
+You can also load individual endpoints without having to import your entire application
+
+```ts
+import userFindEndpoint from 'src/endpoints/user/find.endpoint.ts';
+
+test('integration', async () => {
+  const moduleFixture: TestingModule = await Test.createTestingModule({
+    controllers: [userFindEndpoint],
+    providers: [DbService],
+  }).compile();
+  const app = moduleFixture.createNestApplication();
+  await app.init();
+  const userFind = app.get(userFindEndpoint);
+  await expect(userFind.invoke({ id: 1 })).resolves.toMatchObject({
+    id: 1,
+    email: 'john@hotmail.com',
+  });
+});
 ```

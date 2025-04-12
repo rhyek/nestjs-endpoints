@@ -1,5 +1,10 @@
 export { z } from 'zod';
-export { endpoint, decorated, schema } from './endpoint-fn';
+export {
+  endpoint,
+  decorated,
+  schema,
+  EndpointResponse,
+} from './endpoint-fn';
 export {
   ZodValidationException,
   ZodSerializationException,

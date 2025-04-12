@@ -1,10 +1,28 @@
-import { readFile, writeFile } from 'node:fs/promises';
+import fs from 'node:fs/promises';
 import path from 'node:path';
 import { Writable } from 'node:stream';
 import { INestApplication } from '@nestjs/common';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { patchNestJsSwagger } from 'nestjs-zod';
 import { getCallsiteFile } from './helpers';
+
+async function readPkgJson() {
+  const start = path.dirname(getCallsiteFile());
+  for (
+    let dir = start;
+    dir !== path.parse(dir).root && dir !== process.cwd();
+    dir = path.dirname(dir)
+  ) {
+    const pkgJson = path.join(dir, 'package.json');
+    if (await fs.stat(pkgJson).catch(() => false)) {
+      const parsed = JSON.parse(await fs.readFile(pkgJson, 'utf-8'));
+      if (parsed.name === 'nestjs-endpoints') {
+        return parsed;
+      }
+    }
+  }
+  return null;
+}
 
 export async function setupOpenAPI(
   app: INestApplication,
@@ -20,6 +38,14 @@ export async function setupOpenAPI(
   }
   const config = builder.build();
   const document = SwaggerModule.createDocument(app, config);
+  Object.assign(document, {
+    info: {
+      ...document.info,
+      'nestjs-endpoints': {
+        version: (await readPkgJson())?.version ?? '1',
+      },
+    },
+  });
   let changed = false;
 
   if (options?.outputFile) {
@@ -38,11 +64,11 @@ export async function setupOpenAPI(
       const documentFile = path.isAbsolute(outputFile)
         ? outputFile
         : path.resolve(path.dirname(getCallsiteFile()), outputFile);
-      const currentDocument = await readFile(documentFile, 'utf-8').catch(
-        () => '',
-      );
+      const currentDocument = await fs
+        .readFile(documentFile, 'utf-8')
+        .catch(() => '');
       if (currentDocument !== newDocument) {
-        await writeFile(documentFile, newDocument, 'utf-8');
+        await fs.writeFile(documentFile, newDocument, 'utf-8');
         changed = true;
       }
     }
