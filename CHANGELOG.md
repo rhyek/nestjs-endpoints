@@ -5,7 +5,7 @@
 ### Features
 
 - Added support for traditional controller imports + explicit HTTP paths
-- Can now call `invoke()` on endpoint instances. Useful for integration testing. [Example](https://github.com/rhyek/nestjs-endpoints/blob/65d763b79f109ebd757cd6e93297fa6857be48ec/packages/test/test-app-express-cjs/test/app.e2e-spec.ts#L467).
+- Can now call `invoke()` on endpoint instances. Useful for integration testing. [Example](https://github.com/rhyek/nestjs-endpoints/blob/1b1242348ebc77abad5ad0c67ab372690102d736/packages/test/test-app-express-cjs/test/app.e2e-spec.ts#L467).
 
 ## 1.2.0 (2025-04-05)
 
