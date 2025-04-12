@@ -1,3 +1,4 @@
+import { AsyncLocalStorage } from 'node:async_hooks';
 import path from 'node:path';
 import { applyDecorators } from '@nestjs/common';
 import { ApiQuery, ApiQueryOptions } from '@nestjs/swagger';
@@ -54,11 +55,15 @@ export function getEndpointHttpPath(
     pathSegments.push(leaf);
   }
   const httpPath = path.join(...pathSegments);
-  const httpPathPascalName = httpPath
-    .replace(/^[a-z]/, (letter) => letter.toUpperCase())
-    .replace(/[/-]([a-z])/g, (_, letter: string) => letter.toUpperCase());
+  const httpPathPascalName = getHttpPathPascalName(httpPath);
 
   return { httpPath, httpPathPascalName, httpPathSegments: pathSegments };
+}
+
+export function getHttpPathPascalName(httpPath: string) {
+  return httpPath
+    .replace(/^[a-z]/, (letter) => letter.toUpperCase())
+    .replace(/[/-]([a-z])/g, (_, letter: string) => letter.toUpperCase());
 }
 
 export const ApiQueries = <T extends z.ZodObject<ZodRawShape>>(
@@ -99,3 +104,5 @@ export function getCallsiteFile() {
   }
   return result;
 }
+
+export const moduleAls = new AsyncLocalStorage<boolean>();

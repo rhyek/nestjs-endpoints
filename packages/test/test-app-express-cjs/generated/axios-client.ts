@@ -69,6 +69,41 @@ export type UserGetOutput = {
   email: string;
 } | null;
 
+export type UserListForRouterWithPathOutputItem = {
+  id: number;
+  name: string;
+  email: string;
+};
+
+export type UserListForRouterWithPathOutput =
+  UserListForRouterWithPathOutputItem[];
+
+export type SrcEndpointsUserListUserListNoPathOutputItem = {
+  id: number;
+  name: string;
+  email: string;
+};
+
+export type SrcEndpointsUserListUserListNoPathOutput =
+  SrcEndpointsUserListUserListNoPathOutputItem[];
+
+export type UserListWithPathOutputItem = {
+  id: number;
+  name: string;
+  email: string;
+};
+
+export type UserListWithPathOutput = UserListWithPathOutputItem[];
+
+export type UserListWithPathNoSuffixOutputItem = {
+  id: number;
+  name: string;
+  email: string;
+};
+
+export type UserListWithPathNoSuffixOutput =
+  UserListWithPathNoSuffixOutputItem[];
+
 export type UserAppointmentCountParams = {
   userId: number;
 };
@@ -166,10 +201,43 @@ export const createApiClient = (
     });
   };
 
+  const userListForRouterWithPath = <
+    TData = AxiosResponse<UserListForRouterWithPathOutput>,
+  >(
+    options?: AxiosRequestConfig,
+  ): Promise<TData> => {
+    return axios.get(`/user/list-for-router-with-path`, options);
+  };
+
   const userPurge = <TData = AxiosResponse<void>>(
     options?: AxiosRequestConfig,
   ): Promise<TData> => {
     return axios.post(`/user/purge`, undefined, options);
+  };
+
+  const srcEndpointsUserListUserListNoPath = <
+    TData = AxiosResponse<SrcEndpointsUserListUserListNoPathOutput>,
+  >(
+    options?: AxiosRequestConfig,
+  ): Promise<TData> => {
+    return axios.get(
+      `/src/endpoints/user/list/user-list-no-path`,
+      options,
+    );
+  };
+
+  const userListWithPath = <TData = AxiosResponse<UserListWithPathOutput>>(
+    options?: AxiosRequestConfig,
+  ): Promise<TData> => {
+    return axios.get(`/user/list-with-path`, options);
+  };
+
+  const userListWithPathNoSuffix = <
+    TData = AxiosResponse<UserListWithPathNoSuffixOutput>,
+  >(
+    options?: AxiosRequestConfig,
+  ): Promise<TData> => {
+    return axios.get(`/user/list-with-path-no-suffix`, options);
   };
 
   return {
@@ -181,7 +249,11 @@ export const createApiClient = (
     userCreate,
     userFind,
     userGet,
+    userListForRouterWithPath,
     userPurge,
+    srcEndpointsUserListUserListNoPath,
+    userListWithPath,
+    userListWithPathNoSuffix,
     axios,
   };
 };
@@ -195,4 +267,11 @@ export type UserAppointmentCreateResult =
 export type UserCreateResult = AxiosResponse<UserCreateOutput>;
 export type UserFindResult = AxiosResponse<UserFindOutput>;
 export type UserGetResult = AxiosResponse<UserGetOutput>;
+export type UserListForRouterWithPathResult =
+  AxiosResponse<UserListForRouterWithPathOutput>;
 export type UserPurgeResult = AxiosResponse<void>;
+export type SrcEndpointsUserListUserListNoPathResult =
+  AxiosResponse<SrcEndpointsUserListUserListNoPathOutput>;
+export type UserListWithPathResult = AxiosResponse<UserListWithPathOutput>;
+export type UserListWithPathNoSuffixResult =
+  AxiosResponse<UserListWithPathNoSuffixOutput>;

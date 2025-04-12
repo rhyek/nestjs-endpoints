@@ -9,8 +9,15 @@ import {
 } from 'nestjs-endpoints';
 import request from 'supertest';
 import { AppModule } from '../src/app.module';
+import { AuthService } from '../src/auth/auth.service';
 import { AppointmentRepositoryToken } from '../src/endpoints/user/appointment/appointment-repository.interface';
 import { AppointmentRepository } from '../src/endpoints/user/appointment/appointment.repository';
+import userCreateEndpoint from '../src/endpoints/user/create.endpoint';
+import userFindEndpoint from '../src/endpoints/user/find.endpoint';
+import { userListNoPath as userListNoPathEndpoint } from '../src/endpoints/user/list/user-list-no-path.endpoint';
+import userPurgeEndpoint from '../src/endpoints/user/purge.endpoint';
+import { UserRepository } from '../src/endpoints/user/user.repository';
+import { UserRepositoryToken } from '../src/endpoints/user/user.repository.token';
 import { UserService } from '../src/endpoints/user/user.service';
 import { createApp } from './create-app';
 
@@ -429,6 +436,15 @@ describe('api', () => {
       name: 'John',
       email: 'john@hotmail.com',
     });
+    await req
+      .get('/user/find?id=1')
+      .expect(200)
+      .then((resp) => {
+        expect(resp.body).toMatchObject({
+          id: 34,
+          email: 'john@hotmail.com',
+        });
+      });
   });
 
   test.concurrent('can access auth endpoints', async () => {
@@ -446,6 +462,74 @@ describe('api', () => {
         });
       });
   });
+
+  test.concurrent(
+    'can test controllers directly without http pipeline',
+    async () => {
+      const moduleFixture: TestingModule = await Test.createTestingModule({
+        controllers: [
+          userListNoPathEndpoint,
+          userCreateEndpoint,
+          userPurgeEndpoint,
+          userFindEndpoint,
+        ],
+        providers: [
+          AuthService,
+          {
+            provide: UserRepositoryToken,
+            useClass: UserRepository,
+          },
+          UserService,
+        ],
+      }).compile();
+      const app = moduleFixture.createNestApplication();
+      app.useLogger(false);
+      await app.init();
+      const userRepository = app.get<UserRepository>(UserRepositoryToken);
+      const userListNoPath = app.get(userListNoPathEndpoint);
+      const userCreate = app.get(userCreateEndpoint);
+      const userPurge = app.get(userPurgeEndpoint);
+      const userFind = app.get(userFindEndpoint);
+      expect(userRepository.findAll()).toEqual([]);
+      await expect(userListNoPath.invoke()).resolves.toEqual([]);
+      await expect(
+        userCreate.invoke({
+          email: 'john@example.com',
+        } as any),
+      ).rejects.toMatchObject({
+        error: {
+          issues: [
+            {
+              code: 'invalid_type',
+              expected: 'string',
+              received: 'undefined',
+              path: ['name'],
+              message: 'Required',
+            },
+          ],
+        },
+      });
+      await expect(
+        userCreate.invoke({
+          name: 'John',
+          email: 'john@example.com',
+        }),
+      ).resolves.toEqual({ id: 1 });
+      expect(userRepository.findAll()).toEqual([
+        { id: 1, name: 'John', email: 'john@example.com' },
+      ]);
+      await expect(userListNoPath.invoke()).resolves.toEqual([
+        { id: 1, name: 'John', email: 'john@example.com' },
+      ]);
+      await expect(userFind.invoke({ id: 1 })).resolves.toEqual({
+        id: 1,
+        name: 'John',
+        email: 'john@example.com',
+      });
+      await expect(userPurge.invoke()).resolves.toEqual(undefined);
+      await expect(userListNoPath.invoke()).resolves.toEqual([]);
+    },
+  );
 });
 
 it('spec works', async () => {
@@ -470,7 +554,8 @@ it('spec works', async () => {
   });
 
   expect(spec).toBeTruthy();
-  expect(JSON.parse(spec)).toMatchObject({
+  const parsed = JSON.parse(spec);
+  expect(parsed).toMatchObject({
     openapi: '3.0.0',
     paths: {
       '/auth/login': {
@@ -724,6 +809,95 @@ it('spec works', async () => {
         },
         UserAppointmentCountOutput: {
           type: 'number',
+        },
+      },
+    },
+  });
+  expect(parsed).toMatchObject({
+    paths: {
+      '/user/list-for-router-with-path': {
+        get: {
+          operationId: 'UserListForRouterWithPath',
+          parameters: [],
+          responses: {
+            '200': {
+              description: '',
+              content: {
+                'application/json': {
+                  schema: {
+                    $ref: '#/components/schemas/UserListForRouterWithPathOutput',
+                  },
+                },
+              },
+            },
+          },
+          summary: '',
+          tags: ['user'],
+        },
+      },
+      '/src/endpoints/user/list/user-list-no-path': {
+        get: {
+          operationId: 'SrcEndpointsUserListUserListNoPath',
+          parameters: [],
+          responses: {
+            '200': {
+              description: '',
+              content: {
+                'application/json': {
+                  schema: {
+                    $ref: '#/components/schemas/SrcEndpointsUserListUserListNoPathOutput',
+                  },
+                },
+              },
+            },
+          },
+          summary: '',
+          tags: [
+            'src',
+            'src/endpoints',
+            'src/endpoints/user',
+            'src/endpoints/user/list',
+          ],
+        },
+      },
+      '/user/list-with-path': {
+        get: {
+          operationId: 'UserListWithPath',
+          parameters: [],
+          responses: {
+            '200': {
+              description: '',
+              content: {
+                'application/json': {
+                  schema: {
+                    $ref: '#/components/schemas/UserListWithPathOutput',
+                  },
+                },
+              },
+            },
+          },
+          summary: '',
+          tags: ['user'],
+        },
+      },
+      '/user/list-with-path-no-suffix': {
+        get: {
+          operationId: 'UserListWithPathNoSuffix',
+          parameters: [],
+          responses: {
+            '200': {
+              description: '',
+              content: {
+                'application/json': {
+                  schema: {
+                    $ref: '#/components/schemas/UserListWithPathNoSuffixOutput',
+                  },
+                },
+              },
+            },
+          },
+          summary: '',
+          tags: ['user'],
         },
       },
     },

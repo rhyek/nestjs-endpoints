@@ -8,6 +8,9 @@ async function bootstrap() {
     origin: '*',
   });
   await setupCodegen(app, {
+    openapi: {
+      outputFile: process.cwd() + '/openapi.json',
+    },
     clients: [
       {
         type: 'axios',

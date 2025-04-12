@@ -84,6 +84,41 @@ export type UserGetOutput = {
   email: string;
 } | null;
 
+export type UserListForRouterWithPathOutputItem = {
+  id: number;
+  name: string;
+  email: string;
+};
+
+export type UserListForRouterWithPathOutput =
+  UserListForRouterWithPathOutputItem[];
+
+export type SrcEndpointsUserListUserListNoPathOutputItem = {
+  id: number;
+  name: string;
+  email: string;
+};
+
+export type SrcEndpointsUserListUserListNoPathOutput =
+  SrcEndpointsUserListUserListNoPathOutputItem[];
+
+export type UserListWithPathOutputItem = {
+  id: number;
+  name: string;
+  email: string;
+};
+
+export type UserListWithPathOutput = UserListWithPathOutputItem[];
+
+export type UserListWithPathNoSuffixOutputItem = {
+  id: number;
+  name: string;
+  email: string;
+};
+
+export type UserListWithPathNoSuffixOutput =
+  UserListWithPathNoSuffixOutputItem[];
+
 export type UserAppointmentCountParams = {
   userId: number;
 };
@@ -174,10 +209,37 @@ export const createApiClient = (
     });
   };
 
+  const userListForRouterWithPath = (
+    options?: AxiosRequestConfig,
+  ): Promise<AxiosResponse<UserListForRouterWithPathOutput>> => {
+    return axios.get(`/user/list-for-router-with-path`, options);
+  };
+
   const userPurge = (
     options?: AxiosRequestConfig,
   ): Promise<AxiosResponse<void>> => {
     return axios.post(`/user/purge`, undefined, options);
+  };
+
+  const srcEndpointsUserListUserListNoPath = (
+    options?: AxiosRequestConfig,
+  ): Promise<AxiosResponse<SrcEndpointsUserListUserListNoPathOutput>> => {
+    return axios.get(
+      `/src/endpoints/user/list/user-list-no-path`,
+      options,
+    );
+  };
+
+  const userListWithPath = (
+    options?: AxiosRequestConfig,
+  ): Promise<AxiosResponse<UserListWithPathOutput>> => {
+    return axios.get(`/user/list-with-path`, options);
+  };
+
+  const userListWithPathNoSuffix = (
+    options?: AxiosRequestConfig,
+  ): Promise<AxiosResponse<UserListWithPathNoSuffixOutput>> => {
+    return axios.get(`/user/list-with-path-no-suffix`, options);
   };
 
   return {
@@ -189,7 +251,11 @@ export const createApiClient = (
     userCreate,
     userFind,
     userGet,
+    userListForRouterWithPath,
     userPurge,
+    srcEndpointsUserListUserListNoPath,
+    userListWithPath,
+    userListWithPathNoSuffix,
     axios,
   };
 };
@@ -826,6 +892,87 @@ export function useUserGet<
   return query;
 }
 
+export const getUserListForRouterWithPathQueryKey = () => {
+  return [`/user/list-for-router-with-path`] as const;
+};
+
+export const getUserListForRouterWithPathQueryOptions = <
+  TData = Awaited<
+    ReturnType<ApiClient['userListForRouterWithPath']>
+  >['data'],
+  TError = AxiosError<unknown>,
+>(options: {
+  query?: Partial<
+    UseQueryOptions<
+      Awaited<ReturnType<ApiClient['userListForRouterWithPath']>>['data'],
+      TError,
+      TData
+    >
+  >;
+  axios?: AxiosRequestConfig;
+  client: ApiClient;
+}) => {
+  const { query: queryOptions, axios: axiosOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getUserListForRouterWithPathQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<ApiClient['userListForRouterWithPath']>>['data']
+  > = ({ signal }) =>
+    options.client
+      .userListForRouterWithPath({ signal, ...axiosOptions })
+      .then((res) => res.data);
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<ApiClient['userListForRouterWithPath']>>['data'],
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
+
+export type UserListForRouterWithPathQueryResult = NonNullable<
+  Awaited<ReturnType<ApiClient['userListForRouterWithPath']>>['data']
+>;
+export type UserListForRouterWithPathQueryError = AxiosError<unknown>;
+
+export function useUserListForRouterWithPath<
+  TData = Awaited<
+    ReturnType<ApiClient['userListForRouterWithPath']>
+  >['data'],
+  TError = AxiosError<unknown>,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<
+          ReturnType<ApiClient['userListForRouterWithPath']>
+        >['data'],
+        TError,
+        TData
+      >
+    >;
+    axios?: AxiosRequestConfig;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & {
+  queryKey: DataTag<QueryKey, TData, TError>;
+} {
+  const client = useApiClient();
+  const queryOptions = getUserListForRouterWithPathQueryOptions(
+    Object.assign({ client }, options),
+  );
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<
+    TData,
+    TError
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  query.queryKey = queryOptions.queryKey;
+
+  return query;
+}
+
 export const getUserPurgeMutationOptions = <
   TError = AxiosError<unknown>,
   TContext = unknown,
@@ -891,3 +1038,247 @@ export const useUserPurge = <
 
   return useMutation(mutationOptions, queryClient);
 };
+
+export const getSrcEndpointsUserListUserListNoPathQueryKey = () => {
+  return [`/src/endpoints/user/list/user-list-no-path`] as const;
+};
+
+export const getSrcEndpointsUserListUserListNoPathQueryOptions = <
+  TData = Awaited<
+    ReturnType<ApiClient['srcEndpointsUserListUserListNoPath']>
+  >['data'],
+  TError = AxiosError<unknown>,
+>(options: {
+  query?: Partial<
+    UseQueryOptions<
+      Awaited<
+        ReturnType<ApiClient['srcEndpointsUserListUserListNoPath']>
+      >['data'],
+      TError,
+      TData
+    >
+  >;
+  axios?: AxiosRequestConfig;
+  client: ApiClient;
+}) => {
+  const { query: queryOptions, axios: axiosOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ??
+    getSrcEndpointsUserListUserListNoPathQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<
+      ReturnType<ApiClient['srcEndpointsUserListUserListNoPath']>
+    >['data']
+  > = ({ signal }) =>
+    options.client
+      .srcEndpointsUserListUserListNoPath({ signal, ...axiosOptions })
+      .then((res) => res.data);
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<
+      ReturnType<ApiClient['srcEndpointsUserListUserListNoPath']>
+    >['data'],
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
+
+export type SrcEndpointsUserListUserListNoPathQueryResult = NonNullable<
+  Awaited<
+    ReturnType<ApiClient['srcEndpointsUserListUserListNoPath']>
+  >['data']
+>;
+export type SrcEndpointsUserListUserListNoPathQueryError =
+  AxiosError<unknown>;
+
+export function useSrcEndpointsUserListUserListNoPath<
+  TData = Awaited<
+    ReturnType<ApiClient['srcEndpointsUserListUserListNoPath']>
+  >['data'],
+  TError = AxiosError<unknown>,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<
+          ReturnType<ApiClient['srcEndpointsUserListUserListNoPath']>
+        >['data'],
+        TError,
+        TData
+      >
+    >;
+    axios?: AxiosRequestConfig;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & {
+  queryKey: DataTag<QueryKey, TData, TError>;
+} {
+  const client = useApiClient();
+  const queryOptions = getSrcEndpointsUserListUserListNoPathQueryOptions(
+    Object.assign({ client }, options),
+  );
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<
+    TData,
+    TError
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  query.queryKey = queryOptions.queryKey;
+
+  return query;
+}
+
+export const getUserListWithPathQueryKey = () => {
+  return [`/user/list-with-path`] as const;
+};
+
+export const getUserListWithPathQueryOptions = <
+  TData = Awaited<ReturnType<ApiClient['userListWithPath']>>['data'],
+  TError = AxiosError<unknown>,
+>(options: {
+  query?: Partial<
+    UseQueryOptions<
+      Awaited<ReturnType<ApiClient['userListWithPath']>>['data'],
+      TError,
+      TData
+    >
+  >;
+  axios?: AxiosRequestConfig;
+  client: ApiClient;
+}) => {
+  const { query: queryOptions, axios: axiosOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getUserListWithPathQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<ApiClient['userListWithPath']>>['data']
+  > = ({ signal }) =>
+    options.client
+      .userListWithPath({ signal, ...axiosOptions })
+      .then((res) => res.data);
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<ApiClient['userListWithPath']>>['data'],
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
+
+export type UserListWithPathQueryResult = NonNullable<
+  Awaited<ReturnType<ApiClient['userListWithPath']>>['data']
+>;
+export type UserListWithPathQueryError = AxiosError<unknown>;
+
+export function useUserListWithPath<
+  TData = Awaited<ReturnType<ApiClient['userListWithPath']>>['data'],
+  TError = AxiosError<unknown>,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<ApiClient['userListWithPath']>>['data'],
+        TError,
+        TData
+      >
+    >;
+    axios?: AxiosRequestConfig;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & {
+  queryKey: DataTag<QueryKey, TData, TError>;
+} {
+  const client = useApiClient();
+  const queryOptions = getUserListWithPathQueryOptions(
+    Object.assign({ client }, options),
+  );
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<
+    TData,
+    TError
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  query.queryKey = queryOptions.queryKey;
+
+  return query;
+}
+
+export const getUserListWithPathNoSuffixQueryKey = () => {
+  return [`/user/list-with-path-no-suffix`] as const;
+};
+
+export const getUserListWithPathNoSuffixQueryOptions = <
+  TData = Awaited<
+    ReturnType<ApiClient['userListWithPathNoSuffix']>
+  >['data'],
+  TError = AxiosError<unknown>,
+>(options: {
+  query?: Partial<
+    UseQueryOptions<
+      Awaited<ReturnType<ApiClient['userListWithPathNoSuffix']>>['data'],
+      TError,
+      TData
+    >
+  >;
+  axios?: AxiosRequestConfig;
+  client: ApiClient;
+}) => {
+  const { query: queryOptions, axios: axiosOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getUserListWithPathNoSuffixQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<ApiClient['userListWithPathNoSuffix']>>['data']
+  > = ({ signal }) =>
+    options.client
+      .userListWithPathNoSuffix({ signal, ...axiosOptions })
+      .then((res) => res.data);
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<ApiClient['userListWithPathNoSuffix']>>['data'],
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
+
+export type UserListWithPathNoSuffixQueryResult = NonNullable<
+  Awaited<ReturnType<ApiClient['userListWithPathNoSuffix']>>['data']
+>;
+export type UserListWithPathNoSuffixQueryError = AxiosError<unknown>;
+
+export function useUserListWithPathNoSuffix<
+  TData = Awaited<
+    ReturnType<ApiClient['userListWithPathNoSuffix']>
+  >['data'],
+  TError = AxiosError<unknown>,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<ApiClient['userListWithPathNoSuffix']>>['data'],
+        TError,
+        TData
+      >
+    >;
+    axios?: AxiosRequestConfig;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & {
+  queryKey: DataTag<QueryKey, TData, TError>;
+} {
+  const client = useApiClient();
+  const queryOptions = getUserListWithPathNoSuffixQueryOptions(
+    Object.assign({ client }, options),
+  );
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<
+    TData,
+    TError
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  query.queryKey = queryOptions.queryKey;
+
+  return query;
+}
