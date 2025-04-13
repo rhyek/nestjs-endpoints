@@ -247,6 +247,7 @@ const client = createApiClient({
     'x-test': 'test-1',
   },
 });
+// Access to axios instance
 client.axios.defaults.headers.common['x-test'] = 'test-2';
 
 const { id } = await client.userCreate({
