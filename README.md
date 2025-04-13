@@ -41,6 +41,7 @@ const { data: msg, error, status } = useHelloWorld();
 - **Schema validation:** Compile and run-time validation of input and output values using Zod schemas.
 - **End-to-end type safety:** Auto-generates `axios` and `@tanstack/react-query` client libraries. Internally uses `@nestjs/swagger`, [nestjs-zod](https://github.com/BenLorantfy/nestjs-zod), and [orval](https://orval.dev/).
 - **HTTP adapter agnostic:** Works with both Express and Fastify NestJS applications.
+- **Supports CommonJS and ESM**
 
 ## Installation
 
