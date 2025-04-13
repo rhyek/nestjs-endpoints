@@ -63,7 +63,8 @@ import { EndpointsRouterModule } from 'nestjs-endpoints';
   imports: [
     EndpointsRouterModule.register({
       rootDirectory: './endpoints',
-      providers: [DbService], // available to all endpoints
+      // available to all endpoints in this module
+      providers: [DbService],
     }),
   ],
 })
@@ -195,7 +196,7 @@ class AppModule {}
 `src/health-check.ts`
 
 ```typescript
-import { endpoint, z } from 'nestjs-endpoints';
+import { endpoint } from 'nestjs-endpoints';
 
 export const healthCheck = endpoint({
   path: '/status/health',
@@ -205,7 +206,7 @@ export const healthCheck = endpoint({
 
 ## Codegen (optional)
 
-You can automatically generate a client SDK for your API that can be used in other backend or frontend projects with the benefit of end-to-end type safety. It uses [orval](https://orval.dev/) internally. It works with both scanned and manually imported endpoints.
+You can automatically generate a client SDK for your API that can be used in other backend or frontend projects with the benefit of end-to-end type safety. It uses [orval](https://orval.dev/) internally and works with both scanned and manually imported endpoints.
 
 ### Using `setupCodegen`
 
@@ -347,6 +348,7 @@ import { EndpointsRouterModule } from 'nestjs-endpoints';
       providers: [DbService],
     }),
   ],
+  controllers: [healthCheck], // Mixed with manual imports
 })
 export class AppModule {}
 ```
@@ -465,7 +467,7 @@ You can write end-to-end or integration tests for your endpoints.
 
 ### End-to-end tests
 
-Use either the generated client libraries, or regular HTTP requests using `supertest`.
+Use either the generated client libraries or regular HTTP requests using `supertest`.
 
 ```ts
 test('client library', async () => {
