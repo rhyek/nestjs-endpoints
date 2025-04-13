@@ -186,7 +186,7 @@ You can import endpoints like regular NestJS controllers. No need for `Endpoints
 
 ```typescript
 import { Module } from '@nestjs/common';
-import { healthCheck } from './health-check.ts';
+import { healthCheck } from './health-check';
 
 @Module({
   controllers: [healthCheck],
