@@ -239,7 +239,7 @@ async function bootstrap() {
 ### axios
 
 ```ts
-import { createApiClient } from './generated/axios-client.ts';
+import { createApiClient } from './generated/axios-client';
 
 const client = createApiClient({
   baseURL: process.env.API_BASE_URL,
@@ -262,7 +262,7 @@ const { id } = await client.userCreate({
 import {
   ApiClientProvider,
   createApiClient,
-} from './generated/react-query-client.tsx';
+} from './generated/react-query-client';
 
 export function App() {
   const queryClient = useMemo(() => new QueryClient({}), []);
@@ -286,7 +286,7 @@ export function App() {
 import {
   useUserCreate,
   useApiClient,
-} from './generated/react-query-client.tsx';
+} from './generated/react-query-client';
 
 export function UserPage() {
   // react-query mutation hook
@@ -512,7 +512,7 @@ test('supertest', async () => {
 You can also load individual endpoints without having to import your entire application
 
 ```ts
-import userFindEndpoint from 'src/endpoints/user/find.endpoint.ts';
+import userFindEndpoint from 'src/endpoints/user/find.endpoint';
 
 test('integration', async () => {
   const moduleFixture: TestingModule = await Test.createTestingModule({
