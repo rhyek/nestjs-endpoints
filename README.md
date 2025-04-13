@@ -509,7 +509,7 @@ test('supertest', async () => {
 
 ### Integration tests
 
-You can also load individual endpoints without having to import your entire application
+You can also load individual endpoints without having to import your entire application.
 
 ```ts
 import userFindEndpoint from 'src/endpoints/user/find.endpoint';
