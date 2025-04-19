@@ -28,10 +28,10 @@ Hello, World!%
 
 ```ts
 // axios client
-const msg = await client.helloWorld();
+const greeting = await client.helloWorld();
 
 // react-query client
-const { data: msg, error, status } = useHelloWorld();
+const { data: greeting, error, status } = useHelloWorld();
 ```
 
 ## Features
