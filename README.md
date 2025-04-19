@@ -15,9 +15,9 @@ An endpoint can be as simple as this:
 ```ts
 export default endpoint({
   inject: {
-    hello: HelloService,
+    helloService: HelloService,
   },
-  handler: ({ hello }) => hello.sayHello(),
+  handler: ({ helloService }) => helloService.greet(),
 });
 ```
 
