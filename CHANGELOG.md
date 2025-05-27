@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.3.1 (2025-05-26)
+
+### Bugfixes
+
+- Support OPTIONS HTTP method
+- Use my fork of @nestjs/zod until this is merged: https://github.com/BenLorantfy/nestjs-zod/pull/151
+
 ## 1.3.0 (2025-04-12)
 
 ### Features

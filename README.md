@@ -52,11 +52,71 @@ const { data: greeting, error, status } = useHelloWorld();
 npm install nestjs-endpoints @nestjs/swagger zod
 ```
 
-## Usage
+## Setup
 
 You can opt for either an automatic setup with endpoint scanning + file-based routing or a traditional one with manual imports and HTTP paths. You can also mix both in a single project.
 
 ### Option 1. Automatic setup
+
+This is the preferred way of setting up nestjs-endpoints using file-based routing.
+
+`src/app.module.ts`
+
+```typescript
+import { EndpointsRouterModule } from 'nestjs-endpoints';
+
+@Module({
+  imports: [
+    EndpointsRouterModule.register({
+      rootDirectory: './endpoints',
+    }),
+  ],
+})
+export class AppModule {}
+```
+
+`src/endpoints/status/health.ts`
+
+```typescript
+import { endpoint } from 'nestjs-endpoints';
+
+export default endpoint({
+  handler: () => 'ok',
+});
+```
+
+Endpoint available at `/status/health`.
+
+### Option 2. Traditional imports and paths
+
+You can import endpoints like regular NestJS controllers. No need for `EndpointsRouterModule` in this case.
+
+`src/app.module.ts`
+
+```typescript
+import { Module } from '@nestjs/common';
+import { healthCheck } from './health-check';
+
+@Module({
+  controllers: [healthCheck],
+})
+class AppModule {}
+```
+
+`src/health-check.ts`
+
+```typescript
+import { endpoint } from 'nestjs-endpoints';
+
+export const healthCheck = endpoint({
+  path: '/status/health',
+  handler: () => 'ok',
+});
+```
+
+Endpoint available at `/status/health`.
+
+## Usage
 
 `src/app.module.ts`
 
@@ -180,33 +240,6 @@ Examples (assume `rootDirectory` is `./endpoints`):
 - `src/endpoints/user/_mutations/create/endpoint.ts` -> `user/create`
 
 > _**Note:**_ Bundled projects via Webpack or similar are not supported.
-
-### Option 2. Traditional imports and paths
-
-You can import endpoints like regular NestJS controllers. No need for `EndpointsRouterModule` in this case.
-
-`src/app.module.ts`
-
-```typescript
-import { Module } from '@nestjs/common';
-import { healthCheck } from './health-check';
-
-@Module({
-  controllers: [healthCheck],
-})
-class AppModule {}
-```
-
-`src/health-check.ts`
-
-```typescript
-import { endpoint } from 'nestjs-endpoints';
-
-export const healthCheck = endpoint({
-  path: '/status/health',
-  handler: () => 'ok',
-});
-```
 
 ## Codegen (optional)
 
