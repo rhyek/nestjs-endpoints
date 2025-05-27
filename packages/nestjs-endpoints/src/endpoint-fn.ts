@@ -6,6 +6,7 @@ import {
   Get,
   Head,
   Inject,
+  Options,
   Patch,
   Post,
   Put,
@@ -30,7 +31,14 @@ import {
   moduleAls,
 } from './helpers';
 
-type HttpMethod = 'get' | 'post' | 'put' | 'delete' | 'patch' | 'head';
+type HttpMethod =
+  | 'get'
+  | 'post'
+  | 'put'
+  | 'delete'
+  | 'patch'
+  | 'head'
+  | 'options';
 const httpMethodDecorators = {
   get: Get,
   post: Post,
@@ -38,6 +46,7 @@ const httpMethodDecorators = {
   delete: Delete,
   patch: Patch,
   head: Head,
+  options: Options,
 } satisfies Record<HttpMethod, () => MethodDecorator>;
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
