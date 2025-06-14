@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.4.0 (2025-06-13)
+
+### Features
+
+- Provide `rawInput` to handlers with input schemas. This is the request body parsed by NestJS, but before zod.
+
 ## 1.3.1 (2025-05-26)
 
 ### Bugfixes
