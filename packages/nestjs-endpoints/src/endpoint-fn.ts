@@ -156,6 +156,7 @@ type HandlerMethod<
           input: z.output<
             ExtractSchemaFromSchemaDef<NonNullable<InputSchema>>
           >;
+          rawInput: unknown;
         }) & {
       response: <
         Status extends OutputMapKey<OutputSchema>,
@@ -444,12 +445,13 @@ export function endpoint<
       }
     };
 
-    // invoke method
-    (cls.prototype as any).invoke = async function (rawInput: any) {
-      const handlerParams: Record<string | symbol, any> = {
-        response,
-        schemas: {},
-      };
+    const response = (s: number, b: any) => new EndpointResponse(s, b);
+
+    const commonHandlerLogic = async function (
+      this: any,
+      handlerParams: Record<string | symbol, any>,
+      rawInput: any,
+    ) {
       if (inject) {
         for (const key of Object.keys(inject)) {
           handlerParams[key] = this[key];
@@ -463,10 +465,25 @@ export function endpoint<
           throw new ZodValidationException(parsed.error);
         }
         handlerParams.input = parsed.data;
+        handlerParams.rawInput = rawInput;
         handlerParams.schemas.input = schema;
       }
       // eslint-disable-next-line @typescript-eslint/await-thenable
       const result: any = await handler(handlerParams as any);
+      return result;
+    };
+
+    // invoke method
+    (cls.prototype as any).invoke = async function (rawInput: any) {
+      const handlerParams: Record<string | symbol, any> = {
+        response,
+        schemas: {},
+      };
+      const result = await commonHandlerLogic.call(
+        this,
+        handlerParams,
+        rawInput,
+      );
       if (result instanceof EndpointResponse) {
         validateOutput(result);
         return result;
@@ -478,7 +495,6 @@ export function endpoint<
     };
 
     // handler method
-    const response = (s: number, b: any) => new EndpointResponse(s, b);
     (cls.prototype as any).handler = async function (...params: any[]) {
       const injectedMethodParams: Record<string | symbol, any> =
         Object.fromEntries(
@@ -491,28 +507,17 @@ export function endpoint<
         response,
         schemas: {},
       };
-      if (inject) {
-        for (const key of Object.keys(inject)) {
-          handlerParams[key] = this[key];
-        }
-      }
       if (injectMethod) {
         for (const key of Object.keys(injectMethod)) {
           handlerParams[key] = injectedMethodParams[key];
         }
       }
-      if (input) {
-        const schema: ZodSchema =
-          input instanceof SchemaDef ? input.schema : input;
-        const parsed = schema.safeParse(injectedMethodParams[inputKey]);
-        if (parsed.error) {
-          throw new ZodValidationException(parsed.error);
-        }
-        handlerParams.input = parsed.data;
-        handlerParams.schemas.input = schema;
-      }
-      // eslint-disable-next-line @typescript-eslint/await-thenable
-      const result: any = await handler(handlerParams as any);
+      const rawInput = injectedMethodParams[inputKey];
+      const result = await commonHandlerLogic.call(
+        this,
+        handlerParams,
+        rawInput,
+      );
       let endpointResponse: EndpointResponse;
       if (result instanceof EndpointResponse) {
         endpointResponse = result;
