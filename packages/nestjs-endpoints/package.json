@@ -26,7 +26,6 @@
     "src",
     "dist"
   ],
-  "types": "./dist/cjs/index.d.ts",
   "exports": {
     ".": {
       "require": {
@@ -39,6 +38,7 @@
       }
     }
   },
+  "types": "./dist/cjs/index.d.ts",
   "scripts": {
     "dev": "tsc-watch --preserveWatchOutput --onSuccess \"../../scripts/build.sh\"",
     "test": "vitest"
