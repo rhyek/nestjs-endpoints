@@ -23,7 +23,6 @@
     "@types/react": "^19.1.0",
     "nestjs-endpoints": "workspace:*",
     "react": "^19.1.0",
-    "reflect-metadata": "^0.1.13",
     "rxjs": "^7.8.1",
     "vitest": "^3.2.4"
   },

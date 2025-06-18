@@ -24,6 +24,7 @@
     "lint-staged": "^15.4.3",
     "prettier": "^3.0.0",
     "typescript-eslint": "^8.24.0",
-    "zod": "^3.25.67"
+    "zod": "^3.25.67",
+    "reflect-metadata": "^0.1.13"
   }
 }

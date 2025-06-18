@@ -8,7 +8,7 @@ export {
 export {
   ZodValidationException,
   ZodSerializationException,
-} from 'nestjs-zod';
+} from './exceptions';
 export * from './helpers';
 export * from './setup';
 export * from './codegen';

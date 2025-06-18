@@ -16,12 +16,12 @@ import {
 } from '@nestjs/common';
 import { HttpAdapterHost } from '@nestjs/core';
 import { ApiBody, ApiOperation, ApiResponse } from '@nestjs/swagger';
+import { z, ZodSchema } from 'zod';
+import { settings } from './consts';
 import {
   ZodSerializationException,
   ZodValidationException,
-} from 'nestjs-zod';
-import { z, ZodSchema } from 'zod';
-import { settings } from './consts';
+} from './exceptions';
 import {
   ApiQueries,
   getCallsiteFile,

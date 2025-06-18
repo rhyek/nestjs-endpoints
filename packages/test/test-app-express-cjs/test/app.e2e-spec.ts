@@ -50,7 +50,7 @@ describe('api', () => {
     }).compile();
 
     const app = await createApp(moduleFixture);
-    app.useLogger(['debug']);
+    app.useLogger(false);
 
     const userService = app.get(UserService);
     const appointmentsRepository = app.get<AppointmentRepository>(
@@ -91,6 +91,19 @@ describe('api', () => {
   test.concurrent('user find input validation throws', async () => {
     const { req, validationExceptionSpy, serializationExceptionSpy } =
       await setup();
+    validationExceptionSpy.mockImplementationOnce((exception) => {
+      expect(exception).toBeInstanceOf(ZodValidationException);
+      expect(exception.message).toBe('Validation failed');
+      expect(exception.getZodError().errors).toMatchObject([
+        {
+          code: 'invalid_type',
+          expected: 'number',
+          received: 'nan',
+          path: ['id'],
+          message: 'Expected number, received nan',
+        },
+      ]);
+    });
     await req.get('/user/find').expect(400, {
       statusCode: 400,
       message: 'Validation failed',
@@ -165,6 +178,7 @@ describe('api', () => {
       } as any);
       serializationExceptionSpy.mockImplementation((exception) => {
         expect(exception).toBeInstanceOf(ZodSerializationException);
+        expect(exception.message).toBe('Internal Server Error');
         expect(
           (exception as ZodSerializationException).getZodError().errors,
         ).toMatchObject([
@@ -391,7 +405,7 @@ describe('api', () => {
       });
   });
 
-  test.concurrent.only('can access input schema in handler', async () => {
+  test.concurrent('can access input schema in handler', async () => {
     const { req } = await setup();
     await req
       .post('/user/create')

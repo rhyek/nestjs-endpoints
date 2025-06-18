@@ -26,14 +26,14 @@ import type {
 
 import React from 'react';
 
-export type DistEndpointsUserListUserListNoPathOutputItem = {
+export type SrcEndpointsUserListUserListNoPathOutputItem = {
   id: number;
   name: string;
   email: string;
 };
 
-export type DistEndpointsUserListUserListNoPathOutput =
-  DistEndpointsUserListUserListNoPathOutputItem[];
+export type SrcEndpointsUserListUserListNoPathOutput =
+  SrcEndpointsUserListUserListNoPathOutputItem[];
 
 export type UserListWithPathNoSuffixOutputItem = {
   id: number;
@@ -221,11 +221,11 @@ export const createApiClient = (
     return axios.post(`/user/purge`, undefined, options);
   };
 
-  const distEndpointsUserListUserListNoPath = (
+  const srcEndpointsUserListUserListNoPath = (
     options?: AxiosRequestConfig,
-  ): Promise<AxiosResponse<DistEndpointsUserListUserListNoPathOutput>> => {
+  ): Promise<AxiosResponse<SrcEndpointsUserListUserListNoPathOutput>> => {
     return axios.get(
-      `/dist/endpoints/user/list/user-list-no-path`,
+      `/src/endpoints/user/list/user-list-no-path`,
       options,
     );
   };
@@ -253,7 +253,7 @@ export const createApiClient = (
     userGet,
     userListForRouterWithPath,
     userPurge,
-    distEndpointsUserListUserListNoPath,
+    srcEndpointsUserListUserListNoPath,
     userListWithPath,
     userListWithPathNoSuffix,
     axios,
@@ -1039,20 +1039,20 @@ export const useUserPurge = <
   return useMutation(mutationOptions, queryClient);
 };
 
-export const getDistEndpointsUserListUserListNoPathQueryKey = () => {
-  return [`/dist/endpoints/user/list/user-list-no-path`] as const;
+export const getSrcEndpointsUserListUserListNoPathQueryKey = () => {
+  return [`/src/endpoints/user/list/user-list-no-path`] as const;
 };
 
-export const getDistEndpointsUserListUserListNoPathQueryOptions = <
+export const getSrcEndpointsUserListUserListNoPathQueryOptions = <
   TData = Awaited<
-    ReturnType<ApiClient['distEndpointsUserListUserListNoPath']>
+    ReturnType<ApiClient['srcEndpointsUserListUserListNoPath']>
   >['data'],
   TError = AxiosError<unknown>,
 >(options: {
   query?: Partial<
     UseQueryOptions<
       Awaited<
-        ReturnType<ApiClient['distEndpointsUserListUserListNoPath']>
+        ReturnType<ApiClient['srcEndpointsUserListUserListNoPath']>
       >['data'],
       TError,
       TData
@@ -1065,37 +1065,37 @@ export const getDistEndpointsUserListUserListNoPathQueryOptions = <
 
   const queryKey =
     queryOptions?.queryKey ??
-    getDistEndpointsUserListUserListNoPathQueryKey();
+    getSrcEndpointsUserListUserListNoPathQueryKey();
 
   const queryFn: QueryFunction<
     Awaited<
-      ReturnType<ApiClient['distEndpointsUserListUserListNoPath']>
+      ReturnType<ApiClient['srcEndpointsUserListUserListNoPath']>
     >['data']
   > = ({ signal }) =>
     options.client
-      .distEndpointsUserListUserListNoPath({ signal, ...axiosOptions })
+      .srcEndpointsUserListUserListNoPath({ signal, ...axiosOptions })
       .then((res) => res.data);
 
   return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
     Awaited<
-      ReturnType<ApiClient['distEndpointsUserListUserListNoPath']>
+      ReturnType<ApiClient['srcEndpointsUserListUserListNoPath']>
     >['data'],
     TError,
     TData
   > & { queryKey: DataTag<QueryKey, TData, TError> };
 };
 
-export type DistEndpointsUserListUserListNoPathQueryResult = NonNullable<
+export type SrcEndpointsUserListUserListNoPathQueryResult = NonNullable<
   Awaited<
-    ReturnType<ApiClient['distEndpointsUserListUserListNoPath']>
+    ReturnType<ApiClient['srcEndpointsUserListUserListNoPath']>
   >['data']
 >;
-export type DistEndpointsUserListUserListNoPathQueryError =
+export type SrcEndpointsUserListUserListNoPathQueryError =
   AxiosError<unknown>;
 
-export function useDistEndpointsUserListUserListNoPath<
+export function useSrcEndpointsUserListUserListNoPath<
   TData = Awaited<
-    ReturnType<ApiClient['distEndpointsUserListUserListNoPath']>
+    ReturnType<ApiClient['srcEndpointsUserListUserListNoPath']>
   >['data'],
   TError = AxiosError<unknown>,
 >(
@@ -1103,7 +1103,7 @@ export function useDistEndpointsUserListUserListNoPath<
     query?: Partial<
       UseQueryOptions<
         Awaited<
-          ReturnType<ApiClient['distEndpointsUserListUserListNoPath']>
+          ReturnType<ApiClient['srcEndpointsUserListUserListNoPath']>
         >['data'],
         TError,
         TData
@@ -1116,7 +1116,7 @@ export function useDistEndpointsUserListUserListNoPath<
   queryKey: DataTag<QueryKey, TData, TError>;
 } {
   const client = useApiClient();
-  const queryOptions = getDistEndpointsUserListUserListNoPathQueryOptions(
+  const queryOptions = getSrcEndpointsUserListUserListNoPathQueryOptions(
     Object.assign({ client }, options),
   );
 
