@@ -26,6 +26,32 @@ import type {
 
 import React from 'react';
 
+export type DistEndpointsUserListUserListNoPathOutputItem = {
+  id: number;
+  name: string;
+  email: string;
+};
+
+export type DistEndpointsUserListUserListNoPathOutput =
+  DistEndpointsUserListUserListNoPathOutputItem[];
+
+export type UserListWithPathNoSuffixOutputItem = {
+  id: number;
+  name: string;
+  email: string;
+};
+
+export type UserListWithPathNoSuffixOutput =
+  UserListWithPathNoSuffixOutputItem[];
+
+export type UserListWithPathOutputItem = {
+  id: number;
+  name: string;
+  email: string;
+};
+
+export type UserListWithPathOutput = UserListWithPathOutputItem[];
+
 export interface AuthLoginInput {
   email: string;
   password: string;
@@ -39,23 +65,23 @@ export type UserAppointmentCountOutput = number;
 
 export interface UserAppointmentCreateInput {
   userId: number;
-  date: unknown;
+  date: string;
 }
 
 export interface UserAppointmentCreate201Output {
   id: number;
-  date: unknown;
+  date: string;
   address: string;
 }
 
-export type UserAppointmentCreate400OutputOneOf = {
+export type UserAppointmentCreate400OutputAnyOf = {
   message: string;
   errorCode: string;
 };
 
 export type UserAppointmentCreate400Output =
   | string
-  | UserAppointmentCreate400OutputOneOf;
+  | UserAppointmentCreate400OutputAnyOf;
 
 export interface UserCreateInput {
   name: string;
@@ -92,32 +118,6 @@ export type UserListForRouterWithPathOutputItem = {
 
 export type UserListForRouterWithPathOutput =
   UserListForRouterWithPathOutputItem[];
-
-export type SrcEndpointsUserListUserListNoPathOutputItem = {
-  id: number;
-  name: string;
-  email: string;
-};
-
-export type SrcEndpointsUserListUserListNoPathOutput =
-  SrcEndpointsUserListUserListNoPathOutputItem[];
-
-export type UserListWithPathOutputItem = {
-  id: number;
-  name: string;
-  email: string;
-};
-
-export type UserListWithPathOutput = UserListWithPathOutputItem[];
-
-export type UserListWithPathNoSuffixOutputItem = {
-  id: number;
-  name: string;
-  email: string;
-};
-
-export type UserListWithPathNoSuffixOutput =
-  UserListWithPathNoSuffixOutputItem[];
 
 export type UserAppointmentCountParams = {
   userId: number;
@@ -221,11 +221,11 @@ export const createApiClient = (
     return axios.post(`/user/purge`, undefined, options);
   };
 
-  const srcEndpointsUserListUserListNoPath = (
+  const distEndpointsUserListUserListNoPath = (
     options?: AxiosRequestConfig,
-  ): Promise<AxiosResponse<SrcEndpointsUserListUserListNoPathOutput>> => {
+  ): Promise<AxiosResponse<DistEndpointsUserListUserListNoPathOutput>> => {
     return axios.get(
-      `/src/endpoints/user/list/user-list-no-path`,
+      `/dist/endpoints/user/list/user-list-no-path`,
       options,
     );
   };
@@ -253,7 +253,7 @@ export const createApiClient = (
     userGet,
     userListForRouterWithPath,
     userPurge,
-    srcEndpointsUserListUserListNoPath,
+    distEndpointsUserListUserListNoPath,
     userListWithPath,
     userListWithPathNoSuffix,
     axios,
@@ -1039,20 +1039,20 @@ export const useUserPurge = <
   return useMutation(mutationOptions, queryClient);
 };
 
-export const getSrcEndpointsUserListUserListNoPathQueryKey = () => {
-  return [`/src/endpoints/user/list/user-list-no-path`] as const;
+export const getDistEndpointsUserListUserListNoPathQueryKey = () => {
+  return [`/dist/endpoints/user/list/user-list-no-path`] as const;
 };
 
-export const getSrcEndpointsUserListUserListNoPathQueryOptions = <
+export const getDistEndpointsUserListUserListNoPathQueryOptions = <
   TData = Awaited<
-    ReturnType<ApiClient['srcEndpointsUserListUserListNoPath']>
+    ReturnType<ApiClient['distEndpointsUserListUserListNoPath']>
   >['data'],
   TError = AxiosError<unknown>,
 >(options: {
   query?: Partial<
     UseQueryOptions<
       Awaited<
-        ReturnType<ApiClient['srcEndpointsUserListUserListNoPath']>
+        ReturnType<ApiClient['distEndpointsUserListUserListNoPath']>
       >['data'],
       TError,
       TData
@@ -1065,37 +1065,37 @@ export const getSrcEndpointsUserListUserListNoPathQueryOptions = <
 
   const queryKey =
     queryOptions?.queryKey ??
-    getSrcEndpointsUserListUserListNoPathQueryKey();
+    getDistEndpointsUserListUserListNoPathQueryKey();
 
   const queryFn: QueryFunction<
     Awaited<
-      ReturnType<ApiClient['srcEndpointsUserListUserListNoPath']>
+      ReturnType<ApiClient['distEndpointsUserListUserListNoPath']>
     >['data']
   > = ({ signal }) =>
     options.client
-      .srcEndpointsUserListUserListNoPath({ signal, ...axiosOptions })
+      .distEndpointsUserListUserListNoPath({ signal, ...axiosOptions })
       .then((res) => res.data);
 
   return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
     Awaited<
-      ReturnType<ApiClient['srcEndpointsUserListUserListNoPath']>
+      ReturnType<ApiClient['distEndpointsUserListUserListNoPath']>
     >['data'],
     TError,
     TData
   > & { queryKey: DataTag<QueryKey, TData, TError> };
 };
 
-export type SrcEndpointsUserListUserListNoPathQueryResult = NonNullable<
+export type DistEndpointsUserListUserListNoPathQueryResult = NonNullable<
   Awaited<
-    ReturnType<ApiClient['srcEndpointsUserListUserListNoPath']>
+    ReturnType<ApiClient['distEndpointsUserListUserListNoPath']>
   >['data']
 >;
-export type SrcEndpointsUserListUserListNoPathQueryError =
+export type DistEndpointsUserListUserListNoPathQueryError =
   AxiosError<unknown>;
 
-export function useSrcEndpointsUserListUserListNoPath<
+export function useDistEndpointsUserListUserListNoPath<
   TData = Awaited<
-    ReturnType<ApiClient['srcEndpointsUserListUserListNoPath']>
+    ReturnType<ApiClient['distEndpointsUserListUserListNoPath']>
   >['data'],
   TError = AxiosError<unknown>,
 >(
@@ -1103,7 +1103,7 @@ export function useSrcEndpointsUserListUserListNoPath<
     query?: Partial<
       UseQueryOptions<
         Awaited<
-          ReturnType<ApiClient['srcEndpointsUserListUserListNoPath']>
+          ReturnType<ApiClient['distEndpointsUserListUserListNoPath']>
         >['data'],
         TError,
         TData
@@ -1116,7 +1116,7 @@ export function useSrcEndpointsUserListUserListNoPath<
   queryKey: DataTag<QueryKey, TData, TError>;
 } {
   const client = useApiClient();
-  const queryOptions = getSrcEndpointsUserListUserListNoPathQueryOptions(
+  const queryOptions = getDistEndpointsUserListUserListNoPathQueryOptions(
     Object.assign({ client }, options),
   );
 

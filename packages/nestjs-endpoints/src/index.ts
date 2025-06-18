@@ -1,4 +1,4 @@
-export { z } from 'zod';
+export { z } from './z';
 export {
   endpoint,
   decorated,

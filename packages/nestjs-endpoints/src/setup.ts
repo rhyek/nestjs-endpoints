@@ -4,6 +4,7 @@ import { Writable } from 'node:stream';
 import { INestApplication } from '@nestjs/common';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { patchNestJsSwagger } from 'nestjs-zod';
+import { settings } from './consts';
 import { getCallsiteFile } from './helpers';
 
 async function readPkgJson() {
@@ -38,6 +39,13 @@ export async function setupOpenAPI(
   }
   const config = builder.build();
   const document = SwaggerModule.createDocument(app, config);
+  document.components = {
+    ...document.components,
+    schemas: {
+      ...document.components?.schemas,
+      ...settings.openapi.components.schemas,
+    },
+  };
   Object.assign(document, {
     info: {
       ...document.info,

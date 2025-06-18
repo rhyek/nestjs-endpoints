@@ -12,6 +12,7 @@
     "baseUrl": "./",
     "skipLibCheck": true,
     "strict": true,
-    "noImplicitAny": true
+    "noImplicitAny": true,
+    "types": ["vitest/globals"]
   }
 }

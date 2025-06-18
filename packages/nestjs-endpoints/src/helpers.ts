@@ -3,8 +3,9 @@ import path from 'node:path';
 import { applyDecorators } from '@nestjs/common';
 import { ApiQuery, ApiQueryOptions } from '@nestjs/swagger';
 import callsites from 'callsites';
-import { zodToOpenAPI } from 'nestjs-zod';
 import { z, ZodRawShape } from 'zod';
+import { createSchema } from 'zod-openapi';
+import { zodToOpenApi } from './zod-to-openapi';
 
 function isDirPathSegment(dir: string) {
   const segment = path.basename(dir);
@@ -70,16 +71,24 @@ export const ApiQueries = <T extends z.ZodObject<ZodRawShape>>(
   zodObject: T,
 ) => {
   const optionsList = Object.keys(zodObject.shape).reduce<
-    Array<ApiQueryOptions & { schema: ReturnType<typeof zodToOpenAPI> }>
+    Array<
+      ApiQueryOptions & {
+        schema: ReturnType<typeof createSchema>['schema'];
+      }
+    >
   >((acc, name) => {
     const zodType = zodObject.shape[name];
-
-    if (zodType)
+    if (zodType) {
+      const { openApiSchema } = zodToOpenApi({
+        schema: zodType,
+        schemaType: 'input',
+      });
       acc.push({
         name,
         required: !zodType.isOptional(),
-        schema: (zodToOpenAPI as any)(zodType),
+        schema: openApiSchema,
       });
+    }
 
     return acc;
   }, []);

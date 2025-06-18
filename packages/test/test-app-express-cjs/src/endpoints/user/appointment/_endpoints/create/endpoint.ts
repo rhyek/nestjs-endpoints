@@ -20,7 +20,13 @@ export default endpoint({
     201: schema(
       z.object({
         id: z.number(),
-        date: z.date().transform((date) => date.toISOString()),
+        date: z
+          .date()
+          .transform((date) => date.toISOString())
+          .openapi({
+            type: 'string',
+            format: 'date-time',
+          }),
         address: z.string(),
       }),
       {
