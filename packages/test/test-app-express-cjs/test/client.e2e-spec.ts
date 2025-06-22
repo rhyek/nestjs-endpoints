@@ -1,16 +1,15 @@
-import { TestingModule, Test } from '@nestjs/testing';
+import { Test, TestingModule } from '@nestjs/testing';
 import Axios from 'axios';
 import { createApiClient } from '../generated/axios-client';
 import { AppModule } from '../src/app.module';
+import { createApp } from './create-app';
 
 describe('generated client', () => {
   test.concurrent('create user - axios config', async () => {
     const moduleFixture: TestingModule = await Test.createTestingModule({
       imports: [AppModule],
     }).compile();
-    const app = moduleFixture.createNestApplication();
-    await app.init();
-    await app.listen(0);
+    const app = await createApp(moduleFixture);
     try {
       const client = createApiClient({
         baseURL: await app.getUrl(),

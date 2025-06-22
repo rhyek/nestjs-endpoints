@@ -1,4 +1,4 @@
-export { z } from 'zod';
+export { z } from './z';
 export {
   endpoint,
   decorated,
@@ -8,8 +8,8 @@ export {
 export {
   ZodValidationException,
   ZodSerializationException,
-} from 'nestjs-zod';
+} from './exceptions';
 export * from './helpers';
-export * from './setup';
+export * from './setup-openapi';
 export * from './codegen';
 export { EndpointsRouterModule } from './endpoints-router.module';

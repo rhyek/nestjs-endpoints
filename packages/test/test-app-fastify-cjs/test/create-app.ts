@@ -9,6 +9,7 @@ export async function createApp(moduleFixture: TestingModule) {
     new FastifyAdapter(),
   );
   await app.init();
+  await app.listen(0);
   await app.getHttpAdapter().getInstance().ready();
   return app;
 }

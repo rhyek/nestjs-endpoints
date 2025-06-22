@@ -1,5 +1,31 @@
 # Changelog
 
+## 1.5.0 (2025-06-22)
+
+### Features
+
+- Replaced `nestjs-zod` with [zod-openapi](https://github.com/samchungy/zod-openapi). The main benefit is output schemas will now emit OpenApi schemas and consequently TypeScript definitions for endpoint payloads that consider `ZodEffects`.
+
+Example:
+
+```typescript
+const schema = z.object({
+  age: z.number().default(30),
+});
+```
+
+The above schema when used in `input` will still mark `age` as optional, but when used in `output` it will not.
+
+```typescript
+type ExampleInput = {
+  age?: number;
+};
+
+type ExampleOutput = {
+  age: number;
+};
+```
+
 ## 1.4.0 (2025-06-13)
 
 ### Features

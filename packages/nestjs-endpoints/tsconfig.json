@@ -3,8 +3,6 @@
     "module": "commonjs",
     "lib": ["esnext"],
     "target": "esnext",
-    "rootDir": "./src",
-    "outDir": "./dist/cjs",
     "declaration": true,
     "declarationMap": true,
     "sourceMap": true,
@@ -13,8 +11,9 @@
     "strict": true,
     "skipLibCheck": true,
     "experimentalDecorators": true,
-    "emitDecoratorMetadata": true
+    "emitDecoratorMetadata": true,
+    "types": ["vitest/globals"]
   },
-  "include": ["src"],
-  "exclude": ["node_modules", "dist", "**/*.spec.ts"]
+  "include": ["src", "vitest.config.ts"],
+  "exclude": ["node_modules", "dist"]
 }

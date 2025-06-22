@@ -4,7 +4,7 @@ import { Writable } from 'node:stream';
 import { INestApplication } from '@nestjs/common';
 import { DocumentBuilder } from '@nestjs/swagger';
 import type { QueryOptions } from 'orval';
-import { setupOpenAPI } from '../setup';
+import { setupOpenAPI } from '../setup-openapi';
 import { axios } from './builder/axios';
 import { reactQuery } from './builder/react-query';
 

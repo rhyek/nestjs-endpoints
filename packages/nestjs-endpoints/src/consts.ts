@@ -8,6 +8,18 @@ export const settings: {
       basePath: string;
     }) => void;
   }[];
+  openapi: {
+    components: {
+      schemas: Record<string, any>;
+    };
+  };
 } = {
   endpoints: [],
+  openapi: {
+    components: {
+      schemas: {},
+    },
+  },
 };
+
+export const openApiVersion = '3.0.0';

@@ -8,7 +8,8 @@
     "esModuleInterop": true,
     "types": ["vite/client", "vitest/globals"],
     "strict": true,
-    "strictNullChecks": true
+    "strictNullChecks": true,
+    "skipLibCheck": true
   },
   "include": [
     "src/**/*",

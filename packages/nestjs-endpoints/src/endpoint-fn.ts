@@ -16,13 +16,12 @@ import {
 } from '@nestjs/common';
 import { HttpAdapterHost } from '@nestjs/core';
 import { ApiBody, ApiOperation, ApiResponse } from '@nestjs/swagger';
-import {
-  createZodDto,
-  ZodSerializationException,
-  ZodValidationException,
-} from 'nestjs-zod';
 import { z, ZodSchema } from 'zod';
 import { settings } from './consts';
+import {
+  ZodSerializationException,
+  ZodValidationException,
+} from './exceptions';
 import {
   ApiQueries,
   getCallsiteFile,
@@ -30,6 +29,7 @@ import {
   getHttpPathPascalName,
   moduleAls,
 } from './helpers';
+import { zodToOpenApi } from './zod-to-openapi';
 
 type HttpMethod =
   | 'get'
@@ -39,6 +39,7 @@ type HttpMethod =
   | 'patch'
   | 'head'
   | 'options';
+
 const httpMethodDecorators = {
   get: Get,
   post: Post,
@@ -563,29 +564,37 @@ export function endpoint<
       ...(decorators ?? []),
     ];
     if (input) {
-      const schema = input instanceof SchemaDef ? input.schema : input;
-      const dto = createZodDto(schema as any);
+      const schema: ZodSchema =
+        input instanceof SchemaDef ? input.schema : input;
       const schemaName = httpPathPascalName + 'Input';
-      Object.defineProperty(dto, 'name', { value: schemaName });
       if (httpMethod === 'get') {
-        methodDecorators.push(ApiQueries(dto.schema as any));
+        methodDecorators.push(ApiQueries(schema as any));
       } else {
-        methodDecorators.push(ApiBody({ type: dto }));
+        const { openApiSchema } = zodToOpenApi({
+          schema,
+          schemaType: 'input',
+          ref: schemaName,
+        });
+        methodDecorators.push(ApiBody({ schema: openApiSchema }));
       }
     }
     if (outputSchemas) {
       for (const [status, schema] of Object.entries(outputSchemas)) {
-        const s = schema instanceof SchemaDef ? schema.schema : schema;
-        const dto = createZodDto(s as any);
+        const s: ZodSchema =
+          schema instanceof SchemaDef ? schema.schema : schema;
         const schemaName =
           httpPathPascalName +
           `${status === '200' ? '' : status}` +
           'Output';
-        Object.defineProperty(dto, 'name', { value: schemaName });
+        const { openApiSchema } = zodToOpenApi({
+          schema: s,
+          schemaType: 'output',
+          ref: schemaName,
+        });
         methodDecorators.push(
           ApiResponse({
             status: Number(status),
-            type: dto,
+            schema: openApiSchema,
             description:
               schema instanceof SchemaDef ? schema.description : undefined,
           }),

@@ -11,7 +11,7 @@
     "start": "pnpm build && pnpm start:prod",
     "start:prod": "node dist/main",
     "dev": "tsx watch --inspect=0 --clear-screen=false ./src/main.ts",
-    "test:e2e": "jest --config ./test/jest-e2e.json",
+    "test:e2e": "vitest --config ./vitest.config.ts",
     "codegen": "tsx ./src/codegen.ts"
   },
   "dependencies": {
@@ -22,47 +22,28 @@
     "@types/react": "^19.1.0",
     "nestjs-endpoints": "workspace:*",
     "react": "^19.1.0",
-    "reflect-metadata": "^0.1.13",
-    "rxjs": "^7.8.1"
+    "rxjs": "^7.8.1",
+    "vitest": "^3.2.4"
   },
   "devDependencies": {
     "@nestjs/cli": "^11.0.6",
     "@nestjs/schematics": "^11.0.3",
     "@nestjs/testing": "^11.0.13",
     "@types/express": "^5.0.0",
-    "@types/jest": "^29.5.2",
     "@types/node": "^20.3.1",
     "@types/supertest": "^2.0.12",
     "axios": "^1.7.9",
-    "jest": "^29.5.0",
     "orval": "~7.8.0",
     "prettier": "^3.0.0",
     "source-map-support": "^0.5.21",
     "supertest": "^7.0.0",
-    "ts-jest": "^29.1.0",
     "ts-loader": "^9.4.3",
     "ts-node": "^10.9.1",
     "tsc-alias": "^1.8.10",
     "tsconfig-paths": "^4.2.0",
     "tsx": "^4.19.3",
     "typescript": "^5.1.3",
-    "zod": "^3.24.1"
-  },
-  "jest": {
-    "moduleFileExtensions": [
-      "js",
-      "json",
-      "ts"
-    ],
-    "rootDir": "src",
-    "testRegex": ".*\\.spec\\.ts$",
-    "transform": {
-      "^.+\\.(t|j)s$": "ts-jest"
-    },
-    "collectCoverageFrom": [
-      "**/*.(t|j)s"
-    ],
-    "coverageDirectory": "../coverage",
-    "testEnvironment": "node"
+    "unplugin-swc": "^1.5.4",
+    "vite-tsconfig-paths": "^5.1.4"
   }
 }

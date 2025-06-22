@@ -2,6 +2,8 @@
 set -e
 __dirname=$(realpath "$(dirname "$0")")
 
+pnpm --filter "nestjs-endpoints" test run
+
 pnpm --filter "./packages/test/*" exec rm -rf generated
 
 pnpm --filter "./packages/test/*" --filter "!test-app-express-cjs" --filter "!test-react-query-client" exec sh -c "\

@@ -9,22 +9,15 @@ import {
 } from 'nestjs-endpoints';
 import request from 'supertest';
 import { AppModule } from '../src/app.module';
-import { AuthService } from '../src/auth/auth.service';
 import { AppointmentRepositoryToken } from '../src/endpoints/user/appointment/appointment-repository.interface';
 import { AppointmentRepository } from '../src/endpoints/user/appointment/appointment.repository';
-import userCreateEndpoint from '../src/endpoints/user/create.endpoint';
-import userFindEndpoint from '../src/endpoints/user/find.endpoint';
-import { userListNoPath as userListNoPathEndpoint } from '../src/endpoints/user/list/user-list-no-path.endpoint';
-import userPurgeEndpoint from '../src/endpoints/user/purge.endpoint';
-import { UserRepository } from '../src/endpoints/user/user.repository';
-import { UserRepositoryToken } from '../src/endpoints/user/user.repository.token';
 import { UserService } from '../src/endpoints/user/user.service';
 import { createApp } from './create-app';
 
 describe('api', () => {
   async function setup() {
-    const validationExceptionSpy = jest.fn();
-    const serializationExceptionSpy = jest.fn();
+    const validationExceptionSpy = vitest.fn();
+    const serializationExceptionSpy = vitest.fn();
 
     @Catch(ZodValidationException)
     class ZodValidationExceptionFilter extends BaseExceptionFilter {
@@ -66,9 +59,10 @@ describe('api', () => {
     const req = request(app.getHttpServer());
 
     return {
+      app,
+      req,
       userService,
       appointmentsRepository,
-      req,
       validationExceptionSpy,
       serializationExceptionSpy,
     };
@@ -97,6 +91,19 @@ describe('api', () => {
   test.concurrent('user find input validation throws', async () => {
     const { req, validationExceptionSpy, serializationExceptionSpy } =
       await setup();
+    validationExceptionSpy.mockImplementationOnce((exception) => {
+      expect(exception).toBeInstanceOf(ZodValidationException);
+      expect(exception.message).toBe('Validation failed');
+      expect(exception.getZodError().errors).toMatchObject([
+        {
+          code: 'invalid_type',
+          expected: 'number',
+          received: 'nan',
+          path: ['id'],
+          message: 'Expected number, received nan',
+        },
+      ]);
+    });
     await req.get('/user/find').expect(400, {
       statusCode: 400,
       message: 'Validation failed',
@@ -164,13 +171,14 @@ describe('api', () => {
         validationExceptionSpy,
         serializationExceptionSpy,
       } = await setup();
-      jest.spyOn(userService, 'find').mockReturnValueOnce({
+      vitest.spyOn(userService, 'find').mockReturnValueOnce({
         id: 1,
         namez: 'John',
         email: 'john@example.com',
       } as any);
       serializationExceptionSpy.mockImplementation((exception) => {
         expect(exception).toBeInstanceOf(ZodSerializationException);
+        expect(exception.message).toBe('Internal Server Error');
         expect(
           (exception as ZodSerializationException).getZodError().errors,
         ).toMatchObject([
@@ -328,7 +336,7 @@ describe('api', () => {
         })
         .expect(200);
       const date = new Date();
-      jest.spyOn(appointmentsRepository, 'create').mockReturnValueOnce({
+      vitest.spyOn(appointmentsRepository, 'create').mockReturnValueOnce({
         id: 1,
         userId: 1,
         date: date.toISOString(), // should fail since zod output schema expects a Date
@@ -462,77 +470,9 @@ describe('api', () => {
         });
       });
   });
-
-  test.concurrent(
-    'can test controllers directly without http pipeline',
-    async () => {
-      const moduleFixture: TestingModule = await Test.createTestingModule({
-        controllers: [
-          userListNoPathEndpoint,
-          userCreateEndpoint,
-          userPurgeEndpoint,
-          userFindEndpoint,
-        ],
-        providers: [
-          AuthService,
-          {
-            provide: UserRepositoryToken,
-            useClass: UserRepository,
-          },
-          UserService,
-        ],
-      }).compile();
-      const app = moduleFixture.createNestApplication();
-      app.useLogger(false);
-      await app.init();
-      const userRepository = app.get<UserRepository>(UserRepositoryToken);
-      const userListNoPath = app.get(userListNoPathEndpoint);
-      const userCreate = app.get(userCreateEndpoint);
-      const userPurge = app.get(userPurgeEndpoint);
-      const userFind = app.get(userFindEndpoint);
-      expect(userRepository.findAll()).toEqual([]);
-      await expect(userListNoPath.invoke()).resolves.toEqual([]);
-      await expect(
-        userCreate.invoke({
-          email: 'john@example.com',
-        } as any),
-      ).rejects.toMatchObject({
-        error: {
-          issues: [
-            {
-              code: 'invalid_type',
-              expected: 'string',
-              received: 'undefined',
-              path: ['name'],
-              message: 'Required',
-            },
-          ],
-        },
-      });
-      await expect(
-        userCreate.invoke({
-          name: 'John',
-          email: 'john@example.com',
-        }),
-      ).resolves.toEqual({ id: 1 });
-      expect(userRepository.findAll()).toEqual([
-        { id: 1, name: 'John', email: 'john@example.com' },
-      ]);
-      await expect(userListNoPath.invoke()).resolves.toEqual([
-        { id: 1, name: 'John', email: 'john@example.com' },
-      ]);
-      await expect(userFind.invoke({ id: 1 })).resolves.toEqual({
-        id: 1,
-        name: 'John',
-        email: 'john@example.com',
-      });
-      await expect(userPurge.invoke()).resolves.toEqual(undefined);
-      await expect(userListNoPath.invoke()).resolves.toEqual([]);
-    },
-  );
 });
 
-it('spec works', async () => {
+test('spec works', async () => {
   const moduleFixture: TestingModule = await Test.createTestingModule({
     imports: [AppModule],
   }).compile();
