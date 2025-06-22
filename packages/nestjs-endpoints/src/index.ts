@@ -10,6 +10,6 @@ export {
   ZodSerializationException,
 } from './exceptions';
 export * from './helpers';
-export * from './setup';
+export * from './setup-openapi';
 export * from './codegen';
 export { EndpointsRouterModule } from './endpoints-router.module';

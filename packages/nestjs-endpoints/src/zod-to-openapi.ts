@@ -11,15 +11,17 @@ export function zodToOpenApi(params: {
   const s = params.ref
     ? params.schema.openapi({ ref: params.ref })
     : params.schema;
-  const { schema: openApiSchema, components } = createSchema(s, {
-    schemaType: params.schemaType,
-    openapi: openApiVersion,
-  });
+  const { schema: openApiSchema, components: schemaComponents } =
+    createSchema(s, {
+      schemaType: params.schemaType,
+      openapi: openApiVersion,
+      unionOneOf: true,
+    });
   if (params.ref) {
     settings.openapi.components.schemas = {
       ...settings.openapi.components.schemas,
-      ...components,
+      ...schemaComponents,
     };
   }
-  return { openApiSchema, components };
+  return { openApiSchema, schemaComponents };
 }

@@ -26,19 +26,15 @@
     "src",
     "dist"
   ],
+  "main": "./dist/cjs/index.js",
+  "types": "./dist/esm/index.d.ts",
   "exports": {
     ".": {
-      "require": {
-        "default": "./dist/cjs/index.js",
-        "types": "./dist/cjs/index.d.ts"
-      },
-      "import": {
-        "default": "./dist/esm/index.js",
-        "types": "./dist/esm/index.d.ts"
-      }
+      "require": "./dist/cjs/index.js",
+      "import": "./dist/esm/index.js"
     }
   },
-  "types": "./dist/cjs/index.d.ts",
+  "sideEffects": false,
   "scripts": {
     "dev": "tsc-watch --preserveWatchOutput --onSuccess \"../../scripts/build.sh\"",
     "test": "vitest"

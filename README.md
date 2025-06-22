@@ -42,7 +42,7 @@ const { data: greeting, error, status } = useHelloWorld();
   - **File-based routing:** Endpoints' HTTP paths are based on their path on disk.
 - **Traditional setup**: Explicitly set HTTP paths and import endpoints like regular controlllers.
 - **Schema validation:** Compile and run-time validation of input and output values using Zod schemas.
-- **End-to-end type safety:** Auto-generates `axios` and `@tanstack/react-query` client libraries. Internally uses `@nestjs/swagger`, [nestjs-zod](https://github.com/BenLorantfy/nestjs-zod), and [orval](https://orval.dev/).
+- **End-to-end type safety:** Auto-generates `axios` and `@tanstack/react-query` client libraries. Internally uses `@nestjs/swagger`, [zod-openapi](https://github.com/samchungy/zod-openapi), and [orval](https://orval.dev/).
 - **HTTP adapter agnostic:** Works with both Express and Fastify NestJS applications.
 - **Supports CommonJS and ESM**
 
@@ -340,6 +340,37 @@ More examples:
 
 - [axios](https://github.com/rhyek/nestjs-endpoints/blob/f9fc77c0af9439e35e2ed3f26aa3e645795ed44f/packages/test/test-app-express-cjs/test/client.e2e-spec.ts#L15)
 - [react-query](https://github.com/rhyek/nestjs-endpoints/tree/main/packages/test/test-react-query-client)
+
+### Handling ZodEffects in output schemas
+
+The following configuration will not work:
+
+```typescript
+export default endpoint({
+  ...
+  output: z.object({
+    name: z.string()
+      .transform((s) => s.toUpperCase())
+  }),
+  ...
+})
+```
+
+The `.transform` creates a `ZodEffect` whos output type in some cases cannot be known at run-time (only compile-time), and an OpenApi schema cannot be inferred. More info [here](https://github.com/samchungy/zod-openapi?tab=readme-ov-file#effecttype).
+
+To fix it, do the following:
+
+```typescript
+export default endpoint({
+  ...
+  output: z.object({
+    name: z.string()
+      .transform((s) => s.toUpperCase())
+      .openapi({ effectType: 'same' }),
+  }),
+  ...
+})
+```
 
 ### Manual codegen with OpenAPI spec file
 
