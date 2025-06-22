@@ -729,7 +729,7 @@ test('spec works', async () => {
           required: ['id', 'date', 'address'],
         },
         UserAppointmentCreate400Output: {
-          anyOf: [
+          oneOf: [
             {
               type: 'string',
             },
