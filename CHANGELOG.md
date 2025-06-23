@@ -4,7 +4,7 @@
 
 ### Features
 
-- Replaced `nestjs-zod` with [zod-openapi](https://github.com/samchungy/zod-openapi). The main benefit is output schemas will now emit OpenApi schemas and consequently TypeScript definitions for endpoint payloads that consider `ZodEffects`.
+- Replaced `nestjs-zod` with [zod-openapi](https://github.com/samchungy/zod-openapi). The main benefit is output schemas will now emit OpenApi schemas and consequently TypeScript definitions for endpoint payloads that consider zod transforms.
 
 Example:
 
