@@ -14,6 +14,7 @@ import {
 import { Observable, catchError, throwError } from 'rxjs';
 import { ZodError } from 'zod';
 import { AuthModule } from './auth/auth.module';
+import { HelloService } from './endpoints/hello.service';
 import {
   AppointmentRepositoryToken,
   IAppointmentRepository,
@@ -60,6 +61,7 @@ export class ZodErrorInterceptor implements NestInterceptor {
           provide: AppointmentRepositoryToken,
           useClass: AppointmentRepository as Type<IAppointmentRepository>,
         },
+        HelloService,
       ],
     }),
     UserListModule,

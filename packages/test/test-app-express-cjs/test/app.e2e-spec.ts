@@ -470,6 +470,37 @@ describe('api', () => {
         });
       });
   });
+
+  test.concurrent('greet endpoint returns greeting', async () => {
+    const { req } = await setup();
+    await req
+      .get('/greet')
+      .query({ name: 'John' })
+      .expect(200, 'Hello, John!');
+  });
+
+  test.concurrent('greet endpoint input validation throws', async () => {
+    const { req, validationExceptionSpy, serializationExceptionSpy } =
+      await setup();
+    await req
+      .get('/greet')
+      .query({ wrongField: 'John' })
+      .expect(400, {
+        statusCode: 400,
+        message: 'Validation failed',
+        errors: [
+          {
+            code: 'invalid_type',
+            expected: 'string',
+            received: 'undefined',
+            path: ['name'],
+            message: 'Required',
+          },
+        ],
+      });
+    expect(validationExceptionSpy).toHaveBeenCalledTimes(1);
+    expect(serializationExceptionSpy).toHaveBeenCalledTimes(0);
+  });
 });
 
 test('spec works', async () => {

@@ -77,4 +77,20 @@ describe('generated client', () => {
       await app.close();
     }
   });
+
+  test.concurrent('greet endpoint via axios client', async () => {
+    const moduleFixture: TestingModule = await Test.createTestingModule({
+      imports: [AppModule],
+    }).compile();
+    const app = await createApp(moduleFixture);
+    try {
+      const client = createApiClient({
+        baseURL: await app.getUrl(),
+      });
+      const { data } = await client.greet({ name: 'Alice' });
+      expect(data).toBe('Hello, Alice!');
+    } finally {
+      await app.close();
+    }
+  });
 });
