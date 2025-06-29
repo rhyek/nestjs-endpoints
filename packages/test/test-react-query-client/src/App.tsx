@@ -4,7 +4,11 @@ import { createApiClient } from '../../test-app-express-cjs/generated/react-quer
 import { ApiClientProvider } from '../../test-app-express-cjs/generated/react-query-client';
 import { UserPage } from './UserPage';
 
-export function App() {
+interface AppProps {
+  children?: React.ReactNode;
+}
+
+export function App({ children }: AppProps = {}) {
   const queryClient = useMemo(() => new QueryClient({}), []);
   const apiClient = useMemo(
     () =>
@@ -17,7 +21,7 @@ export function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <ApiClientProvider client={apiClient}>
-        <UserPage />
+        {children ?? <UserPage />}
       </ApiClientProvider>
     </QueryClientProvider>
   );

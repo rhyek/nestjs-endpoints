@@ -10,28 +10,32 @@ It's inspired by the [Fast Endpoints](https://fast-endpoints.com/) .NET library,
 
 An endpoint can be as simple as this:
 
-`src/hello-world.endpoint.ts`
+`src/greet.endpoint.ts`
 
 ```ts
 export default endpoint({
+  input: z.object({
+    name: z.string(),
+  }),
+  output: z.string(),
   inject: {
     helloService: HelloService,
   },
-  handler: ({ helloService }) => helloService.greet(),
+  handler: ({ input, helloService }) => helloService.greet(input.name),
 });
 ```
 
 ```bash
-❯ curl 'http://localhost:3000/hello-world'
-Hello, World!%
+❯ curl 'http://localhost:3000/greet?name=Satie'
+Hello, Satie!%
 ```
 
 ```ts
 // axios client
-const greeting = await client.helloWorld();
+const greeting = await client.greet({ name: 'Satie' });
 
 // react-query client
-const { data: greeting, error, status } = useHelloWorld();
+const { data: greeting, error, status } = useGreet({ name: 'Satie' });
 ```
 
 ## Features
