@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.5.1 (2025-06-28)
+
+### Testing
+
+- Added more tests
+
 ## 1.5.0 (2025-06-22)
 
 ### Features
