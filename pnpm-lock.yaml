@@ -57,8 +57,8 @@ importers:
         specifier: ^8.24.0
         version: 8.24.0(eslint@9.29.0)(typescript@5.8.3)
       zod:
-        specifier: ^3.25.67
-        version: 3.25.67
+        specifier: ^4.1.5
+        version: 4.1.5
 
   packages/nestjs-endpoints:
     dependencies:
@@ -75,8 +75,8 @@ importers:
         specifier: ~7.8.0
         version: 7.8.0(openapi-types@12.1.3)
       zod-openapi:
-        specifier: ^4.2.4
-        version: 4.2.4(zod@3.25.67)
+        specifier: ^5.4.0
+        version: 5.4.0(zod@4.1.5)
     devDependencies:
       '@types/node':
         specifier: ^22.13.1
@@ -5144,14 +5144,14 @@ packages:
     resolution: {integrity: sha512-cYVsTjKl8b+FrnidjibDWskAv7UKOfcwaVZdp/it9n1s9fU3IkgDbhdIRKCW4JDsAlECJY0ytoVPT3sK6kideA==}
     engines: {node: '>=18'}
 
-  zod-openapi@4.2.4:
-    resolution: {integrity: sha512-tsrQpbpqFCXqVXUzi3TPwFhuMtLN3oNZobOtYnK6/5VkXsNdnIgyNr4r8no4wmYluaxzN3F7iS+8xCW8BmMQ8g==}
-    engines: {node: '>=18'}
+  zod-openapi@5.4.0:
+    resolution: {integrity: sha512-5FdEnJmeNFmSEzfoH10GGF0OQFtSkJCnoXBZR618/Aozv2NF7dhS6y4dj+88rwAgNezbUH+9GJC3QsEiyu3rUQ==}
+    engines: {node: '>=20'}
     peerDependencies:
-      zod: ^3.21.4
+      zod: ^3.25.74 || ^4.0.0
 
-  zod@3.25.67:
-    resolution: {integrity: sha512-idA2YXwpCdqUSKRCACDE6ItZD9TZzy3OZMtpfLoh6oPR47lipysRrJfjzMqFxQ3uJuUPyUeWe1r9vLH33xO/Qw==}
+  zod@4.1.5:
+    resolution: {integrity: sha512-rcUUZqlLJgBC33IT3PNMgsCq6TzLQEG/Ei/KTCU0PedSWRMAXoOUN+4t/0H+Q8bdnLPdqUYnvboJT0bn/229qg==}
 
 snapshots:
 
@@ -10249,8 +10249,8 @@ snapshots:
 
   yoctocolors-cjs@2.1.2: {}
 
-  zod-openapi@4.2.4(zod@3.25.67):
+  zod-openapi@5.4.0(zod@4.1.5):
     dependencies:
-      zod: 3.25.67
+      zod: 4.1.5
 
-  zod@3.25.67: {}
+  zod@4.1.5: {}

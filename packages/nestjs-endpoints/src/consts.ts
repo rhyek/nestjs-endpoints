@@ -22,4 +22,4 @@ export const settings: {
   },
 };
 
-export const openApiVersion = '3.0.0';
+export const openApiVersion = '3.1.1';

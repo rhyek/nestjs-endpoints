@@ -180,7 +180,7 @@ describe('api', () => {
         expect(exception).toBeInstanceOf(ZodSerializationException);
         expect(exception.message).toBe('Internal Server Error');
         expect(
-          (exception as ZodSerializationException).getZodError().errors,
+          (exception as ZodSerializationException).getZodError().issues,
         ).toMatchObject([
           {
             code: 'invalid_type',
@@ -345,7 +345,7 @@ describe('api', () => {
       serializationExceptionSpy.mockImplementationOnce((exception) => {
         expect(exception).toBeInstanceOf(ZodSerializationException);
         expect(
-          (exception as ZodSerializationException).getZodError().errors,
+          (exception as ZodSerializationException).getZodError().issues,
         ).toMatchObject([
           {
             code: 'invalid_type',

@@ -16,7 +16,7 @@ import {
 } from '@nestjs/common';
 import { HttpAdapterHost } from '@nestjs/core';
 import { ApiBody, ApiOperation, ApiResponse } from '@nestjs/swagger';
-import { z, ZodSchema } from 'zod';
+import { z, ZodType } from 'zod';
 import { settings } from './consts';
 import {
   ZodSerializationException,
@@ -63,7 +63,7 @@ export function decorated<T = any>(
 
 type MaybePromise<T> = T | Promise<T>;
 
-type Schema = ZodSchema<any>;
+type Schema = ZodType<any>;
 
 class SchemaDef<S extends Schema = Schema> {
   constructor(
@@ -459,7 +459,7 @@ export function endpoint<
         }
       }
       if (input) {
-        const schema: ZodSchema =
+        const schema: ZodType =
           input instanceof SchemaDef ? input.schema : input;
         const parsed = schema.safeParse(rawInput);
         if (parsed.error) {
@@ -564,7 +564,7 @@ export function endpoint<
       ...(decorators ?? []),
     ];
     if (input) {
-      const schema: ZodSchema =
+      const schema: ZodType =
         input instanceof SchemaDef ? input.schema : input;
       const schemaName = httpPathPascalName + 'Input';
       if (httpMethod === 'get') {
@@ -580,7 +580,7 @@ export function endpoint<
     }
     if (outputSchemas) {
       for (const [status, schema] of Object.entries(outputSchemas)) {
-        const s: ZodSchema =
+        const s: ZodType =
           schema instanceof SchemaDef ? schema.schema : schema;
         const schemaName =
           httpPathPascalName +
