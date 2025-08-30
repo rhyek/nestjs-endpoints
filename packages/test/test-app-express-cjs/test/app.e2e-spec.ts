@@ -94,13 +94,13 @@ describe('api', () => {
     validationExceptionSpy.mockImplementationOnce((exception) => {
       expect(exception).toBeInstanceOf(ZodValidationException);
       expect(exception.message).toBe('Validation failed');
-      expect(exception.getZodError().errors).toMatchObject([
+      expect(exception.getZodError().issues).toMatchObject([
         {
-          code: 'invalid_type',
           expected: 'number',
-          received: 'nan',
+          code: 'invalid_type',
+          received: 'NaN',
           path: ['id'],
-          message: 'Expected number, received nan',
+          message: 'Invalid input: expected number, received NaN',
         },
       ]);
     });
@@ -109,11 +109,11 @@ describe('api', () => {
       message: 'Validation failed',
       errors: [
         {
-          code: 'invalid_type',
           expected: 'number',
-          received: 'nan',
+          code: 'invalid_type',
+          received: 'NaN',
           path: ['id'],
-          message: 'Expected number, received nan',
+          message: 'Invalid input: expected number, received NaN',
         },
       ],
     });
@@ -150,11 +150,10 @@ describe('api', () => {
         message: 'Validation failed',
         errors: [
           {
-            code: 'invalid_type',
             expected: 'string',
-            received: 'undefined',
+            code: 'invalid_type',
             path: ['name'],
-            message: 'Required',
+            message: 'Invalid input: expected string, received undefined',
           },
         ],
       });
@@ -176,24 +175,25 @@ describe('api', () => {
         namez: 'John',
         email: 'john@example.com',
       } as any);
-      serializationExceptionSpy.mockImplementation((exception) => {
-        expect(exception).toBeInstanceOf(ZodSerializationException);
-        expect(exception.message).toBe('Internal Server Error');
-        expect(
-          (exception as ZodSerializationException).getZodError().issues,
-        ).toMatchObject([
-          {
-            code: 'invalid_type',
-            expected: 'string',
-            received: 'undefined',
-            path: ['name'],
-            message: 'Required',
-          },
-        ]);
+      let exception: any;
+      serializationExceptionSpy.mockImplementation((_exception) => {
+        exception = _exception;
       });
       await req.get('/user/find?id=1').expect(500);
       expect(validationExceptionSpy).toHaveBeenCalledTimes(0);
       expect(serializationExceptionSpy).toHaveBeenCalledTimes(1);
+      expect(exception).toBeInstanceOf(ZodSerializationException);
+      expect(exception.message).toBe('Internal Server Error');
+      expect(
+        (exception as ZodSerializationException).getZodError().issues,
+      ).toMatchObject([
+        {
+          expected: 'string',
+          code: 'invalid_type',
+          path: ['name'],
+          message: 'Invalid input: expected string, received undefined',
+        },
+      ]);
     },
   );
 
@@ -224,9 +224,11 @@ describe('api', () => {
           message: 'Validation failed',
           errors: [
             {
-              code: 'invalid_date',
+              expected: 'date',
+              code: 'invalid_type',
+              received: 'Invalid Date',
               path: ['date'],
-              message: 'Invalid date',
+              message: 'Invalid input: expected date, received Date',
             },
           ],
         });
@@ -342,19 +344,9 @@ describe('api', () => {
         date: date.toISOString(), // should fail since zod output schema expects a Date
         address: '127.0.0.1',
       } as any);
-      serializationExceptionSpy.mockImplementationOnce((exception) => {
-        expect(exception).toBeInstanceOf(ZodSerializationException);
-        expect(
-          (exception as ZodSerializationException).getZodError().issues,
-        ).toMatchObject([
-          {
-            code: 'invalid_type',
-            expected: 'date',
-            received: 'string',
-            path: ['date'],
-            message: 'Expected date, received string',
-          },
-        ]);
+      let exception: any;
+      serializationExceptionSpy.mockImplementationOnce((_exception) => {
+        exception = _exception;
       });
       await req
         .post('/user/appointment/create')
@@ -369,6 +361,17 @@ describe('api', () => {
         });
       expect(validationExceptionSpy).toHaveBeenCalledTimes(0);
       expect(serializationExceptionSpy).toHaveBeenCalledTimes(1);
+      expect(exception).toBeInstanceOf(ZodSerializationException);
+      expect(
+        (exception as ZodSerializationException).getZodError().issues,
+      ).toMatchObject([
+        {
+          expected: 'date',
+          code: 'invalid_type',
+          path: ['date'],
+          message: 'Invalid input: expected date, received string',
+        },
+      ]);
     },
   );
 
@@ -490,11 +493,10 @@ describe('api', () => {
         message: 'Validation failed',
         errors: [
           {
-            code: 'invalid_type',
             expected: 'string',
-            received: 'undefined',
+            code: 'invalid_type',
             path: ['name'],
-            message: 'Required',
+            message: 'Invalid input: expected string, received undefined',
           },
         ],
       });
@@ -721,20 +723,27 @@ test('spec works', async () => {
           required: ['id'],
         },
         UserFindOutput: {
-          type: 'object',
-          properties: {
-            id: {
-              type: 'number',
+          oneOf: [
+            {
+              type: 'object',
+              additionalProperties: false,
+              properties: {
+                id: {
+                  type: 'number',
+                },
+                name: {
+                  type: 'string',
+                },
+                email: {
+                  type: 'string',
+                },
+              },
+              required: ['id', 'name', 'email'],
             },
-            name: {
-              type: 'string',
+            {
+              type: 'null',
             },
-            email: {
-              type: 'string',
-            },
-          },
-          required: ['id', 'name', 'email'],
-          nullable: true,
+          ],
         },
         UserAppointmentCreateInput: {
           type: 'object',

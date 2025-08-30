@@ -1,4 +1,5 @@
 import { Test, TestingModule } from '@nestjs/testing';
+import { ZodValidationException } from 'nestjs-endpoints';
 import { AuthService } from '../src/auth/auth.service';
 import userCreateEndpoint from '../src/endpoints/user/create.endpoint';
 import userFindEndpoint from '../src/endpoints/user/find.endpoint';
@@ -35,23 +36,25 @@ test('can test controllers directly without http pipeline', async () => {
   const userFind = app.get(userFindEndpoint);
   expect(userRepository.findAll()).toEqual([]);
   await expect(userListNoPath.invoke()).resolves.toEqual([]);
-  await expect(
-    userCreate.invoke({
+  try {
+    await userCreate.invoke({
       email: 'john@example.com',
-    } as any),
-  ).rejects.toMatchObject({
-    error: {
+    } as any);
+    throw new Error('Should not reach here');
+  } catch (error) {
+    expect(error).toBeInstanceOf(ZodValidationException);
+    const zodError = (error as ZodValidationException).getZodError();
+    expect(zodError).toMatchObject({
       issues: [
         {
-          code: 'invalid_type',
           expected: 'string',
-          received: 'undefined',
+          code: 'invalid_type',
           path: ['name'],
-          message: 'Required',
+          message: 'Invalid input: expected string, received undefined',
         },
       ],
-    },
-  });
+    });
+  }
   await expect(
     userCreate.invoke({
       name: 'John',

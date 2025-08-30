@@ -31,7 +31,7 @@ import {
 @Injectable()
 export class ZodErrorInterceptor implements NestInterceptor {
   intercept(
-    context: ExecutionContext,
+    _context: ExecutionContext,
     next: CallHandler,
   ): Observable<unknown> {
     return next.handle().pipe(

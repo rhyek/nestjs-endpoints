@@ -23,7 +23,7 @@ export default endpoint({
         date: z
           .date()
           .transform((date) => date.toISOString())
-          .openapi({
+          .meta({
             type: 'string',
             format: 'date-time',
           }),
