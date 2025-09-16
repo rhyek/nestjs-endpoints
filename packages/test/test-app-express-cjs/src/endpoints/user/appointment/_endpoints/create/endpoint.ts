@@ -48,7 +48,7 @@ export default endpoint({
       Inject(AppointmentRepositoryToken),
     ),
   },
-  injectMethod: {
+  injectAtRequest: {
     currentUser: decorated<{ name: string; isSuperAdmin: boolean }>(
       CurrentUser(),
     ),

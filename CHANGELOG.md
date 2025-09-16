@@ -1,5 +1,17 @@
 # Changelog
 
+## 2.0.0 (2025-09-15)
+
+### Breaking Changes
+
+- **Upgraded to Zod v4**: Zod v3 schemas will have to be upgraded to v4.
+- **Upgraded to zod-openapi v5**: See the [v5 migration guide](https://github.com/samchungy/zod-openapi/blob/HEAD/docs/v5.md) if you used `.openapi()` extensions.
+- **OpenAPI version upgrade**: Now generates OpenAPI 3.1.1 schemas (previously 3.0.0).
+
+### Minor changes
+
+- Deprecated `injectMethod` parameter in favor of `injectAtRequest` for clarity.
+
 ## 1.5.1 (2025-06-28)
 
 ### Testing
