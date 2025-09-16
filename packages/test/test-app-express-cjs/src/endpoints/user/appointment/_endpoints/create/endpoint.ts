@@ -23,7 +23,7 @@ export default endpoint({
         date: z
           .date()
           .transform((date) => date.toISOString())
-          .openapi({
+          .meta({
             type: 'string',
             format: 'date-time',
           }),
@@ -48,7 +48,7 @@ export default endpoint({
       Inject(AppointmentRepositoryToken),
     ),
   },
-  injectMethod: {
+  injectAtRequest: {
     currentUser: decorated<{ name: string; isSuperAdmin: boolean }>(
       CurrentUser(),
     ),

@@ -10,15 +10,15 @@ describe('zodToOpenApi', () => {
           birthDate: z.coerce.date().optional(),
           age: z.number().default(18),
         }),
-        ref: 'User',
+        ref: 'User1',
         schemaType: 'input' as const,
       },
       expected: {
         openApiSchema: {
-          $ref: '#/components/schemas/User',
+          $ref: '#/components/schemas/User1',
         },
         schemaComponents: {
-          User: {
+          User1: {
             type: 'object',
             properties: {
               name: { type: 'string' },
@@ -36,7 +36,7 @@ describe('zodToOpenApi', () => {
           birthDate: z
             .date()
             .transform((date) => date.toISOString())
-            .openapi({
+            .meta({
               type: 'string',
               format: 'date-time',
             }),
@@ -57,6 +57,7 @@ describe('zodToOpenApi', () => {
               age: { type: 'number', default: 18 },
             },
             required: ['birthDate', 'age'],
+            additionalProperties: false,
           },
         },
       },
@@ -76,12 +77,78 @@ describe('zodToOpenApi', () => {
           },
           required: ['name'],
         },
+        schemaComponents: {},
+      },
+    },
+    {
+      params: {
+        schema: z.discriminatedUnion('type', [
+          z.object({
+            type: z.literal('admin'),
+            admin: z.object({
+              name: z.string(),
+            }),
+          }),
+          z.object({
+            type: z.literal('user'),
+            user: z.object({
+              name: z.string(),
+            }),
+          }),
+        ]),
+        schemaType: 'input' as const,
+      },
+      expected: {
+        openApiSchema: {
+          oneOf: [
+            {
+              properties: {
+                admin: {
+                  properties: {
+                    name: {
+                      type: 'string',
+                    },
+                  },
+                  required: ['name'],
+                  type: 'object',
+                },
+                type: {
+                  const: 'admin',
+                  type: 'string',
+                },
+              },
+              required: ['type', 'admin'],
+              type: 'object',
+            },
+            {
+              properties: {
+                type: {
+                  const: 'user',
+                  type: 'string',
+                },
+                user: {
+                  properties: {
+                    name: {
+                      type: 'string',
+                    },
+                  },
+                  required: ['name'],
+                  type: 'object',
+                },
+              },
+              required: ['type', 'user'],
+              type: 'object',
+            },
+          ],
+          type: 'object',
+        },
+        schemaComponents: {},
       },
     },
     {
       params: {
         schema: z
-          .object({ email: z.string().email() })
+          .object({ email: z.email() })
           .and(
             z.object({
               age: z.number().min(18),
@@ -104,21 +171,24 @@ describe('zodToOpenApi', () => {
             ]),
           ),
         schemaType: 'input' as const,
-        ref: 'User',
+        ref: 'User2',
       },
       expected: {
         openApiSchema: {
-          $ref: '#/components/schemas/User',
+          $ref: '#/components/schemas/User2',
         },
         schemaComponents: {
-          User: {
+          User2: {
             allOf: [
               {
                 type: 'object',
                 properties: {
                   email: {
-                    type: 'string',
                     format: 'email',
+
+                    pattern:
+                      "^(?!\\.)(?!.*\\.\\.)([A-Za-z0-9_'+\\-\\.]*)[A-Za-z0-9_+-]@([A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$",
+                    type: 'string',
                   },
                 },
                 required: ['email'],
@@ -134,13 +204,14 @@ describe('zodToOpenApi', () => {
                 required: ['age'],
               },
               {
+                type: 'object',
                 oneOf: [
                   {
                     type: 'object',
                     properties: {
                       type: {
                         type: 'string',
-                        enum: ['admin'],
+                        const: 'admin',
                       },
                       admin: {
                         type: 'object',
@@ -159,7 +230,7 @@ describe('zodToOpenApi', () => {
                     properties: {
                       type: {
                         type: 'string',
-                        enum: ['user'],
+                        const: 'user',
                       },
                       user: {
                         type: 'object',
@@ -193,6 +264,9 @@ describe('zodToOpenApi', () => {
           properties: {
             dict: {
               type: 'object',
+              propertyNames: {
+                type: 'string',
+              },
               additionalProperties: {
                 type: 'string',
               },
@@ -200,6 +274,7 @@ describe('zodToOpenApi', () => {
           },
           required: ['dict'],
         },
+        schemaComponents: {},
       },
     },
     {
@@ -210,11 +285,11 @@ describe('zodToOpenApi', () => {
       expected: {
         openApiSchema: {
           oneOf: [
-            { type: 'string', enum: ['a'] },
-            { type: 'string', enum: ['b'] },
+            { type: 'string', const: 'a' },
+            { type: 'string', const: 'b' },
           ],
         },
-        schemaComponents: undefined,
+        schemaComponents: {},
       },
     },
     {
@@ -226,7 +301,19 @@ describe('zodToOpenApi', () => {
         openApiSchema: {
           type: 'string',
         },
-        schemaComponents: undefined,
+        schemaComponents: {},
+      },
+    },
+    {
+      params: {
+        schema: z.string().overwrite((s) => s.toUpperCase()),
+        schemaType: 'output' as const,
+      },
+      expected: {
+        openApiSchema: {
+          type: 'string',
+        },
+        schemaComponents: {},
       },
     },
     {
@@ -234,8 +321,8 @@ describe('zodToOpenApi', () => {
         schema: z
           .string()
           .transform((s) => s.toUpperCase())
-          .openapi({
-            effectType: 'same',
+          .meta({
+            type: 'string',
           }),
         schemaType: 'output' as const,
       },
@@ -243,7 +330,7 @@ describe('zodToOpenApi', () => {
         openApiSchema: {
           type: 'string',
         },
-        schemaComponents: undefined,
+        schemaComponents: {},
       },
     },
   ])(

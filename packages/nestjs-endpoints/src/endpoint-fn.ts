@@ -16,7 +16,7 @@ import {
 } from '@nestjs/common';
 import { HttpAdapterHost } from '@nestjs/core';
 import { ApiBody, ApiOperation, ApiResponse } from '@nestjs/swagger';
-import { z, ZodSchema } from 'zod';
+import { z, ZodType } from 'zod';
 import { settings } from './consts';
 import {
   ZodSerializationException,
@@ -63,7 +63,7 @@ export function decorated<T = any>(
 
 type MaybePromise<T> = T | Promise<T>;
 
-type Schema = ZodSchema<any>;
+type Schema = ZodType<any>;
 
 class SchemaDef<S extends Schema = Schema> {
   constructor(
@@ -125,7 +125,7 @@ type HandlerMethod<
   InjectProviders extends
     | Record<string, Type<any> | WithDecorator<any>>
     | undefined = undefined,
-  InjectMethodParameters extends
+  InjectAtRequestParameters extends
     | Record<string, WithDecorator<any>>
     | undefined = undefined,
   InputSchema extends Schema | SchemaDef | undefined = undefined,
@@ -142,10 +142,10 @@ type HandlerMethod<
             ? ParameterType
             : never;
       }) &
-    (InjectMethodParameters extends undefined
+    (InjectAtRequestParameters extends undefined
       ? object
       : {
-          [p in keyof InjectMethodParameters]: InjectMethodParameters[p] extends WithDecorator<
+          [p in keyof InjectAtRequestParameters]: InjectAtRequestParameters[p] extends WithDecorator<
             infer ParameterType
           >
             ? ParameterType
@@ -200,7 +200,7 @@ type EndpointControllerClass<
   InjectProviders extends
     | Record<string, Type<any> | WithDecorator<any>>
     | undefined = undefined,
-  InjectMethodParameters extends
+  InjectAtRequestParameters extends
     | Record<string, WithDecorator<any>>
     | undefined = undefined,
   InputSchema extends Schema | SchemaDef | undefined = undefined,
@@ -208,7 +208,7 @@ type EndpointControllerClass<
 > = Type<{
   handler: HandlerMethod<
     InjectProviders,
-    InjectMethodParameters,
+    InjectAtRequestParameters,
     InputSchema,
     OutputSchema
   >;
@@ -222,7 +222,7 @@ export function endpoint<
   InjectProviders extends
     | Record<string, Type<any> | WithDecorator<any>>
     | undefined = undefined,
-  InjectMethodParameters extends
+  InjectAtRequestParameters extends
     | Record<string, WithDecorator<any>>
     | undefined = undefined,
   InputSchema extends Schema | SchemaDef | undefined = undefined,
@@ -273,7 +273,7 @@ export function endpoint<
    */
   output?: OutputSchema;
   /**
-   * Inject controller providers.
+   * Inject controller providers at class instance level.
    *
    * ```ts
    * // NestJS controller:
@@ -295,7 +295,7 @@ export function endpoint<
    */
   inject?: InjectProviders;
   /**
-   * Inject method parameters.
+   * Inject parameters at request time (e.g. `@Req()`, `@Session()`).
    *
    * ```ts
    * // NestJS controller:
@@ -307,14 +307,18 @@ export function endpoint<
    *
    * // nestjs-endpoints:
    * endpoint({
-   *   injectMethod: {
+   *   injectAtRequest: {
    *     req: decorated<Request>(Req()),
    *   },
    *   handler: async ({ req }) => {},
    * })
    * ```
    */
-  injectMethod?: InjectMethodParameters;
+  injectAtRequest?: InjectAtRequestParameters;
+  /**
+   * @deprecated Use `injectAtRequest` instead.
+   */
+  injectMethod?: InjectAtRequestParameters;
   /**
    * Method decorators.
    *
@@ -337,13 +341,13 @@ export function endpoint<
   decorators?: MethodDecorator[];
   handler: HandlerMethod<
     InjectProviders,
-    InjectMethodParameters,
+    InjectAtRequestParameters,
     InputSchema,
     OutputSchema
   >;
 }): EndpointControllerClass<
   InjectProviders,
-  InjectMethodParameters,
+  InjectAtRequestParameters,
   InputSchema,
   OutputSchema
 > {
@@ -359,6 +363,7 @@ export function endpoint<
     decorators,
     handler,
   } = params;
+  let { injectAtRequest } = params;
   class cls {}
   const file = getCallsiteFile();
   const setupFn = ({
@@ -421,8 +426,9 @@ export function endpoint<
         [inputKey]: httpMethod === 'get' ? Query() : Body(),
       });
     }
-    if (injectMethod) {
-      for (const [key, wd] of Object.entries(injectMethod)) {
+    injectAtRequest ??= injectMethod;
+    if (injectAtRequest) {
+      for (const [key, wd] of Object.entries(injectAtRequest)) {
         methodParamDecorators.push({
           [key]: wd.decorator as ParameterDecorator,
         });
@@ -459,7 +465,7 @@ export function endpoint<
         }
       }
       if (input) {
-        const schema: ZodSchema =
+        const schema: ZodType =
           input instanceof SchemaDef ? input.schema : input;
         const parsed = schema.safeParse(rawInput);
         if (parsed.error) {
@@ -508,8 +514,8 @@ export function endpoint<
         response,
         schemas: {},
       };
-      if (injectMethod) {
-        for (const key of Object.keys(injectMethod)) {
+      if (injectAtRequest) {
+        for (const key of Object.keys(injectAtRequest)) {
           handlerParams[key] = injectedMethodParams[key];
         }
       }
@@ -564,7 +570,7 @@ export function endpoint<
       ...(decorators ?? []),
     ];
     if (input) {
-      const schema: ZodSchema =
+      const schema: ZodType =
         input instanceof SchemaDef ? input.schema : input;
       const schemaName = httpPathPascalName + 'Input';
       if (httpMethod === 'get') {
@@ -580,7 +586,7 @@ export function endpoint<
     }
     if (outputSchemas) {
       for (const [status, schema] of Object.entries(outputSchemas)) {
-        const s: ZodSchema =
+        const s: ZodType =
           schema instanceof SchemaDef ? schema.schema : schema;
         const schemaName =
           httpPathPascalName +

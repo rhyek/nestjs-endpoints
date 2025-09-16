@@ -3,7 +3,7 @@ import path from 'node:path';
 import { applyDecorators } from '@nestjs/common';
 import { ApiQuery, ApiQueryOptions } from '@nestjs/swagger';
 import callsites from 'callsites';
-import { z, ZodRawShape } from 'zod';
+import { z } from 'zod';
 import { createSchema } from 'zod-openapi';
 import { zodToOpenApi } from './zod-to-openapi';
 
@@ -67,9 +67,7 @@ export function getHttpPathPascalName(httpPath: string) {
     .replace(/[/-]([a-z])/g, (_, letter: string) => letter.toUpperCase());
 }
 
-export const ApiQueries = <T extends z.ZodObject<ZodRawShape>>(
-  zodObject: T,
-) => {
+export const ApiQueries = <T extends z.ZodObject>(zodObject: T) => {
   const optionsList = Object.keys(zodObject.shape).reduce<
     Array<
       ApiQueryOptions & {

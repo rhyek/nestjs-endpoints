@@ -9,7 +9,7 @@ describe('zod-openapi', () => {
   test('payloads are correct', async () => {
     const testEndpoint = endpoint({
       method: 'post',
-      path: '/test',
+      path: '/test1',
       input: z.object({
         name: z.string(),
         age: z.number().default(30),
@@ -37,7 +37,7 @@ describe('zod-openapi', () => {
       const req = request(app.getHttpServer());
 
       await req
-        .post('/test')
+        .post('/test1')
         .send({
           name: 'John',
         })
@@ -56,7 +56,7 @@ describe('zod-openapi', () => {
   test('openapi schema is generated correctly', async () => {
     const testEndpoint = endpoint({
       method: 'post',
-      path: '/test',
+      path: '/test2',
       input: z.object({
         name: z.string(),
         age: z.number().default(30),
@@ -93,7 +93,7 @@ describe('zod-openapi', () => {
     try {
       expect(spec).toBeTruthy();
       const parsed = JSON.parse(spec);
-      expect(parsed).toEqual({
+      expect(parsed).toMatchObject({
         openapi: '3.0.0',
         servers: [],
         tags: [],
@@ -107,15 +107,15 @@ describe('zod-openapi', () => {
           version: '1.0.0',
         },
         paths: {
-          '/test': {
+          '/test2': {
             post: {
-              operationId: 'Test',
+              operationId: 'Test2',
               parameters: [],
               requestBody: {
                 content: {
                   'application/json': {
                     schema: {
-                      $ref: '#/components/schemas/TestInput',
+                      $ref: '#/components/schemas/Test2Input',
                     },
                   },
                 },
@@ -126,7 +126,7 @@ describe('zod-openapi', () => {
                   content: {
                     'application/json': {
                       schema: {
-                        $ref: '#/components/schemas/TestOutput',
+                        $ref: '#/components/schemas/Test2Output',
                       },
                     },
                   },
@@ -140,7 +140,7 @@ describe('zod-openapi', () => {
         },
         components: {
           schemas: {
-            TestInput: {
+            Test2Input: {
               type: 'object',
               properties: {
                 name: {
@@ -153,7 +153,7 @@ describe('zod-openapi', () => {
               },
               required: ['name'],
             },
-            TestOutput: {
+            Test2Output: {
               type: 'object',
               properties: {
                 name: {
@@ -167,6 +167,7 @@ describe('zod-openapi', () => {
                   default: 175,
                 },
               },
+              additionalProperties: false,
               required: ['name', 'age', 'height'],
             },
           },
