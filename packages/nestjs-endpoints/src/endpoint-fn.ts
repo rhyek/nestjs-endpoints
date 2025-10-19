@@ -125,7 +125,7 @@ type HandlerMethod<
   InjectProviders extends
     | Record<string, Type<any> | WithDecorator<any>>
     | undefined = undefined,
-  InjectAtRequestParameters extends
+  InjectOnRequestParameters extends
     | Record<string, WithDecorator<any>>
     | undefined = undefined,
   InputSchema extends Schema | SchemaDef | undefined = undefined,
@@ -142,10 +142,10 @@ type HandlerMethod<
             ? ParameterType
             : never;
       }) &
-    (InjectAtRequestParameters extends undefined
+    (InjectOnRequestParameters extends undefined
       ? object
       : {
-          [p in keyof InjectAtRequestParameters]: InjectAtRequestParameters[p] extends WithDecorator<
+          [p in keyof InjectOnRequestParameters]: InjectOnRequestParameters[p] extends WithDecorator<
             infer ParameterType
           >
             ? ParameterType
@@ -200,7 +200,7 @@ type EndpointControllerClass<
   InjectProviders extends
     | Record<string, Type<any> | WithDecorator<any>>
     | undefined = undefined,
-  InjectAtRequestParameters extends
+  InjectOnRequestParameters extends
     | Record<string, WithDecorator<any>>
     | undefined = undefined,
   InputSchema extends Schema | SchemaDef | undefined = undefined,
@@ -208,7 +208,7 @@ type EndpointControllerClass<
 > = Type<{
   handler: HandlerMethod<
     InjectProviders,
-    InjectAtRequestParameters,
+    InjectOnRequestParameters,
     InputSchema,
     OutputSchema
   >;
@@ -222,7 +222,7 @@ export function endpoint<
   InjectProviders extends
     | Record<string, Type<any> | WithDecorator<any>>
     | undefined = undefined,
-  InjectAtRequestParameters extends
+  InjectOnRequestParameters extends
     | Record<string, WithDecorator<any>>
     | undefined = undefined,
   InputSchema extends Schema | SchemaDef | undefined = undefined,
@@ -307,18 +307,22 @@ export function endpoint<
    *
    * // nestjs-endpoints:
    * endpoint({
-   *   injectAtRequest: {
+   *   injectOnRequest: {
    *     req: decorated<Request>(Req()),
    *   },
    *   handler: async ({ req }) => {},
    * })
    * ```
    */
-  injectAtRequest?: InjectAtRequestParameters;
+  injectOnRequest?: InjectOnRequestParameters;
   /**
-   * @deprecated Use `injectAtRequest` instead.
+   * @deprecated Use `injectOnRequest` instead.
    */
-  injectMethod?: InjectAtRequestParameters;
+  injectMethod?: InjectOnRequestParameters;
+  /**
+   * @deprecated Use `injectOnRequest` instead.
+   */
+  injectAtRequest?: InjectOnRequestParameters;
   /**
    * Method decorators.
    *
@@ -341,13 +345,13 @@ export function endpoint<
   decorators?: MethodDecorator[];
   handler: HandlerMethod<
     InjectProviders,
-    InjectAtRequestParameters,
+    InjectOnRequestParameters,
     InputSchema,
     OutputSchema
   >;
 }): EndpointControllerClass<
   InjectProviders,
-  InjectAtRequestParameters,
+  InjectOnRequestParameters,
   InputSchema,
   OutputSchema
 > {
@@ -360,10 +364,11 @@ export function endpoint<
     output,
     inject,
     injectMethod,
+    injectAtRequest,
     decorators,
     handler,
   } = params;
-  let { injectAtRequest } = params;
+  let { injectOnRequest } = params;
   class cls {}
   const file = getCallsiteFile();
   const setupFn = ({
@@ -426,9 +431,9 @@ export function endpoint<
         [inputKey]: httpMethod === 'get' ? Query() : Body(),
       });
     }
-    injectAtRequest ??= injectMethod;
-    if (injectAtRequest) {
-      for (const [key, wd] of Object.entries(injectAtRequest)) {
+    injectOnRequest ??= injectMethod ?? injectAtRequest;
+    if (injectOnRequest) {
+      for (const [key, wd] of Object.entries(injectOnRequest)) {
         methodParamDecorators.push({
           [key]: wd.decorator as ParameterDecorator,
         });
@@ -514,8 +519,8 @@ export function endpoint<
         response,
         schemas: {},
       };
-      if (injectAtRequest) {
-        for (const key of Object.keys(injectAtRequest)) {
+      if (injectOnRequest) {
+        for (const key of Object.keys(injectOnRequest)) {
           handlerParams[key] = injectedMethodParams[key];
         }
       }

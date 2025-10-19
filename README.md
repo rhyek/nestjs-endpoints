@@ -162,7 +162,7 @@ export default endpoint({
   inject: {
     db: DbService,
   },
-  injectAtRequest: {
+  injectOnRequest: {
     session: decorated<Session>(Session()),
   }
   // The handler's parameters are fully typed, and its
@@ -469,7 +469,7 @@ export default endpoint({
       Inject(AppointmentRepositoryToken),
     ),
   },
-  injectAtRequest: {
+  injectOnRequest: {
     req: decorated<Request>(Req()),
   },
   handler: async ({
