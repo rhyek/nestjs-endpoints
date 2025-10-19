@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.0.1 (2025-10-19)
+
+### Minor changes
+
+- Deprecated `injectAtRequest` in favor of `injectOnRequest`
+
 ## 2.0.0 (2025-09-15)
 
 ### Breaking Changes

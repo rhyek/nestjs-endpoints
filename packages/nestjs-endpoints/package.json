@@ -16,6 +16,7 @@
     "swagger",
     "file-based",
     "routing",
+    "routes",
     "rest",
     "schema",
     "zod",
