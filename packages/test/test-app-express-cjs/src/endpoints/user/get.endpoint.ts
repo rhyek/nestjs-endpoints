@@ -8,13 +8,11 @@ export default endpoint({
     // so we need to coerce the string to a number
     id: z.coerce.number(),
   }),
-  output: z
-    .object({
-      id: z.number(),
-      name: z.string(),
-      email: z.string(),
-    })
-    .nullable(),
+  output: z.object({
+    id: z.number(),
+    name: z.string(),
+    email: z.string(),
+  }),
   inject: {
     userService: UserService,
   },

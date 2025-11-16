@@ -7,6 +7,7 @@ export default endpoint({
     // so we need to coerce the string to a number
     id: z.coerce.number(),
   }),
+  // @ts-expect-error: Type 'ZodNullable<ZodObject<{ id: ZodNumber; name: ZodString; email: ZodString; }, $strip>>' is not assignable to type 'undefin
   output: z
     .object({
       id: z.number(),
