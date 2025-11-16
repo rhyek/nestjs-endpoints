@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.0.3 (2025-11-16)
+
+## Bug fixes
+
+- Disallow both ZodNull and ZodNullable types for output
+
 ## 2.0.2 (2025-11-16)
 
 ### Bug fixes
