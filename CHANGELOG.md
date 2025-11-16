@@ -1,5 +1,33 @@
 # Changelog
 
+## 2.0.2 (2025-11-16)
+
+### Bug fixes
+
+- Middleware that added response headers after controller execution were failing with `Cannot set headers after they are sent to the client`.
+
+  This was fixed, however nestjs-endpoints can no longer support endpoint output schemas that are nullable. NestJS does not send `null` when using Express.js. [More info](https://github.com/nestjs/nest/issues/10415).
+
+  So instead of:
+
+  ```ts
+  endpoint({
+    output: personSchema.nullable(),
+    ...
+  });
+  ```
+
+  now do:
+
+  ```ts
+  endpoint({
+    output: z.object({
+      person: personSchema.nullable()
+    }),
+    ...
+  })
+  ```
+
 ## 2.0.1 (2025-10-19)
 
 ### Minor changes
