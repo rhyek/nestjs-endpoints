@@ -16,7 +16,7 @@ import {
 } from '@nestjs/common';
 import { HttpAdapterHost } from '@nestjs/core';
 import { ApiBody, ApiOperation, ApiResponse } from '@nestjs/swagger';
-import { z, ZodNullable, ZodType } from 'zod';
+import { z, ZodNull, ZodNullable, ZodType } from 'zod';
 import { settings } from './consts';
 import {
   ZodSerializationException,
@@ -273,7 +273,9 @@ export function endpoint<
    * })
    * ```
    */
-  output?: OutputSchema extends ZodNullable ? never : OutputSchema;
+  output?: OutputSchema extends ZodNull | ZodNullable<any>
+    ? never
+    : OutputSchema;
   /**
    * Inject controller providers at class instance level.
    *
