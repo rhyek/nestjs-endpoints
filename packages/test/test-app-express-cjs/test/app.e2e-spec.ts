@@ -49,7 +49,7 @@ describe('api', () => {
       ],
     }).compile();
 
-    const app = await createApp(moduleFixture);
+    const { app, httpAdapter } = await createApp(moduleFixture);
     app.useLogger(false);
 
     const userService = app.get(UserService);
@@ -60,6 +60,7 @@ describe('api', () => {
 
     return {
       app,
+      httpAdapter,
       req,
       userService,
       appointmentsRepository,
@@ -122,8 +123,12 @@ describe('api', () => {
   });
 
   test.concurrent('user find can return null value', async () => {
-    const { req } = await setup();
-    await req.get('/user/find?id=1').expect(200, null);
+    const { req, httpAdapter } = await setup();
+    // await req.get('/user/find?id=1').expect(200, null);
+    // http://github.com/nestjs/nest/issues/10415
+    await req
+      .get('/user/find?id=1')
+      .expect(200, httpAdapter === 'express' ? '' : null);
   });
 
   test.concurrent('can return created user', async () => {
@@ -439,7 +444,7 @@ describe('api', () => {
         }),
       })
       .compile();
-    const app = await createApp(moduleFixture);
+    const { app } = await createApp(moduleFixture);
     app.useLogger(false);
     const req = request(app.getHttpServer());
     await req.get('/user/find?id=1').expect(200, {

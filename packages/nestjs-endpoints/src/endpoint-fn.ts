@@ -16,7 +16,7 @@ import {
 } from '@nestjs/common';
 import { HttpAdapterHost } from '@nestjs/core';
 import { ApiBody, ApiOperation, ApiResponse } from '@nestjs/swagger';
-import { z, ZodType } from 'zod';
+import { z, ZodNullable, ZodType } from 'zod';
 import { settings } from './consts';
 import {
   ZodSerializationException,
@@ -80,7 +80,6 @@ export function schema<S extends Schema>(
 ) {
   return new SchemaDef<S>(schema, spec?.description);
 }
-
 type OutputSchemaUnion =
   | Schema
   | SchemaDef
@@ -262,6 +261,9 @@ export function endpoint<
   /**
    * Output Zod schema.
    *
+   * Cannot use nullable output type, since NestJS will not actually responde with `null`.
+   * More info: https://github.com/nestjs/nest/issues/10415
+   *
    * ```ts
    * endpoint({
    *   output: z.object({
@@ -271,7 +273,7 @@ export function endpoint<
    * })
    * ```
    */
-  output?: OutputSchema;
+  output?: OutputSchema extends ZodNullable ? never : OutputSchema;
   /**
    * Inject controller providers at class instance level.
    *
@@ -545,10 +547,13 @@ export function endpoint<
       if (typeof body !== 'string') {
         httpAdapter.setHeader(res, 'Content-Type', 'application/json');
       }
-      if (body === null) {
-        httpAdapter.reply(res, JSON.stringify(null));
-        return;
-      }
+      // The following affects middleware that adds headers after controller execution.
+      // Best to let NestJS do the default. Hence, null outputs are no longer supported.
+      // http://github.com/nestjs/nest/issues/10415
+      // if (body === null) {
+      //   httpAdapter.reply(res, JSON.stringify(null));
+      //   return;
+      // }
       return body;
     };
     // configure method parameters

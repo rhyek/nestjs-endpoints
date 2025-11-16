@@ -27,6 +27,7 @@ import {
   IUserRepository,
   UserService,
 } from './endpoints/user/user.service';
+import { VanillaController } from './vanilla.controller';
 
 @Injectable()
 export class ZodErrorInterceptor implements NestInterceptor {
@@ -72,5 +73,6 @@ export class ZodErrorInterceptor implements NestInterceptor {
       useClass: ZodErrorInterceptor,
     },
   ],
+  controllers: [VanillaController],
 })
 export class AppModule {}

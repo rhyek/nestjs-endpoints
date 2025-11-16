@@ -32,7 +32,7 @@ describe('zod-openapi', () => {
       imports: [TestModule],
     }).compile();
 
-    const app = await createApp(moduleFixture);
+    const { app } = await createApp(moduleFixture);
     try {
       const req = request(app.getHttpServer());
 
@@ -79,7 +79,7 @@ describe('zod-openapi', () => {
       imports: [TestModule],
     }).compile();
 
-    const app = await createApp(moduleFixture);
+    const { app } = await createApp(moduleFixture);
     let spec = '';
     const stream = new Writable({
       write(chunk, _, callback) {

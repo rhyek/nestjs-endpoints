@@ -333,6 +333,86 @@ describe('zodToOpenApi', () => {
         schemaComponents: {},
       },
     },
+    {
+      params: {
+        schema: z.object({
+          person: z.preprocess(
+            (data: any) => data,
+            z
+              .object({
+                name: z.string(),
+              })
+              .nullish()
+              .default(null),
+          ),
+        }),
+        schemaType: 'input' as const,
+      },
+      expected: {
+        openApiSchema: {
+          properties: {
+            person: {
+              default: null,
+              oneOf: [
+                {
+                  properties: {
+                    name: {
+                      type: 'string',
+                    },
+                  },
+                  required: ['name'],
+                  type: 'object',
+                },
+                {
+                  type: 'null',
+                },
+              ],
+            },
+          },
+          required: ['person'],
+          type: 'object',
+        },
+        schemaComponents: {},
+      },
+    },
+    {
+      params: {
+        schema: z.object({
+          person: z
+            .object({
+              name: z.string(),
+            })
+            .nullish()
+            .default(null),
+        }),
+        schemaType: 'input' as const,
+      },
+      expected: {
+        openApiSchema: {
+          properties: {
+            person: {
+              default: null,
+              oneOf: [
+                {
+                  properties: {
+                    name: {
+                      type: 'string',
+                    },
+                  },
+                  required: ['name'],
+                  type: 'object',
+                },
+                {
+                  type: 'null',
+                },
+              ],
+            },
+          },
+          type: 'object',
+        },
+        schemaComponents: {},
+      },
+    },
   ])(
     'should return the correct openapi schema for %$',
     ({ params, expected }) => {

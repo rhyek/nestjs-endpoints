@@ -11,5 +11,5 @@ export async function createApp(moduleFixture: TestingModule) {
   await app.init();
   await app.listen(0);
   await app.getHttpAdapter().getInstance().ready();
-  return app;
+  return { app, httpAdapter: 'fastify' };
 }

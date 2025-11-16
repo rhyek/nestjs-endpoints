@@ -9,7 +9,7 @@ describe('generated client', () => {
     const moduleFixture: TestingModule = await Test.createTestingModule({
       imports: [AppModule],
     }).compile();
-    const app = await createApp(moduleFixture);
+    const { app } = await createApp(moduleFixture);
     try {
       const client = createApiClient({
         baseURL: await app.getUrl(),
@@ -82,7 +82,7 @@ describe('generated client', () => {
     const moduleFixture: TestingModule = await Test.createTestingModule({
       imports: [AppModule],
     }).compile();
-    const app = await createApp(moduleFixture);
+    const { app } = await createApp(moduleFixture);
     try {
       const client = createApiClient({
         baseURL: await app.getUrl(),
