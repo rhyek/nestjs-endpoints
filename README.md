@@ -139,6 +139,10 @@ export class AppModule {}
 
 Endpoint available at `/status/health`.
 
+### Complex query parameters
+
+When declaring GET endpoints with complex query parameters (zod input schema with nested object properties), you must additionally [configure](https://docs.nestjs.com/controllers#query-parameters) the Express or Fastify NestJS adapters accordingly.
+
 ## Usage
 
 `src/endpoints/user/find.endpoint.ts`

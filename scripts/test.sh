@@ -11,6 +11,9 @@ pnpm --filter "./packages/test/*" --filter "!test-app-express-cjs" --filter "!te
   rsync -ar ../test-app-express-cjs/test/ ./test/ --exclude=create-app.ts
 "
 
+cp ./packages/test/test-app-express-cjs/test/create-app.ts ./packages/test/test-app-express-esm/test/create-app.ts
+cp ./packages/test/test-app-fastify-cjs/test/create-app.ts ./packages/test/test-app-fastify-esm/test/create-app.ts
+
 pnpm --filter "./packages/test/*" run codegen
 pnpm -r run tscheck
 
