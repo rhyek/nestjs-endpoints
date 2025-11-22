@@ -4,3 +4,5 @@ openapi.json
 !packages/test/test-app-express-cjs/**/*.e2e-spec.ts
 generated/
 !packages/test/test-app-express-cjs/generated
+packages/test/test-app-express-esm/test/create-app.ts
+packages/test/test-app-fastify-esm/test/create-app.ts

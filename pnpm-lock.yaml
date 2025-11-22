@@ -290,6 +290,9 @@ importers:
       nestjs-endpoints:
         specifier: workspace:*
         version: link:../../nestjs-endpoints
+      qs:
+        specifier: ^6.14.0
+        version: 6.14.0
       react:
         specifier: ^19.1.0
         version: 19.1.0
@@ -315,6 +318,9 @@ importers:
       '@types/node':
         specifier: ^20.3.1
         version: 20.17.17
+      '@types/qs':
+        specifier: ^6.14.0
+        version: 6.14.0
       '@types/supertest':
         specifier: ^2.0.12
         version: 2.0.16
@@ -372,6 +378,9 @@ importers:
       nestjs-endpoints:
         specifier: workspace:*
         version: link:../../nestjs-endpoints
+      qs:
+        specifier: ^6.14.0
+        version: 6.14.0
       react:
         specifier: ^19.1.0
         version: 19.1.0
@@ -397,6 +406,9 @@ importers:
       '@types/node':
         specifier: ^20.3.1
         version: 20.17.17
+      '@types/qs':
+        specifier: ^6.14.0
+        version: 6.14.0
       '@types/supertest':
         specifier: ^2.0.12
         version: 2.0.16
@@ -1967,8 +1979,8 @@ packages:
   '@types/node@22.13.1':
     resolution: {integrity: sha512-jK8uzQlrvXqEU91UxiK5J7pKHyzgnI1Qnl0QDHIgVGuolJhRb9EEl28Cj9b3rGR8B2lhFCtvIm5os8lFnO/1Ew==}
 
-  '@types/qs@6.9.18':
-    resolution: {integrity: sha512-kK7dgTYDyGqS+e2Q4aK9X3D7q234CIZ1Bv0q/7Z5IwRDoADNU81xXJK/YVyLbLTZCoIwUoDoffFeF+p/eIklAA==}
+  '@types/qs@6.14.0':
+    resolution: {integrity: sha512-eOunJqu0K1923aExK6y8p6fsihYEn/BYuQ4g0CxAAgFc4b/ZLN4CrsRZ55srTdqoiLzU2B2evC+apEIxprEzkQ==}
 
   '@types/range-parser@1.2.7':
     resolution: {integrity: sha512-hKormJbkJqzQGhziax5PItDUTMAM9uE2XXQmM37dyd4hVM+5aVl7oVxMVUiVQn2oCQFN/LKCZdvSM0pFRqbSmQ==}
@@ -6489,7 +6501,7 @@ snapshots:
   '@types/express-serve-static-core@5.0.6':
     dependencies:
       '@types/node': 22.13.1
-      '@types/qs': 6.9.18
+      '@types/qs': 6.14.0
       '@types/range-parser': 1.2.7
       '@types/send': 0.17.4
 
@@ -6497,7 +6509,7 @@ snapshots:
     dependencies:
       '@types/body-parser': 1.19.5
       '@types/express-serve-static-core': 5.0.6
-      '@types/qs': 6.9.18
+      '@types/qs': 6.14.0
       '@types/serve-static': 1.15.7
 
   '@types/hast@3.0.4':
@@ -6522,7 +6534,7 @@ snapshots:
     dependencies:
       undici-types: 6.20.0
 
-  '@types/qs@6.9.18': {}
+  '@types/qs@6.14.0': {}
 
   '@types/range-parser@1.2.7': {}
 
@@ -7402,7 +7414,7 @@ snapshots:
       arraybuffer.prototype.slice: 1.0.4
       available-typed-arrays: 1.0.7
       call-bind: 1.0.8
-      call-bound: 1.0.3
+      call-bound: 1.0.4
       data-view-buffer: 1.0.2
       data-view-byte-length: 1.0.2
       data-view-byte-offset: 1.0.1
@@ -7412,7 +7424,7 @@ snapshots:
       es-set-tostringtag: 2.1.0
       es-to-primitive: 1.3.0
       function.prototype.name: 1.1.8
-      get-intrinsic: 1.2.7
+      get-intrinsic: 1.3.0
       get-proto: 1.0.1
       get-symbol-description: 1.1.0
       globalthis: 1.0.4
@@ -8254,7 +8266,7 @@ snapshots:
   is-async-function@2.1.1:
     dependencies:
       async-function: 1.0.0
-      call-bound: 1.0.3
+      call-bound: 1.0.4
       get-proto: 1.0.1
       has-tostringtag: 1.0.2
       safe-regex-test: 1.1.0
@@ -8293,7 +8305,7 @@ snapshots:
 
   is-finalizationregistry@1.1.1:
     dependencies:
-      call-bound: 1.0.3
+      call-bound: 1.0.4
 
   is-fullwidth-code-point@3.0.0: {}
 
@@ -8305,7 +8317,7 @@ snapshots:
 
   is-generator-function@1.1.0:
     dependencies:
-      call-bound: 1.0.3
+      call-bound: 1.0.4
       get-proto: 1.0.1
       has-tostringtag: 1.0.2
       safe-regex-test: 1.1.0
@@ -8373,8 +8385,8 @@ snapshots:
 
   is-weakset@2.0.4:
     dependencies:
-      call-bound: 1.0.3
-      get-intrinsic: 1.2.7
+      call-bound: 1.0.4
+      get-intrinsic: 1.3.0
 
   isarray@1.0.0: {}
 
@@ -9367,16 +9379,16 @@ snapshots:
 
   side-channel-map@1.0.1:
     dependencies:
-      call-bound: 1.0.3
+      call-bound: 1.0.4
       es-errors: 1.3.0
-      get-intrinsic: 1.2.7
+      get-intrinsic: 1.3.0
       object-inspect: 1.13.4
 
   side-channel-weakmap@1.0.2:
     dependencies:
-      call-bound: 1.0.3
+      call-bound: 1.0.4
       es-errors: 1.3.0
-      get-intrinsic: 1.2.7
+      get-intrinsic: 1.3.0
       object-inspect: 1.13.4
       side-channel-map: 1.0.1
 
@@ -10138,7 +10150,7 @@ snapshots:
 
   which-builtin-type@1.2.1:
     dependencies:
-      call-bound: 1.0.3
+      call-bound: 1.0.4
       function.prototype.name: 1.1.8
       has-tostringtag: 1.0.2
       is-async-function: 2.1.1
