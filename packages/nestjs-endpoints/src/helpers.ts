@@ -3,7 +3,7 @@ import path from 'node:path';
 import { applyDecorators } from '@nestjs/common';
 import { ApiQuery, ApiQueryOptions } from '@nestjs/swagger';
 import callsites from 'callsites';
-import { z } from 'zod';
+import { z, ZodPipe, ZodTransform } from 'zod';
 import { createSchema } from 'zod-openapi';
 import { zodToOpenApi } from './zod-to-openapi';
 
@@ -67,15 +67,32 @@ export function getHttpPathPascalName(httpPath: string) {
     .replace(/[/-]([a-z])/g, (_, letter: string) => letter.toUpperCase());
 }
 
-export const ApiQueries = <T extends z.ZodObject>(zodObject: T) => {
-  const optionsList = Object.keys(zodObject.shape).reduce<
+export const ApiQueries = <
+  T extends
+    | z.ZodObject
+    | z.ZodPipe<z.ZodObject>
+    | z.ZodPipe<any, z.ZodObject>,
+>(
+  zodObject: T,
+) => {
+  const source: z.ZodObject = (() => {
+    if (zodObject instanceof ZodPipe) {
+      if (zodObject.def.in instanceof ZodTransform) {
+        return zodObject.def.out;
+      } else {
+        return zodObject.def.in;
+      }
+    }
+    return zodObject;
+  })();
+  const optionsList = Object.keys(source.shape).reduce<
     Array<
       ApiQueryOptions & {
         schema: ReturnType<typeof createSchema>['schema'];
       }
     >
   >((acc, name) => {
-    const zodType = zodObject.shape[name];
+    const zodType = source.shape[name];
     if (zodType) {
       const { openApiSchema } = zodToOpenApi({
         schema: zodType,

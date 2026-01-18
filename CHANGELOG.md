@@ -1,5 +1,15 @@
 # Changelog
 
+## 2.0.4 (2026-01-18)
+
+### Bug fixes
+
+- Allow `z.preprocess()` on input schemas for GET endpoints
+
+### Testing
+
+- Added unit tests for `ApiQueries` helper function
+
 ## 2.0.3 (2025-11-16)
 
 ## Bug fixes
