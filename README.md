@@ -259,6 +259,47 @@ Examples (assume `rootDirectory` is `./endpoints`):
 
 > _**Note:**_ Bundled projects via Webpack or similar are not supported.
 
+### Nested router modules
+
+A subdirectory under a parent `EndpointsRouterModule`'s `rootDirectory` can own its endpoints and providers by adding a `router.module.ts` with a default-exported `EndpointsRouterModule`. The parent auto-discovers it, imports it, and derives the child's `basePath` from its folder name.
+
+```
+src/
+├── app.module.ts
+└── endpoints/
+    └── shop/
+        ├── homepage.endpoint.ts
+        └── recipes/
+            ├── router.module.ts
+            ├── repository.service.ts
+            └── create.endpoint.ts
+```
+
+```typescript
+// src/app.module.ts
+@Module({
+  imports: [
+    EndpointsRouterModule.register({ rootDirectory: './endpoints' }),
+  ],
+})
+export class AppModule {}
+```
+
+```typescript
+// src/endpoints/shop/recipes/router.module.ts
+import { EndpointsRouterModule } from 'nestjs-endpoints';
+import { RecipesRepository } from './repository.service';
+
+export default EndpointsRouterModule.register({
+  providers: [RecipesRepository],
+});
+```
+
+```bash
+❯ curl 'http://localhost:3000/shop/recipes/create?name=Pizza'
+{"id":1,"name":"Pizza"}
+```
+
 ## Codegen (optional)
 
 You can automatically generate a client SDK for your API that can be used in other backend or frontend projects with the benefit of end-to-end type safety. It uses [orval](https://orval.dev/) internally and works with both scanned and manually imported endpoints.

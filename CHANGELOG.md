@@ -1,5 +1,12 @@
 # Changelog
 
+## 2.1.0 (2026-04-18)
+
+### Features
+
+- **Nested router modules**: A subdirectory under a parent `EndpointsRouterModule`'s `rootDirectory` can now own its endpoints and providers by default-exporting an `EndpointsRouterModule` from a `router.module.ts` file. The parent auto-discovers it, imports it, and derives the child's `basePath` from its folder name.
+- Now handles digit path segments (e.g. `recipes-v2/list` → `RecipesV2List`).
+
 ## 2.0.4 (2026-01-18)
 
 ### Bug fixes
