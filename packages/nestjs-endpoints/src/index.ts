@@ -12,4 +12,7 @@ export {
 export * from './helpers';
 export * from './setup-openapi';
 export * from './codegen';
-export { EndpointsRouterModule } from './endpoints-router.module';
+export {
+  EndpointRouterModule,
+  EndpointsRouterModule,
+} from './endpoint-router.module';

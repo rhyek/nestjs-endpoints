@@ -40,6 +40,25 @@ describe('multi-root + folder-inferred basePath', () => {
     }
   });
 
+  test('nested router module with endpoint.ts + create.endpoint.ts', async () => {
+    // `shop/recipes/` is a nested router. Inside it:
+    //   - `endpoint.ts`         → /shop/recipes       (folder path, no leaf)
+    //   - `create.endpoint.ts`  → /shop/recipes/create
+    const { app, req } = await setup();
+    try {
+      await req.get('/shop/recipes').expect(200, []);
+      await req
+        .get('/shop/recipes/create')
+        .query({ name: 'Pizza' })
+        .expect(200, { id: 1, name: 'Pizza' });
+      await req
+        .get('/shop/recipes')
+        .expect(200, [{ id: 1, name: 'Pizza' }]);
+    } finally {
+      await app.close();
+    }
+  });
+
   test('explicit basePath overrides folder-name inference', async () => {
     const { app, req } = await setup();
     try {
@@ -94,6 +113,8 @@ describe('multi-root + folder-inferred basePath', () => {
       expect(parsed.paths).toHaveProperty('/shop/promo/today');
       expect(parsed.paths).toHaveProperty('/shop/category/list');
       expect(parsed.paths).toHaveProperty('/shop/cart/add');
+      expect(parsed.paths).toHaveProperty('/shop/recipes');
+      expect(parsed.paths).toHaveProperty('/shop/recipes/create');
       expect(parsed.paths).toHaveProperty('/articles/latest');
       expect(parsed.paths).not.toHaveProperty('/blog/latest');
     } finally {
