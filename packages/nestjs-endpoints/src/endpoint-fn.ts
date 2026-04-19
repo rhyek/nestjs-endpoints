@@ -384,10 +384,15 @@ export function endpoint<
   }) => {
     const { httpPath, httpPathPascalName, httpPathSegments } = (() => {
       if (explicitPath) {
+        const segments = [
+          ...basePath.split('/').filter(Boolean),
+          ...explicitPath.split('/').filter(Boolean),
+        ];
+        const combined = '/' + segments.join('/');
         return {
-          httpPath: explicitPath,
-          httpPathSegments: explicitPath.split('/').filter(Boolean),
-          httpPathPascalName: getHttpPathPascalName(explicitPath),
+          httpPath: combined,
+          httpPathSegments: segments,
+          httpPathPascalName: getHttpPathPascalName(combined),
         };
       }
       return getEndpointHttpPath(rootDirectory, basePath, file);
@@ -627,6 +632,7 @@ export function endpoint<
     methodDecorator(cls.prototype, 'handler', descriptor);
     Reflect.defineMetadata('endpoints:path', httpPath, cls);
   };
+  Reflect.defineMetadata('endpoints:setupFn', setupFn, cls);
   if (moduleAls.getStore()) {
     settings.endpoints.push({
       file,

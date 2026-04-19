@@ -64,7 +64,7 @@ export function getEndpointHttpPath(
 export function getHttpPathPascalName(httpPath: string) {
   return httpPath
     .replace(/^[a-z]/, (letter) => letter.toUpperCase())
-    .replace(/[/-]([a-z])/g, (_, letter: string) => letter.toUpperCase());
+    .replace(/[/-]([a-z0-9])/g, (_, char: string) => char.toUpperCase());
 }
 
 export const ApiQueries = <
@@ -129,4 +129,6 @@ export function getCallsiteFile() {
   return result;
 }
 
-export const moduleAls = new AsyncLocalStorage<boolean>();
+export const moduleAls = new AsyncLocalStorage<{
+  parentRootDirectory: string;
+}>();

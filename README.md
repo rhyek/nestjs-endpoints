@@ -259,6 +259,81 @@ Examples (assume `rootDirectory` is `./endpoints`):
 
 > _**Note:**_ Bundled projects via Webpack or similar are not supported.
 
+### Nested router modules
+
+A subdirectory under a parent `EndpointsRouterModule`'s `rootDirectory` can own its endpoints and providers by adding a `router.module.ts` with a default-exported `EndpointsRouterModule`. The parent auto-discovers it, imports it, and derives the child's `basePath` from its folder name.
+
+```
+src/
+├── app.module.ts
+└── endpoints/
+    └── shop/
+        ├── homepage.endpoint.ts
+        └── recipes/
+            ├── router.module.ts
+            ├── repository.service.ts
+            └── create.endpoint.ts
+```
+
+```typescript
+// src/app.module.ts
+@Module({
+  imports: [
+    EndpointsRouterModule.register({ rootDirectory: './endpoints' }),
+  ],
+})
+export class AppModule {}
+```
+
+```typescript
+// src/endpoints/shop/recipes/router.module.ts
+import { EndpointsRouterModule } from 'nestjs-endpoints';
+import { RecipesRepository } from './repository.service';
+
+export default EndpointsRouterModule.register({
+  providers: [RecipesRepository],
+});
+```
+
+```bash
+❯ curl 'http://localhost:3000/shop/recipes/create?name=Pizza'
+{"id":1,"name":"Pizza"}
+```
+
+### Middleware and interceptors
+
+`EndpointsRouterModule.register()` accepts `middleware` and `interceptors` options that apply to every endpoint owned by the router — including endpoints in nested router modules.
+
+- `middleware` accepts a mix of class-based (`NestMiddleware`) and functional middleware. The last entry may optionally be an options object, currently supporting `exclude` (a list of paths — each resolved relative to the router's `basePath`).
+- `interceptors` are applied controller-scoped to each endpoint in the subtree.
+
+```typescript
+// src/endpoints/recipes/router.module.ts
+import { IncomingMessage, ServerResponse } from 'node:http';
+import { EndpointsRouterModule } from 'nestjs-endpoints';
+import { RecipesInterceptor } from './recipes.interceptor';
+import { RecipesMiddleware } from './recipes.middleware';
+
+export default EndpointsRouterModule.register({
+  // Applied to every recipes endpoint
+  middleware: [
+    // Class-based middleware
+    RecipesMiddleware,
+    // Functional middleware
+    (_req: IncomingMessage, _res: ServerResponse, next: () => void) => {
+      console.log('before handler');
+      next();
+    },
+    // Options — must be the last entry. Paths in `exclude` are
+    // resolved relative to the router's `basePath`. For a router at
+    // `/recipes`, this skips middleware for `/recipes/list`.
+    { exclude: ['list'] },
+  ],
+  // Applied to every recipes endpoint
+  interceptors: [RecipesInterceptor],
+});
+```
+
 ## Codegen (optional)
 
 You can automatically generate a client SDK for your API that can be used in other backend or frontend projects with the benefit of end-to-end type safety. It uses [orval](https://orval.dev/) internally and works with both scanned and manually imported endpoints.

@@ -504,6 +504,49 @@ describe('api', { concurrent: true }, () => {
         expect(resp.body).toBe(12);
       });
   });
+
+  test('nested endpoints router module: recipes create works', async () => {
+    const { req } = await setup();
+    await req
+      .get('/recipes/create')
+      .query({ name: 'Pizza' })
+      .expect(200, { id: 1, name: 'Pizza' });
+    await req
+      .get('/recipes/create')
+      .query({ name: 'Pasta' })
+      .expect(200, { id: 2, name: 'Pasta' });
+  });
+
+  test('manual endpoints router module: recipes-manual-1 create works', async () => {
+    const { req } = await setup();
+    await req
+      .get('/recipes-manual-1/create')
+      .query({ name: 'Pizza' })
+      .expect(200, { id: 1, name: 'Pizza', manual: true });
+    await req
+      .get('/recipes-manual-1/create')
+      .query({ name: 'Pasta' })
+      .expect(200, { id: 2, name: 'Pasta', manual: true });
+  });
+
+  test('nested endpoints router module: recipes create input validation throws', async () => {
+    const { req, validationExceptionSpy, serializationExceptionSpy } =
+      await setup();
+    await req.get('/recipes/create').expect(400, {
+      statusCode: 400,
+      message: 'Validation failed',
+      errors: [
+        {
+          expected: 'string',
+          code: 'invalid_type',
+          path: ['name'],
+          message: 'Invalid input: expected string, received undefined',
+        },
+      ],
+    });
+    expect(validationExceptionSpy).toHaveBeenCalledTimes(1);
+    expect(serializationExceptionSpy).toHaveBeenCalledTimes(0);
+  });
 });
 
 test('spec works', async () => {
@@ -790,6 +833,107 @@ test('spec works', async () => {
         },
         UserAppointmentCountOutput: {
           type: 'number',
+        },
+      },
+    },
+  });
+  expect(parsed).toMatchObject({
+    paths: {
+      '/recipes/create': {
+        get: {
+          operationId: 'RecipesCreate',
+          summary: '',
+          tags: ['recipes'],
+          parameters: [
+            {
+              name: 'name',
+              required: true,
+              in: 'query',
+              schema: {
+                type: 'string',
+              },
+            },
+          ],
+          responses: {
+            '200': {
+              description: '',
+              content: {
+                'application/json': {
+                  schema: {
+                    $ref: '#/components/schemas/RecipesCreateOutput',
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+    components: {
+      schemas: {
+        RecipesCreateOutput: {
+          type: 'object',
+          properties: {
+            id: {
+              type: 'number',
+            },
+            name: {
+              type: 'string',
+            },
+          },
+          required: ['id', 'name'],
+        },
+      },
+    },
+  });
+  expect(parsed).toMatchObject({
+    paths: {
+      '/recipes-manual-1/create': {
+        get: {
+          operationId: 'RecipesManual1Create',
+          summary: '',
+          tags: ['recipes-manual-1'],
+          parameters: [
+            {
+              name: 'name',
+              required: true,
+              in: 'query',
+              schema: {
+                type: 'string',
+              },
+            },
+          ],
+          responses: {
+            '200': {
+              description: '',
+              content: {
+                'application/json': {
+                  schema: {
+                    $ref: '#/components/schemas/RecipesManual1CreateOutput',
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+    components: {
+      schemas: {
+        RecipesManual1CreateOutput: {
+          type: 'object',
+          properties: {
+            id: {
+              type: 'number',
+            },
+            name: {
+              type: 'string',
+            },
+            manual: {
+              type: 'boolean',
+            },
+          },
+          required: ['id', 'name', 'manual'],
         },
       },
     },
