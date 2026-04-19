@@ -5,6 +5,7 @@
 ### Features
 
 - **Nested router modules**: A subdirectory under a parent `EndpointsRouterModule`'s `rootDirectory` can now own its endpoints and providers by default-exporting an `EndpointsRouterModule` from a `router.module.ts` file. The parent auto-discovers it, imports it, and derives the child's `basePath` from its folder name.
+- **Middleware and interceptors on `EndpointsRouterModule`**: `register()` now accepts `middleware` (class-based or functional, with an optional trailing `{ exclude: string[] }` options entry whose paths are resolved against the router's `basePath`) and `interceptors` (controller-scoped). Both apply to every endpoint in the router's subtree, including nested router modules.
 - Now handles digit path segments (e.g. `recipes-v2/list` → `RecipesV2List`).
 
 ## 2.0.4 (2026-01-18)

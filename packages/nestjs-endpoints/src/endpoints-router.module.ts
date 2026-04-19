@@ -2,9 +2,14 @@ import fs from 'node:fs';
 import path from 'node:path';
 import {
   DynamicModule,
+  MiddlewareConsumer,
   Module,
   ModuleMetadata,
+  NestInterceptor,
+  NestMiddleware,
+  NestModule,
   Type,
+  UseInterceptors,
 } from '@nestjs/common';
 import {
   endpointFileRegex,
@@ -12,6 +17,22 @@ import {
   settings,
 } from './consts';
 import { getCallsiteFile, moduleAls } from './helpers';
+
+type RouterMiddlewareEntry =
+  // eslint-disable-next-line @typescript-eslint/no-unsafe-function-type
+  Type<NestMiddleware> | Function;
+type RouterMiddlewareOptions = { exclude?: string[] };
+type RouterMiddlewareList =
+  | readonly [...RouterMiddlewareEntry[], RouterMiddlewareOptions]
+  | readonly RouterMiddlewareEntry[];
+
+type RouterInterceptor = Type<NestInterceptor> | NestInterceptor;
+
+const ALL_ENDPOINTS_SYMBOL = Symbol.for('nestjs-endpoints:allEndpoints');
+
+function isMiddlewareOptions(m: unknown): m is RouterMiddlewareOptions {
+  return m !== null && typeof m === 'object' && typeof m !== 'function';
+}
 
 @Module({})
 export class EndpointsRouterModule {
@@ -36,6 +57,18 @@ export class EndpointsRouterModule {
      * endpoint's path.
      */
     endpoints?: Type[];
+    /**
+     * Middleware to apply to all routes under this router's `basePath`
+     * (including endpoints from nested router modules). The last entry may
+     * optionally be an options object, e.g. `{ exclude: ['list'] }`, where
+     * each exclude path is resolved against the router's `basePath`.
+     */
+    middleware?: RouterMiddlewareList;
+    /**
+     * Interceptors to apply (controller-scoped) to each endpoint owned by
+     * this router, including endpoints from nested router modules.
+     */
+    interceptors?: RouterInterceptor[];
   }): Promise<DynamicModule> {
     const definedAtDir = path.dirname(getCallsiteFile());
     const resolveDir = (dir: string) => {
@@ -73,7 +106,7 @@ export class EndpointsRouterModule {
     const endpointFilesNotImported = endopointFiles.filter((f) =>
       settings.endpoints.every((e) => e.file !== f),
     );
-    const nestedModules: DynamicModule[] = [];
+    const nestedModules: (DynamicModule | Promise<DynamicModule>)[] = [];
 
     await moduleAls.run(
       { parentRootDirectory: rootDirectory },
@@ -121,13 +154,85 @@ export class EndpointsRouterModule {
       });
     }
 
-    return {
-      module: EndpointsRouterModule,
+    // Resolve nested modules to collect their endpoint classes (for
+    // interceptor application). Nested modules are still passed along as
+    // the original (possibly Promise) values via imports.
+    const resolvedNestedModules = await Promise.all(
+      nestedModules.map((m) => Promise.resolve(m)),
+    );
+    const nestedAllEndpoints: Type[] = resolvedNestedModules.flatMap(
+      (m) =>
+        (m as unknown as Record<symbol, Type[] | undefined>)[
+          ALL_ENDPOINTS_SYMBOL
+        ] ?? [],
+    );
+    const allEndpoints: Type[] = [...endpoints, ...nestedAllEndpoints];
+
+    // Apply interceptors (controller-scoped) to all endpoints in the
+    // subtree, including nested ones.
+    if (params?.interceptors && params.interceptors.length > 0) {
+      const interceptorDecorator = UseInterceptors(...params.interceptors);
+      for (const ep of allEndpoints) {
+        interceptorDecorator(ep);
+      }
+    }
+
+    // Parse middleware list into handlers + optional options entry.
+    const middlewareHandlers: RouterMiddlewareEntry[] = [];
+    let middlewareOptions: RouterMiddlewareOptions | undefined;
+    if (params?.middleware) {
+      const mwList = params.middleware as ReadonlyArray<
+        RouterMiddlewareEntry | RouterMiddlewareOptions
+      >;
+      for (let i = 0; i < mwList.length; i++) {
+        const item = mwList[i];
+        if (isMiddlewareOptions(item)) {
+          if (i !== mwList.length - 1) {
+            throw new Error(
+              'EndpointsRouterModule: middleware options object must be the last entry',
+            );
+          }
+          middlewareOptions = item;
+        } else {
+          middlewareHandlers.push(item);
+        }
+      }
+    }
+    const normalizedBasePath = effectiveBasePath.replace(/^\/+|\/+$/g, '');
+    const excludeRoutes = middlewareOptions?.exclude?.map((p) =>
+      normalizedBasePath ? `${normalizedBasePath}/${p}` : p,
+    );
+    const forRoutesPattern = normalizedBasePath
+      ? `${normalizedBasePath}/*`
+      : '*';
+
+    class RouterModule
+      extends EndpointsRouterModule
+      implements NestModule
+    {
+      configure(consumer: MiddlewareConsumer) {
+        if (middlewareHandlers.length === 0) return;
+        let applied = consumer.apply(...middlewareHandlers);
+        if (excludeRoutes && excludeRoutes.length > 0) {
+          applied = applied.exclude(...excludeRoutes);
+        }
+        applied.forRoutes(forRoutesPattern);
+      }
+    }
+    Module({})(RouterModule);
+
+    const dynamicModule: DynamicModule = {
+      module: RouterModule,
       imports: [...(params?.imports ?? []), ...nestedModules],
       exports: params?.exports,
       providers: params?.providers,
       controllers: endpoints,
     };
+    (dynamicModule as unknown as Record<symbol, Type[]>)[
+      ALL_ENDPOINTS_SYMBOL
+    ] = allEndpoints;
+
+    return dynamicModule;
   }
 }
 
