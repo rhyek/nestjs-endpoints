@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import {
+  CanActivate,
   DynamicModule,
   MiddlewareConsumer,
   Module,
@@ -9,6 +10,7 @@ import {
   NestMiddleware,
   NestModule,
   Type,
+  UseGuards,
   UseInterceptors,
 } from '@nestjs/common';
 import {
@@ -28,74 +30,103 @@ type RouterMiddlewareList =
 
 type RouterInterceptor = Type<NestInterceptor> | NestInterceptor;
 
+type RouterGuard = Type<CanActivate> | CanActivate;
+
 const ALL_ENDPOINTS_SYMBOL = Symbol.for('nestjs-endpoints:allEndpoints');
 
 function isMiddlewareOptions(m: unknown): m is RouterMiddlewareOptions {
   return m !== null && typeof m === 'object' && typeof m !== 'function';
 }
 
+type EndpointRouterModuleParams = NonNullable<
+  Parameters<typeof EndpointRouterModule._register>[1]
+>;
+
 @Module({})
-export class EndpointsRouterModule {
-  static async register(params?: {
-    /**
-     * Directory (or directories) this router loads endpoints from. Relative
-     * paths are resolved against the calling file's directory; absolute
-     * paths are used as-is.
-     *
-     * Each entry is scanned recursively. Any directory encountered that
-     * contains a `router.module.*` file is auto-discovered as a nested
-     * router (regardless of depth) — the parent imports it and does not
-     * scan inside it. Directories without a `router.module.*` are scanned
-     * for `*.endpoint.ts` files (non-`_`-prefixed subfolders contribute
-     * to the inferred URL path).
-     *
-     * @example
-     *   rootDirectory: './endpoints'             // single scan root
-     *   rootDirectory: ['endpoints', 'clinica']  // each entry scanned independently
-     *
-     * @default The directory of the calling file.
-     */
-    rootDirectory?: string | string[];
-    /**
-     * The base path to prepend to every endpoint owned by this router.
-     *
-     * When omitted, `basePath` is inferred:
-     *
-     * - **Top-level `router.module.ts`**: the folder containing the file
-     *   (e.g. `src/auth/router.module.ts` → `basePath: 'auth'`).
-     * - **Nested**: the parent's effective `basePath` joined with the
-     *   child's folder relative to its matching parent root — or, if the
-     *   child doesn't sit inside one of the parent's `rootDirectories`,
-     *   relative to the parent module file's own folder.
-     * - **Other callsites** (e.g. `app.module.ts`, or any file not named
-     *   `router.module.*`): no folder inference; defaults to `'/'`.
-     *
-     * Pass `''` or `'/'` to opt out of inference and mount at the root.
-     */
-    basePath?: string;
-    imports?: ModuleMetadata['imports'];
-    exports?: ModuleMetadata['exports'];
-    providers?: ModuleMetadata['providers'];
-    /**
-     * Endpoints to register manually. Behaves similarly to the `controllers`
-     * key on NestJS modules. The router's `basePath` is prepended to each
-     * endpoint's path.
-     */
-    endpoints?: Type[];
-    /**
-     * Middleware to apply to all routes under this router's `basePath`
-     * (including endpoints from nested router modules). The last entry may
-     * optionally be an options object, e.g. `{ exclude: ['list'] }`, where
-     * each exclude path is resolved against the router's `basePath`.
-     */
-    middleware?: RouterMiddlewareList;
-    /**
-     * Interceptors to apply (controller-scoped) to each endpoint owned by
-     * this router, including endpoints from nested router modules.
-     */
-    interceptors?: RouterInterceptor[];
-  }): Promise<DynamicModule> {
-    const callsiteFile = getCallsiteFile();
+export class EndpointRouterModule {
+  static async create(
+    params?: EndpointRouterModuleParams,
+  ): Promise<DynamicModule> {
+    return EndpointRouterModule._register(getCallsiteFile(), params);
+  }
+
+  /**
+   * @deprecated Use `EndpointRouterModule.create()` instead. This alias
+   * is kept for backwards compatibility and forwards to `create()`.
+   */
+  static async register(
+    params?: EndpointRouterModuleParams,
+  ): Promise<DynamicModule> {
+    return EndpointRouterModule._register(getCallsiteFile(), params);
+  }
+
+  static async _register(
+    callsiteFile: string,
+    params?: {
+      /**
+       * Directory (or directories) this router loads endpoints from. Relative
+       * paths are resolved against the calling file's directory; absolute
+       * paths are used as-is.
+       *
+       * Each entry is scanned recursively. Any directory encountered that
+       * contains a `router.module.*` file is auto-discovered as a nested
+       * router (regardless of depth) — the parent imports it and does not
+       * scan inside it. Directories without a `router.module.*` are scanned
+       * for `*.endpoint.ts` files (non-`_`-prefixed subfolders contribute
+       * to the inferred URL path).
+       *
+       * @example
+       *   rootDirectory: './endpoints'             // single scan root
+       *   rootDirectory: ['endpoints', 'clinica']  // each entry scanned independently
+       *
+       * @default The directory of the calling file.
+       */
+      rootDirectory?: string | string[];
+      /**
+       * The base path to prepend to every endpoint owned by this router.
+       *
+       * When omitted, `basePath` is inferred:
+       *
+       * - **Top-level `router.module.ts`**: the folder containing the file
+       *   (e.g. `src/auth/router.module.ts` → `basePath: 'auth'`).
+       * - **Nested**: the parent's effective `basePath` joined with the
+       *   child's folder relative to its matching parent root — or, if the
+       *   child doesn't sit inside one of the parent's `rootDirectories`,
+       *   relative to the parent module file's own folder.
+       * - **Other callsites** (e.g. `app.module.ts`, or any file not named
+       *   `router.module.*`): no folder inference; defaults to `'/'`.
+       *
+       * Pass `''` or `'/'` to opt out of inference and mount at the root.
+       */
+      basePath?: string;
+      imports?: ModuleMetadata['imports'];
+      exports?: ModuleMetadata['exports'];
+      providers?: ModuleMetadata['providers'];
+      /**
+       * Endpoints to register manually. Behaves similarly to the `controllers`
+       * key on NestJS modules. The router's `basePath` is prepended to each
+       * endpoint's path.
+       */
+      endpoints?: Type[];
+      /**
+       * Middleware to apply to all routes under this router's `basePath`
+       * (including endpoints from nested router modules). The last entry may
+       * optionally be an options object, e.g. `{ exclude: ['list'] }`, where
+       * each exclude path is resolved against the router's `basePath`.
+       */
+      middleware?: RouterMiddlewareList;
+      /**
+       * Interceptors to apply (controller-scoped) to each endpoint owned by
+       * this router, including endpoints from nested router modules.
+       */
+      interceptors?: RouterInterceptor[];
+      /**
+       * Guards to apply (controller-scoped) to each endpoint owned by this
+       * router, including endpoints from nested router modules.
+       */
+      guards?: RouterGuard[];
+    },
+  ): Promise<DynamicModule> {
     const definedAtDir = path.dirname(callsiteFile);
     const resolveDir = (dir: string) => {
       if (!path.isAbsolute(dir)) {
@@ -248,6 +279,15 @@ export class EndpointsRouterModule {
       }
     }
 
+    // Apply guards (controller-scoped) to all endpoints in the subtree,
+    // including nested ones.
+    if (params?.guards && params.guards.length > 0) {
+      const guardDecorator = UseGuards(...params.guards);
+      for (const ep of allEndpoints) {
+        guardDecorator(ep);
+      }
+    }
+
     // Parse middleware list into handlers + optional options entry.
     const middlewareHandlers: RouterMiddlewareEntry[] = [];
     let middlewareOptions: RouterMiddlewareOptions | undefined;
@@ -260,7 +300,7 @@ export class EndpointsRouterModule {
         if (isMiddlewareOptions(item)) {
           if (i !== mwList.length - 1) {
             throw new Error(
-              'EndpointsRouterModule: middleware options object must be the last entry',
+              'EndpointRouterModule: middleware options object must be the last entry',
             );
           }
           middlewareOptions = item;
@@ -276,10 +316,7 @@ export class EndpointsRouterModule {
       ? `${normalizedParentBasePath}/*`
       : '*';
 
-    class RouterModule
-      extends EndpointsRouterModule
-      implements NestModule
-    {
+    class RouterModule extends EndpointRouterModule implements NestModule {
       configure(consumer: MiddlewareConsumer) {
         if (middlewareHandlers.length === 0) return;
         let applied = consumer.apply(...middlewareHandlers);
@@ -305,6 +342,16 @@ export class EndpointsRouterModule {
     return dynamicModule;
   }
 }
+
+/**
+ * @deprecated Use `EndpointRouterModule` instead. This alias is kept for
+ * backwards compatibility and refers to the same class.
+ */
+export const EndpointsRouterModule = EndpointRouterModule;
+/**
+ * @deprecated Use `EndpointRouterModule` instead.
+ */
+export type EndpointsRouterModule = EndpointRouterModule;
 
 function findEndpoints(
   dir: string,

@@ -29,6 +29,7 @@ import {
   IUserRepository,
   UserService,
 } from './endpoints/user/user.service';
+import SecuredRouterModule from './secured/router.module';
 import ShopRouterModule from './shop/router.module';
 import { VanillaController } from './vanilla.controller';
 
@@ -71,6 +72,7 @@ export class ZodErrorInterceptor implements NestInterceptor {
     RecipesManualEndpointsRouterModule,
     ShopRouterModule,
     BlogRouterModule,
+    SecuredRouterModule,
     UserListModule,
   ],
   providers: [

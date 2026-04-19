@@ -1,5 +1,12 @@
 # Changelog
 
+## 2.3.0 (2026-04-18)
+
+### Features
+
+- **Renamed to `EndpointRouterModule` / `create()`**: The module is now `EndpointRouterModule` and its static method is `create()`. The old `EndpointsRouterModule` + `register()` names remain as deprecated aliases — existing code keeps working unchanged.
+- **`guards` on `EndpointRouterModule.create()`**: New `guards` option, mirroring `interceptors`. Applied controller-scoped to every endpoint owned by the router (including nested subtrees) via `@UseGuards(...)`.
+
 ## 2.2.0 (2026-04-18)
 
 ### Features
