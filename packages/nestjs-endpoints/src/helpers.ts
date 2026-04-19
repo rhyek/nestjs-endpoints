@@ -18,18 +18,21 @@ const shortCircuitDirs: Record<string, boolean> = {
   [process.cwd()]: true,
 };
 export function getEndpointHttpPath(
-  rootDirectory: string,
+  rootDirectories: string[],
   basePath: string,
   file: string,
 ) {
-  shortCircuitDirs[rootDirectory] = true;
+  const stopDirs: Record<string, boolean> = { ...shortCircuitDirs };
+  for (const d of rootDirectories) {
+    stopDirs[d] = true;
+  }
   let pathSegments: string[] = [];
   let start = path.dirname(file);
   let lastDirPathSegment: string | null = null;
 
   while (true) {
     if (
-      Object.keys(shortCircuitDirs).some(
+      Object.keys(stopDirs).some(
         (d) =>
           path.normalize(d + path.sep) ===
           path.normalize(start + path.sep),
@@ -130,5 +133,25 @@ export function getCallsiteFile() {
 }
 
 export const moduleAls = new AsyncLocalStorage<{
-  parentRootDirectory: string;
+  /**
+   * The parent router's effective basePath (without leading slash, joined
+   * with '/'). Used by nested child routers to prefix their own inferred
+   * basePath with the parent's.
+   */
+  parentBasePath: string;
+  /**
+   * The directory containing the parent router module file (i.e., the
+   * directory in which the parent's `router.module.ts` lives). Child
+   * routers infer their basePath suffix from their own module directory
+   * relative to this when they don't sit inside one of the parent's
+   * `rootDirectories`.
+   */
+  parentModuleDir: string;
+  /**
+   * The parent router's resolved root directories. When a child router's
+   * own directory matches (or sits inside) one of these, the basePath
+   * suffix is computed relative to that root — preserving the legacy
+   * `rootDirectory: './endpoints'` + nested-router pattern.
+   */
+  parentRootDirectories: string[];
 }>();
