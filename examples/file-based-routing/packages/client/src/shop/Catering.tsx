@@ -13,13 +13,12 @@ export function Catering() {
     <section>
       <h2>Catering</h2>
       <form
-        // eslint-disable-next-line @typescript-eslint/no-misused-promises
-        onSubmit={async (e) => {
+        onSubmit={(e) => {
           e.preventDefault();
           if (!email || !date) {
             return;
           }
-          await book.mutateAsync({ data: { email, date } });
+          book.mutate({ data: { email, date } });
         }}
       >
         <input

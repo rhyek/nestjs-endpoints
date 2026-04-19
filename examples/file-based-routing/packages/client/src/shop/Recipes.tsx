@@ -13,15 +13,16 @@ export function Recipes() {
       <h2>Recipes</h2>
       <ul>{list.data?.map((r) => <li key={r.id}>{r.name}</li>)}</ul>
       <form
-        // eslint-disable-next-line @typescript-eslint/no-misused-promises
-        onSubmit={async (e) => {
+        onSubmit={(e) => {
           e.preventDefault();
           if (!name) {
             return;
           }
-          await create.mutateAsync({ data: { name } });
-          setName('');
-          await list.refetch();
+          void (async () => {
+            await create.mutateAsync({ data: { name } });
+            setName('');
+            await list.refetch();
+          })();
         }}
       >
         <input
