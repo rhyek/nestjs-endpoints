@@ -2,41 +2,75 @@ name: Release
 
 on:
   push:
-    tags:
-      - '[0-9]+.[0-9]+.[0-9]+'
+    branches:
+      - main
+  workflow_dispatch:
 
 jobs:
   release:
     name: Release
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     permissions:
       contents: write
       id-token: write
     steps:
       - uses: actions/checkout@v4
+
+      - name: Determine version
+        id: version
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          version=$(grep -m 1 -oE '^## [0-9]+\.[0-9]+\.[0-9]+' CHANGELOG.md | awk '{print $2}')
+          if [ -z "$version" ]; then
+            echo "No version found in CHANGELOG.md"
+            echo "should_release=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "Latest changelog version: $version"
+          if gh release view "$version" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "GitHub release $version already exists, skipping."
+            echo "should_release=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "GitHub release $version does not exist, will create."
+            echo "should_release=true" >> "$GITHUB_OUTPUT"
+            echo "version=$version" >> "$GITHUB_OUTPUT"
+          fi
+
       - uses: asdf-vm/actions/install@v3
+        if: steps.version.outputs.should_release == 'true'
         with:
           asdf_branch: v0.15.0
-      - run: pnpm install --frozen-lockfile
 
-      - name: Set package version from tag
+      - if: steps.version.outputs.should_release == 'true'
+        run: pnpm install --frozen-lockfile
+
+      - name: Set package version from changelog
+        if: steps.version.outputs.should_release == 'true'
         working-directory: packages/nestjs-endpoints
         run: |
-          version="${GITHUB_REF#refs/tags/}"
+          version="${{ steps.version.outputs.version }}"
           echo "Setting package version to: $version"
           npm version "$version" --no-git-tag-version
 
       - name: Build package
+        if: steps.version.outputs.should_release == 'true'
         run: ./scripts/build.sh
 
-      - run: cp README.md ./packages/nestjs-endpoints/README.md
+      - if: steps.version.outputs.should_release == 'true'
+        run: cp README.md ./packages/nestjs-endpoints/README.md
 
       - name: Extract changelog entry
-        run: ./scripts/change-log-entry.sh ${{ github.ref_name }} > ${{ github.workspace }}/RELEASE_BODY.txt
+        if: steps.version.outputs.should_release == 'true'
+        run: ./scripts/change-log-entry.sh ${{ steps.version.outputs.version }} > ${{ github.workspace }}/RELEASE_BODY.txt
 
       - name: GitHub Release
+        if: steps.version.outputs.should_release == 'true'
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: ${{ steps.version.outputs.version }}
+          target_commitish: ${{ github.sha }}
           body_path: ${{ github.workspace }}/RELEASE_BODY.txt
           files: |
             packages/nestjs-endpoints/package.json
@@ -44,5 +78,6 @@ jobs:
             packages/nestjs-endpoints/dist
 
       - name: Publish package to npm
+        if: steps.version.outputs.should_release == 'true'
         working-directory: packages/nestjs-endpoints
         run: npm publish --provenance --access public
