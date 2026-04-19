@@ -376,10 +376,10 @@ export function endpoint<
   class cls {}
   const file = getCallsiteFile();
   const setupFn = ({
-    rootDirectory,
+    rootDirectories,
     basePath,
   }: {
-    rootDirectory: string;
+    rootDirectories: string[];
     basePath: string;
   }) => {
     const { httpPath, httpPathPascalName, httpPathSegments } = (() => {
@@ -395,7 +395,7 @@ export function endpoint<
           httpPathPascalName: getHttpPathPascalName(combined),
         };
       }
-      return getEndpointHttpPath(rootDirectory, basePath, file);
+      return getEndpointHttpPath(rootDirectories, basePath, file);
     })();
     let outputSchemas: Record<number, Schema | SchemaDef> | null = null;
     if (output) {
@@ -639,7 +639,7 @@ export function endpoint<
       setupFn,
     });
   } else {
-    setupFn({ rootDirectory: process.cwd(), basePath: '' });
+    setupFn({ rootDirectories: [process.cwd()], basePath: '' });
   }
 
   return cls as any;

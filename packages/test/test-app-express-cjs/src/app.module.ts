@@ -14,6 +14,7 @@ import {
 import { Observable, catchError, throwError } from 'rxjs';
 import { ZodError } from 'zod';
 import { AuthModule } from './auth/auth.module';
+import BlogRouterModule from './blog/router.module';
 import { HelloService } from './endpoints/hello.service';
 import { RecipesManualEndpointsRouterModule } from './endpoints/recipes-manual/router.module';
 import {
@@ -28,6 +29,7 @@ import {
   IUserRepository,
   UserService,
 } from './endpoints/user/user.service';
+import ShopRouterModule from './shop/router.module';
 import { VanillaController } from './vanilla.controller';
 
 @Injectable()
@@ -67,6 +69,8 @@ export class ZodErrorInterceptor implements NestInterceptor {
       ],
     }),
     RecipesManualEndpointsRouterModule,
+    ShopRouterModule,
+    BlogRouterModule,
     UserListModule,
   ],
   providers: [

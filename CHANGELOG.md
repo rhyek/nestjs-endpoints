@@ -1,5 +1,12 @@
 # Changelog
 
+## 2.2.0 (2026-04-18)
+
+### Features
+
+- **`rootDirectory` accepts `string | string[]`**: An `EndpointsRouterModule` can now scan multiple folders. Each entry is scanned the same way as a single root: any directory encountered that contains a `router.module.*` is auto-discovered as a nested router (at any depth, including the entry itself).
+- **Folder-inferred `basePath` for `router.module.ts` files**: When the callsite is a `router.module.ts` and `basePath` is omitted, the `basePath` is inferred from the folder containing the router module — at the top level from `path.basename(definedAtDir)`, and for nested routers from the parent's `basePath` joined with the child's folder relative to the parent's folder. Pass `basePath: ''` to opt out.
+
 ## 2.1.0 (2026-04-18)
 
 ### Features

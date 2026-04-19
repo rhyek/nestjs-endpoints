@@ -38,14 +38,39 @@ function isMiddlewareOptions(m: unknown): m is RouterMiddlewareOptions {
 export class EndpointsRouterModule {
   static async register(params?: {
     /**
-     * The root directory to load endpoints from recursively. Relative and absolute
-     * paths are supported.
-     * @default The directory of the calling file
+     * Directory (or directories) this router loads endpoints from. Relative
+     * paths are resolved against the calling file's directory; absolute
+     * paths are used as-is.
+     *
+     * Each entry is scanned recursively. Any directory encountered that
+     * contains a `router.module.*` file is auto-discovered as a nested
+     * router (regardless of depth) — the parent imports it and does not
+     * scan inside it. Directories without a `router.module.*` are scanned
+     * for `*.endpoint.ts` files (non-`_`-prefixed subfolders contribute
+     * to the inferred URL path).
+     *
+     * @example
+     *   rootDirectory: './endpoints'             // single scan root
+     *   rootDirectory: ['endpoints', 'clinica']  // each entry scanned independently
+     *
+     * @default The directory of the calling file.
      */
-    rootDirectory?: string;
+    rootDirectory?: string | string[];
     /**
-     * The base path to use for endpoints in this module.
-     * @default '/'
+     * The base path to prepend to every endpoint owned by this router.
+     *
+     * When omitted, `basePath` is inferred:
+     *
+     * - **Top-level `router.module.ts`**: the folder containing the file
+     *   (e.g. `src/auth/router.module.ts` → `basePath: 'auth'`).
+     * - **Nested**: the parent's effective `basePath` joined with the
+     *   child's folder relative to its matching parent root — or, if the
+     *   child doesn't sit inside one of the parent's `rootDirectories`,
+     *   relative to the parent module file's own folder.
+     * - **Other callsites** (e.g. `app.module.ts`, or any file not named
+     *   `router.module.*`): no folder inference; defaults to `'/'`.
+     *
+     * Pass `''` or `'/'` to opt out of inference and mount at the root.
      */
     basePath?: string;
     imports?: ModuleMetadata['imports'];
@@ -70,46 +95,92 @@ export class EndpointsRouterModule {
      */
     interceptors?: RouterInterceptor[];
   }): Promise<DynamicModule> {
-    const definedAtDir = path.dirname(getCallsiteFile());
+    const callsiteFile = getCallsiteFile();
+    const definedAtDir = path.dirname(callsiteFile);
     const resolveDir = (dir: string) => {
       if (!path.isAbsolute(dir)) {
         return path.join(definedAtDir, dir);
       }
       return dir;
     };
-    const rootDirectory = params?.rootDirectory
-      ? resolveDir(params.rootDirectory)
-      : definedAtDir;
+    const rootDirectories = ((): string[] => {
+      if (!params?.rootDirectory) {
+        return [definedAtDir];
+      }
+      const raw = Array.isArray(params.rootDirectory)
+        ? params.rootDirectory
+        : [params.rootDirectory];
+      return raw.map(resolveDir);
+    })();
     const parentStore = moduleAls.getStore();
     const effectiveBasePath = ((): string => {
       if (params?.basePath !== undefined) {
         return params.basePath;
       }
-      if (
-        parentStore?.parentRootDirectory &&
-        parentStore.parentRootDirectory !== rootDirectory
-      ) {
-        const relative = path
-          .relative(parentStore.parentRootDirectory, definedAtDir)
-          .split(path.sep)
-          .join('/');
-        return '/' + relative;
+      if (parentStore) {
+        // If this child sits under (or is) one of the parent's
+        // rootDirectories, derive the suffix from that — this preserves
+        // the legacy `rootDirectory: './endpoints'` + nested-router
+        // pattern. Otherwise, use path.relative between module files.
+        const matchingRoot = parentStore.parentRootDirectories.find(
+          (r) =>
+            definedAtDir === r || definedAtDir.startsWith(r + path.sep),
+        );
+        let suffix: string;
+        if (matchingRoot) {
+          suffix =
+            definedAtDir === matchingRoot
+              ? path.basename(definedAtDir)
+              : path.relative(matchingRoot, definedAtDir);
+        } else {
+          suffix = path.relative(
+            parentStore.parentModuleDir,
+            definedAtDir,
+          );
+        }
+        suffix = suffix.split(path.sep).join('/');
+        const segments = [
+          ...parentStore.parentBasePath.split('/').filter(Boolean),
+          ...suffix.split('/').filter(Boolean),
+        ];
+        return segments.length > 0 ? '/' + segments.join('/') : '/';
+      }
+      // Top-level: infer from the router module file's own folder name,
+      // but only when the callsite is a `router.module.*` file. That way,
+      // calling `register()` from an `app.module.ts` (or any other module)
+      // keeps the legacy `'/'` default and doesn't silently prefix routes
+      // with the app's top folder.
+      if (routerModuleFileRegex.test(path.basename(callsiteFile))) {
+        return '/' + path.basename(definedAtDir);
       }
       return '/';
     })();
     let endpoints: Type[] = [];
     const nestedRouterModuleFiles: string[] = [];
-    const endopointFiles = findEndpoints(
-      rootDirectory,
-      nestedRouterModuleFiles,
-    );
+    const endopointFiles: string[] = [];
+    for (const root of rootDirectories) {
+      findEndpoints(
+        root,
+        nestedRouterModuleFiles,
+        endopointFiles,
+        callsiteFile,
+      );
+    }
     const endpointFilesNotImported = endopointFiles.filter((f) =>
       settings.endpoints.every((e) => e.file !== f),
     );
     const nestedModules: (DynamicModule | Promise<DynamicModule>)[] = [];
 
+    const normalizedParentBasePath = effectiveBasePath.replace(
+      /^\/+|\/+$/g,
+      '',
+    );
     await moduleAls.run(
-      { parentRootDirectory: rootDirectory },
+      {
+        parentBasePath: normalizedParentBasePath,
+        parentModuleDir: definedAtDir,
+        parentRootDirectories: rootDirectories,
+      },
       // eslint-disable-next-line @typescript-eslint/require-await -- needed since we are replacing the require with await import during build for esm
       async () => {
         for (const f of endpointFilesNotImported) {
@@ -131,15 +202,15 @@ export class EndpointsRouterModule {
     for (const { setupFn } of settings.endpoints.filter((e) =>
       endpointFilesNotImported.some((f) => f === e.file),
     )) {
-      setupFn({ rootDirectory, basePath: effectiveBasePath });
+      setupFn({ rootDirectories, basePath: effectiveBasePath });
     }
     if (params?.endpoints) {
       for (const ep of params.endpoints) {
         const epSetupFn = Reflect.getMetadata('endpoints:setupFn', ep) as
-          | ((s: { rootDirectory: string; basePath: string }) => void)
+          | ((s: { rootDirectories: string[]; basePath: string }) => void)
           | undefined;
         if (epSetupFn) {
-          epSetupFn({ rootDirectory, basePath: effectiveBasePath });
+          epSetupFn({ rootDirectories, basePath: effectiveBasePath });
         }
         if (!endpoints.includes(ep)) {
           endpoints.push(ep);
@@ -198,12 +269,11 @@ export class EndpointsRouterModule {
         }
       }
     }
-    const normalizedBasePath = effectiveBasePath.replace(/^\/+|\/+$/g, '');
     const excludeRoutes = middlewareOptions?.exclude?.map((p) =>
-      normalizedBasePath ? `${normalizedBasePath}/${p}` : p,
+      normalizedParentBasePath ? `${normalizedParentBasePath}/${p}` : p,
     );
-    const forRoutesPattern = normalizedBasePath
-      ? `${normalizedBasePath}/*`
+    const forRoutesPattern = normalizedParentBasePath
+      ? `${normalizedParentBasePath}/*`
       : '*';
 
     class RouterModule
@@ -239,21 +309,36 @@ export class EndpointsRouterModule {
 function findEndpoints(
   dir: string,
   nestedRouterModuleFiles: string[],
-  endopointFiles: string[] = [],
-  isRoot = true,
+  endopointFiles: string[],
+  callerRouterModuleFile: string,
 ) {
-  const files = fs.readdirSync(dir);
-  if (!isRoot) {
-    const routerFile = files.find((f) => f.match(routerModuleFileRegex));
-    if (routerFile) {
-      nestedRouterModuleFiles.push(path.join(dir, routerFile));
+  let files: string[];
+  try {
+    files = fs.readdirSync(dir);
+  } catch {
+    return endopointFiles;
+  }
+  // A directory that contains a `router.module.*` file is treated as a
+  // nested router — regardless of depth. The only exception is the
+  // caller's own router module file (avoids self-registration when a
+  // `rootDirectory` entry happens to resolve to the caller's own folder).
+  const routerFile = files.find((f) => f.match(routerModuleFileRegex));
+  if (routerFile) {
+    const routerFilePath = path.join(dir, routerFile);
+    if (routerFilePath !== callerRouterModuleFile) {
+      nestedRouterModuleFiles.push(routerFilePath);
       return endopointFiles;
     }
   }
   for (const f of files) {
     const file = path.join(dir, f);
     if (fs.statSync(file).isDirectory()) {
-      findEndpoints(file, nestedRouterModuleFiles, endopointFiles, false);
+      findEndpoints(
+        file,
+        nestedRouterModuleFiles,
+        endopointFiles,
+        callerRouterModuleFile,
+      );
     }
     if (f.match(endpointFileRegex)) {
       endopointFiles.push(file);

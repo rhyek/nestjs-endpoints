@@ -7,7 +7,7 @@ export const settings: {
   endpoints: {
     file: string;
     setupFn: (settings: {
-      rootDirectory: string;
+      rootDirectories: string[];
       basePath: string;
     }) => void;
   }[];
