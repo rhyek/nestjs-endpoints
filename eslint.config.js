@@ -10,6 +10,7 @@ export default tseslint.config(
     ignores: [
       '**/node_modules',
       '**/dist',
+      'examples/**/generated',
       'packages/test-endpoints-module/*',
       '!packages/test-endpoints-module/test-app-express-cjs/',
       'packages/test-endpoints-router-module/*',

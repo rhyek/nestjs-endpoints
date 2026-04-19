@@ -15,7 +15,12 @@ import {
   Type,
 } from '@nestjs/common';
 import { HttpAdapterHost } from '@nestjs/core';
-import { ApiBody, ApiOperation, ApiResponse } from '@nestjs/swagger';
+import {
+  ApiBody,
+  ApiExtension,
+  ApiOperation,
+  ApiResponse,
+} from '@nestjs/swagger';
 import { z, ZodNull, ZodNullable, ZodType } from 'zod';
 import { settings } from './consts';
 import {
@@ -378,9 +383,11 @@ export function endpoint<
   const setupFn = ({
     rootDirectories,
     basePath,
+    namespaceChain,
   }: {
     rootDirectories: string[];
     basePath: string;
+    namespaceChain: string[];
   }) => {
     const { httpPath, httpPathPascalName, httpPathSegments } = (() => {
       if (explicitPath) {
@@ -572,17 +579,26 @@ export function endpoint<
     }
 
     // method
-    const _tags: string[] = [];
-    for (let i = 0; i < httpPathSegments.length - 1; i++) {
-      const tag = httpPathSegments.slice(0, i + 1).join('/');
-      _tags.push(tag);
-    }
+    const autoTag = ((): string | null => {
+      if (namespaceChain.length > 0) {
+        return namespaceChain.join('/');
+      }
+      // No namespace declared — fall back to the URL prefix (everything
+      // but the leaf) so Swagger UI still groups meaningfully.
+      if (httpPathSegments.length > 1) {
+        return httpPathSegments.slice(0, -1).join('/');
+      }
+      return null;
+    })();
     const methodDecorators: MethodDecorator[] = [
       ApiOperation({
         operationId: httpPathPascalName,
-        tags: [..._tags, ...(tags ?? [])],
+        tags: [...(autoTag ? [autoTag] : []), ...(tags ?? [])],
         summary: summary ?? '',
       }),
+      ...(namespaceChain.length > 0
+        ? [ApiExtension('x-namespace', namespaceChain)]
+        : []),
       httpMethodDecorators[httpMethod](''),
       ...(decorators ?? []),
     ];
@@ -639,7 +655,11 @@ export function endpoint<
       setupFn,
     });
   } else {
-    setupFn({ rootDirectories: [process.cwd()], basePath: '' });
+    setupFn({
+      rootDirectories: [process.cwd()],
+      basePath: '',
+      namespaceChain: [],
+    });
   }
 
   return cls as any;

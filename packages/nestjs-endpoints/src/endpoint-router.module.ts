@@ -99,6 +99,34 @@ export class EndpointRouterModule {
        * Pass `''` or `'/'` to opt out of inference and mount at the root.
        */
       basePath?: string;
+      /**
+       * Opt-in namespace segment for the generated SDK's nested `api`
+       * object. Does not affect URL routing. Behaves like `basePath` for
+       * the SDK shape:
+       *
+       * - `false` / omitted: this router contributes nothing to the
+       *   namespace chain. Endpoints inherit the parent's chain (if any).
+       * - `true`: the segment is inferred from this router's folder name
+       *   (same rule as `basePath`: only when the callsite is a
+       *   `router.module.*` file).
+       * - `string`: use this exact value as the segment.
+       *
+       * Operations receive the full chain as the OpenAPI `x-namespace`
+       * extension; `setupCodegen` consumes this to emit the nested SDK.
+       */
+      namespace?: boolean | string;
+      /**
+       * Human-readable description for this router's group. Surfaces in
+       * two places:
+       *
+       * - **OpenAPI**: registered as a top-level `tags[]` entry keyed by
+       *   the router's effective namespace (or `basePath` if no
+       *   namespace is declared). Swagger UI renders it under the
+       *   matching group header.
+       * - **Generated SDK**: emitted as a JSDoc comment on the matching
+       *   bucket key on the `api` object, so editors show it on hover.
+       */
+      description?: string;
       imports?: ModuleMetadata['imports'];
       exports?: ModuleMetadata['exports'];
       providers?: ModuleMetadata['providers'];
@@ -186,6 +214,27 @@ export class EndpointRouterModule {
       }
       return '/';
     })();
+    const parentNamespaceChain = parentStore?.parentNamespaceChain ?? [];
+    const ownNamespaceSegment = ((): string | null => {
+      const ns = params?.namespace;
+      if (ns === undefined || ns === false) return null;
+      if (typeof ns === 'string') return ns;
+      // `true`: mirror whatever drove `basePath`. When `basePath` is
+      // set explicitly, use its trimmed value so the SDK shape tracks
+      // the URL the consumer chose. Otherwise fall back to folder-name
+      // inference (same rule as `basePath` inference).
+      if (params?.basePath !== undefined) {
+        const trimmed = params.basePath.replace(/^\/+|\/+$/g, '');
+        if (trimmed) return trimmed;
+      }
+      if (routerModuleFileRegex.test(path.basename(callsiteFile))) {
+        return path.basename(definedAtDir);
+      }
+      return null;
+    })();
+    const effectiveNamespaceChain = ownNamespaceSegment
+      ? [...parentNamespaceChain, ownNamespaceSegment]
+      : parentNamespaceChain;
     let endpoints: Type[] = [];
     const nestedRouterModuleFiles: string[] = [];
     const endopointFiles: string[] = [];
@@ -206,11 +255,34 @@ export class EndpointRouterModule {
       /^\/+|\/+$/g,
       '',
     );
+    if (params?.description) {
+      // Tag name tracks the same key endpoints will be tagged with
+      // below (namespace chain if set, else the basePath). Without
+      // either, there's no group to attach a description to.
+      const tagName =
+        effectiveNamespaceChain.length > 0
+          ? effectiveNamespaceChain.join('/')
+          : normalizedParentBasePath;
+      if (tagName) {
+        const existing = settings.openapi.tags.find(
+          (t) => t.name === tagName,
+        );
+        if (existing) {
+          existing.description = params.description;
+        } else {
+          settings.openapi.tags.push({
+            name: tagName,
+            description: params.description,
+          });
+        }
+      }
+    }
     await moduleAls.run(
       {
         parentBasePath: normalizedParentBasePath,
         parentModuleDir: definedAtDir,
         parentRootDirectories: rootDirectories,
+        parentNamespaceChain: effectiveNamespaceChain,
       },
       // eslint-disable-next-line @typescript-eslint/require-await -- needed since we are replacing the require with await import during build for esm
       async () => {
@@ -233,15 +305,27 @@ export class EndpointRouterModule {
     for (const { setupFn } of settings.endpoints.filter((e) =>
       endpointFilesNotImported.some((f) => f === e.file),
     )) {
-      setupFn({ rootDirectories, basePath: effectiveBasePath });
+      setupFn({
+        rootDirectories,
+        basePath: effectiveBasePath,
+        namespaceChain: effectiveNamespaceChain,
+      });
     }
     if (params?.endpoints) {
       for (const ep of params.endpoints) {
         const epSetupFn = Reflect.getMetadata('endpoints:setupFn', ep) as
-          | ((s: { rootDirectories: string[]; basePath: string }) => void)
+          | ((s: {
+              rootDirectories: string[];
+              basePath: string;
+              namespaceChain: string[];
+            }) => void)
           | undefined;
         if (epSetupFn) {
-          epSetupFn({ rootDirectories, basePath: effectiveBasePath });
+          epSetupFn({
+            rootDirectories,
+            basePath: effectiveBasePath,
+            namespaceChain: effectiveNamespaceChain,
+          });
         }
         if (!endpoints.includes(ep)) {
           endpoints.push(ep);

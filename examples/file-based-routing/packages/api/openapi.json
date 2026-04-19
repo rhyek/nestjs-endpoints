@@ -1,0 +1,284 @@
+{
+  "openapi": "3.0.0",
+  "paths": {
+    "/shop/catering/book": {
+      "post": {
+        "operationId": "ShopCateringBook",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ShopCateringBookInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ShopCateringBookOutput"
+                }
+              }
+            }
+          }
+        },
+        "summary": "",
+        "tags": [
+          "shop"
+        ],
+        "x-namespace": [
+          "shop"
+        ]
+      }
+    },
+    "/shop/homepage": {
+      "get": {
+        "operationId": "ShopHomepage",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ShopHomepageOutput"
+                }
+              }
+            }
+          }
+        },
+        "summary": "",
+        "tags": [
+          "shop"
+        ],
+        "x-namespace": [
+          "shop"
+        ]
+      }
+    },
+    "/shop/stats": {
+      "get": {
+        "operationId": "ShopStats",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ShopStatsOutput"
+                }
+              }
+            }
+          }
+        },
+        "summary": "",
+        "tags": [
+          "shop"
+        ],
+        "x-namespace": [
+          "shop"
+        ]
+      }
+    },
+    "/shop/recipes/create": {
+      "post": {
+        "operationId": "ShopRecipesCreate",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ShopRecipesCreateInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ShopRecipesCreateOutput"
+                }
+              }
+            }
+          }
+        },
+        "summary": "",
+        "tags": [
+          "shop/recipes"
+        ],
+        "x-namespace": [
+          "shop",
+          "recipes"
+        ]
+      }
+    },
+    "/shop/recipes/list": {
+      "get": {
+        "operationId": "ShopRecipesList",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ShopRecipesListOutput"
+                }
+              }
+            }
+          }
+        },
+        "summary": "",
+        "tags": [
+          "shop/recipes"
+        ],
+        "x-namespace": [
+          "shop",
+          "recipes"
+        ]
+      }
+    }
+  },
+  "info": {
+    "title": "Shop API",
+    "description": "",
+    "version": "1.0.0",
+    "contact": {},
+    "nestjs-endpoints": {
+      "version": "0.0.0"
+    }
+  },
+  "tags": [
+    {
+      "name": "shop",
+      "description": "Shop surface. Groups the storefront homepage, catering bookings, and the recipes sub-module."
+    },
+    {
+      "name": "shop/recipes",
+      "description": "Recipe catalog and authoring."
+    }
+  ],
+  "servers": [],
+  "components": {
+    "schemas": {
+      "ShopRecipesCreateInput": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "name"
+        ]
+      },
+      "ShopRecipesCreateOutput": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "number"
+          },
+          "name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name"
+        ],
+        "additionalProperties": false
+      },
+      "ShopRecipesListOutput": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "number"
+            },
+            "name": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "id",
+            "name"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "ShopCateringBookInput": {
+        "type": "object",
+        "properties": {
+          "email": {
+            "type": "string",
+            "format": "email",
+            "pattern": "^(?!\\.)(?!.*\\.\\.)([A-Za-z0-9_'+\\-\\.]*)[A-Za-z0-9_+-]@([A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
+          },
+          "date": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "email",
+          "date"
+        ]
+      },
+      "ShopCateringBookOutput": {
+        "type": "object",
+        "properties": {
+          "confirmed": {
+            "type": "boolean"
+          },
+          "for": {
+            "type": "string"
+          },
+          "on": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "confirmed",
+          "for",
+          "on"
+        ],
+        "additionalProperties": false
+      },
+      "ShopHomepageOutput": {
+        "type": "object",
+        "properties": {
+          "tagline": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "tagline"
+        ],
+        "additionalProperties": false
+      },
+      "ShopStatsOutput": {
+        "type": "object",
+        "properties": {
+          "visitors": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "visitors"
+        ],
+        "additionalProperties": false
+      }
+    }
+  }
+}

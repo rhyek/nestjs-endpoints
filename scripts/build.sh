@@ -14,3 +14,6 @@ rm -f dist/esm/endpoint-router.module.js.bak
 # Modify the ESM codegen/setup.js to use import.meta.dirname instead of __dirname
 sed -i.bak 's/__dirname/import.meta.dirname/g' dist/esm/codegen/setup.js
 rm -f dist/esm/codegen/setup.js.bak
+# Same swap for setup-openapi.js (uses __dirname to anchor createRequire).
+sed -i.bak 's/__dirname/import.meta.dirname/g' dist/esm/setup-openapi.js
+rm -f dist/esm/setup-openapi.js.bak

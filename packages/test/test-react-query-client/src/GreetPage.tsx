@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
-import { useGreet } from '../../test-app-express-cjs/generated/react-query-client';
+import { api } from '../../test-app-express-cjs/generated/react-query-client';
 
 export function GreetPage() {
   const [name, setName] = useState('');
-  const { data, error, status, refetch } = useGreet(
+  const { data, error, status, refetch } = api.useGreet(
     { name },
     {
       query: {

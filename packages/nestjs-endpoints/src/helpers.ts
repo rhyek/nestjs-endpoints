@@ -154,4 +154,10 @@ export const moduleAls = new AsyncLocalStorage<{
    * `rootDirectory: './endpoints'` + nested-router pattern.
    */
   parentRootDirectories: string[];
+  /**
+   * The parent router's effective namespace chain. Child routers that
+   * declare their own `namespace` extend this chain; children without a
+   * namespace inherit the parent's chain unchanged.
+   */
+  parentNamespaceChain: string[];
 }>();

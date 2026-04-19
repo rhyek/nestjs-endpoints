@@ -1,5 +1,17 @@
 # Changelog
 
+## 3.0.0 (2026-04-19)
+
+### Features
+
+- **Namespaces**: `namespace?: boolean | string` on `EndpointRouterModule.create()` nests generated SDK hooks/methods into an `api` object that mirrors the router hierarchy (`api.shop.recipes.useCreate(...)`).
+- **Namespace-filtered clients**: `setupCodegen` accepts `namespaces?: string[]` per client — each filtered client ships only operations and schemas belonging to the listed top-level namespaces.
+- **Built-in docs viewer**: `openapi.ui?: { path, options? }` mounts an API reference at `path` using the same doc the codegen consumes. Uses [Scalar](https://scalar.com) when `@scalar/api-reference` is installed (optional peer dep); falls back to Swagger UI otherwise.
+
+### Breaking changes
+
+- **Generated client surface**: each output file now exports a single `api` object (plus `type ApiClient`). Setup primitives live on it (`api.createAxiosClient` / `api.createReactQueryClient` / `api.Provider` / `api.useAxios`); operations live at `api.<name>` or inside a namespace bucket. The raw orval output is still generated as a sibling `*.flat.ts[x]` file but is now an internal artifact — don't import from it.
+
 ## 2.3.0 (2026-04-18)
 
 ### Features
