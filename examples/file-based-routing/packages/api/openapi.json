@@ -86,6 +86,41 @@
         ]
       }
     },
+    "/shop/recipes/{recipeId}/view": {
+      "get": {
+        "operationId": "ShopRecipesView",
+        "parameters": [
+          {
+            "name": "recipeId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ShopRecipesViewOutput"
+                }
+              }
+            }
+          }
+        },
+        "summary": "",
+        "tags": [
+          "shop/recipes"
+        ],
+        "x-namespace": [
+          "shop",
+          "recipes"
+        ]
+      }
+    },
     "/shop/recipes/create": {
       "post": {
         "operationId": "ShopRecipesCreate",
@@ -107,6 +142,51 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ShopRecipesCreateOutput"
+                }
+              }
+            }
+          }
+        },
+        "summary": "",
+        "tags": [
+          "shop/recipes"
+        ],
+        "x-namespace": [
+          "shop",
+          "recipes"
+        ]
+      }
+    },
+    "/shop/recipes/edit/{recipeId}": {
+      "patch": {
+        "operationId": "ShopRecipesEdit",
+        "parameters": [
+          {
+            "name": "recipeId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ShopRecipesEditInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ShopRecipesEditOutput"
                 }
               }
             }
@@ -171,6 +251,22 @@
   "servers": [],
   "components": {
     "schemas": {
+      "ShopRecipesViewOutput": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "number"
+          },
+          "name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name"
+        ],
+        "additionalProperties": false
+      },
       "ShopRecipesCreateInput": {
         "type": "object",
         "properties": {
@@ -184,6 +280,34 @@
         ]
       },
       "ShopRecipesCreateOutput": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "number"
+          },
+          "name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name"
+        ],
+        "additionalProperties": false
+      },
+      "ShopRecipesEditInput": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "name"
+        ]
+      },
+      "ShopRecipesEditOutput": {
         "type": "object",
         "properties": {
           "id": {

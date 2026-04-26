@@ -30,12 +30,27 @@ import type {
 
 import React from 'react';
 
+export interface ShopRecipesViewOutput {
+  id: number;
+  name: string;
+}
+
 export interface ShopRecipesCreateInput {
   /** @minLength 1 */
   name: string;
 }
 
 export interface ShopRecipesCreateOutput {
+  id: number;
+  name: string;
+}
+
+export interface ShopRecipesEditInput {
+  /** @minLength 1 */
+  name: string;
+}
+
+export interface ShopRecipesEditOutput {
   id: number;
   name: string;
 }
@@ -111,6 +126,17 @@ const shopStats = (
   }
 
 
+const shopRecipesView = (
+    recipeId: number, options?: AxiosRequestConfig
+ ): Promise<AxiosResponse<ShopRecipesViewOutput>> => {
+    
+    
+    return axios.get(
+      `/shop/recipes/${recipeId}/view`,options
+    );
+  }
+
+
 const shopRecipesCreate = (
     shopRecipesCreateInput: ShopRecipesCreateInput, options?: AxiosRequestConfig
  ): Promise<AxiosResponse<ShopRecipesCreateOutput>> => {
@@ -119,6 +145,20 @@ const shopRecipesCreate = (
     return axios.post(
       `/shop/recipes/create`,
       shopRecipesCreateInput,options
+    );
+  }
+
+
+
+const shopRecipesEdit = (
+    recipeId: number,
+    shopRecipesEditInput: ShopRecipesEditInput, options?: AxiosRequestConfig
+ ): Promise<AxiosResponse<ShopRecipesEditOutput>> => {
+    
+    
+    return axios.patch(
+      `/shop/recipes/edit/${recipeId}`,
+      shopRecipesEditInput,options
     );
   }
 
@@ -139,7 +179,9 @@ const shopRecipesList = (
     shopCateringBook,
     shopHomepage,
     shopStats,
+    shopRecipesView,
     shopRecipesCreate,
+    shopRecipesEdit,
     shopRecipesList,
     axios
   };
@@ -175,7 +217,7 @@ const {mutation: mutationOptions, axios: axiosOptions} = options ?
       const mutationFn: MutationFunction<Awaited<ReturnType<ApiClient['shopCateringBook']>>['data'], {data: ShopCateringBookInput}> = (props) => {
           const {data} = props ?? {};
 
-          return  options.client.shopCateringBook(data,axiosOptions).then((res) => res.data);
+          return options.client.shopCateringBook(data,axiosOptions).then((res) => res.data);
         }
 
         
@@ -295,6 +337,54 @@ export function useShopStats<TData = Awaited<ReturnType<ApiClient['shopStats']>>
 
 
 
+export const getShopRecipesViewQueryKey = (recipeId: number,) => {
+    return [`/shop/recipes/${recipeId}/view`] as const;
+    }
+
+    
+export const getShopRecipesViewQueryOptions = <TData = Awaited<ReturnType<ApiClient['shopRecipesView']>>['data'], TError = AxiosError<unknown>>(recipeId: number, options: { query?:Partial<UseQueryOptions<Awaited<ReturnType<ApiClient['shopRecipesView']>>['data'], TError, TData>>, axios?: AxiosRequestConfig, client: ApiClient}
+) => {
+
+const {query: queryOptions, axios: axiosOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getShopRecipesViewQueryKey(recipeId);
+
+  
+
+    const queryFn: QueryFunction<Awaited<ReturnType<ApiClient['shopRecipesView']>>['data']> = ({ signal }) => options.client.shopRecipesView(recipeId, { signal, ...axiosOptions }).then((res) => res.data);
+
+      
+
+      
+
+   return  { queryKey, queryFn, enabled: !!(recipeId), ...queryOptions} as UseQueryOptions<Awaited<ReturnType<ApiClient['shopRecipesView']>>['data'], TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type ShopRecipesViewQueryResult = NonNullable<Awaited<ReturnType<ApiClient['shopRecipesView']>>['data']>
+export type ShopRecipesViewQueryError = AxiosError<unknown>
+
+
+
+export function useShopRecipesView<TData = Awaited<ReturnType<ApiClient['shopRecipesView']>>['data'], TError = AxiosError<unknown>>(
+ recipeId: number, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<ApiClient['shopRecipesView']>>['data'], TError, TData>>, axios?: AxiosRequestConfig}
+ , queryClient?: QueryClient 
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  
+      const client = useApiClient();
+      const queryOptions = getShopRecipesViewQueryOptions(recipeId,Object.assign({ client }, options));
+          
+
+  const query = useQuery(queryOptions , queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  query.queryKey = queryOptions.queryKey ;
+
+  return query;
+}
+
+
+
+
 export const getShopRecipesCreateMutationOptions = <TError = AxiosError<unknown>,
     TContext = unknown>(options: { mutation?:UseMutationOptions<Awaited<ReturnType<ApiClient['shopRecipesCreate']>>['data'], TError,{data: ShopRecipesCreateInput}, TContext>, axios?: AxiosRequestConfig, client: ApiClient}
 ): UseMutationOptions<Awaited<ReturnType<ApiClient['shopRecipesCreate']>>['data'], TError,{data: ShopRecipesCreateInput}, TContext> => {
@@ -312,7 +402,7 @@ const {mutation: mutationOptions, axios: axiosOptions} = options ?
       const mutationFn: MutationFunction<Awaited<ReturnType<ApiClient['shopRecipesCreate']>>['data'], {data: ShopRecipesCreateInput}> = (props) => {
           const {data} = props ?? {};
 
-          return  options.client.shopRecipesCreate(data,axiosOptions).then((res) => res.data);
+          return options.client.shopRecipesCreate(data,axiosOptions).then((res) => res.data);
         }
 
         
@@ -331,6 +421,47 @@ const {mutation: mutationOptions, axios: axiosOptions} = options ?
       
       const client = useApiClient();
       const mutationOptions = getShopRecipesCreateMutationOptions(Object.assign({ client }, options));
+          
+
+      return useMutation(mutationOptions , queryClient);
+    }
+    
+export const getShopRecipesEditMutationOptions = <TError = AxiosError<unknown>,
+    TContext = unknown>(options: { mutation?:UseMutationOptions<Awaited<ReturnType<ApiClient['shopRecipesEdit']>>['data'], TError,{recipeId: number;data: ShopRecipesEditInput}, TContext>, axios?: AxiosRequestConfig, client: ApiClient}
+): UseMutationOptions<Awaited<ReturnType<ApiClient['shopRecipesEdit']>>['data'], TError,{recipeId: number;data: ShopRecipesEditInput}, TContext> => {
+    
+const mutationKey = ['shopRecipesEdit'];
+const {mutation: mutationOptions, axios: axiosOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, axios: undefined};
+
+      
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<ApiClient['shopRecipesEdit']>>['data'], {recipeId: number;data: ShopRecipesEditInput}> = (props) => {
+          const {recipeId,data} = props ?? {};
+
+          return options.client.shopRecipesEdit(recipeId,data,axiosOptions).then((res) => res.data);
+        }
+
+        
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ShopRecipesEditMutationResult = NonNullable<Awaited<ReturnType<ApiClient['shopRecipesEdit']>>['data']>
+    export type ShopRecipesEditMutationBody = ShopRecipesEditInput
+    export type ShopRecipesEditMutationError = AxiosError<unknown>
+
+    export const useShopRecipesEdit = <TError = AxiosError<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<ApiClient['shopRecipesEdit']>>['data'], TError,{recipeId: number;data: ShopRecipesEditInput}, TContext>, axios?: AxiosRequestConfig}
+ , queryClient?: QueryClient) => {
+
+      
+      const client = useApiClient();
+      const mutationOptions = getShopRecipesEditMutationOptions(Object.assign({ client }, options));
           
 
       return useMutation(mutationOptions , queryClient);

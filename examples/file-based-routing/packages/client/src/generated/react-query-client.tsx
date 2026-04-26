@@ -8,6 +8,7 @@
  */
 import { useMemo as _useMemo } from 'react';
 import * as _flat from './react-query-client.flat';
+export type * from './react-query-client.flat';
 
 export const api = {
   createReactQueryClient: _flat.createApiClient,
@@ -23,7 +24,9 @@ export const api = {
           stats: _client.shopStats,
           /** Recipe catalog and authoring. */
           recipes: {
+            view: _client.shopRecipesView,
             create: _client.shopRecipesCreate,
+            edit: _client.shopRecipesEdit,
             list: _client.shopRecipesList,
           },
         },
@@ -36,7 +39,9 @@ export const api = {
     useStats: _flat.useShopStats,
     /** Recipe catalog and authoring. */
     recipes: {
+      useView: _flat.useShopRecipesView,
       useCreate: _flat.useShopRecipesCreate,
+      useEdit: _flat.useShopRecipesEdit,
       useList: _flat.useShopRecipesList,
     },
   },

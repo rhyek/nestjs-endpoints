@@ -1,4 +1,5 @@
 import fs from 'node:fs';
+import { createRequire } from 'node:module';
 import path from 'node:path';
 import {
   CanActivate,
@@ -19,6 +20,39 @@ import {
   settings,
 } from './consts';
 import { getCallsiteFile, moduleAls } from './helpers';
+
+let cachedMiddlewareWildcardSegment: string | undefined;
+/**
+ * NestJS 11 ships with Express 5 / path-to-regexp v8, which requires named
+ * wildcards (e.g. `{*path}`) instead of bare `*`. Bare `*` still routes
+ * correctly thanks to NestJS's `LegacyRouteConverter`, but it emits a
+ * deprecation warning per `forRoutes` call. NestJS 10 (Express 4 /
+ * path-to-regexp v6) does not understand the named-wildcard syntax, so we
+ * detect the installed major version and pick accordingly.
+ */
+function getMiddlewareWildcardSegment(): string {
+  if (cachedMiddlewareWildcardSegment !== undefined) {
+    return cachedMiddlewareWildcardSegment;
+  }
+  let segment = '*';
+  try {
+    const req = createRequire(path.join(__dirname, 'package.json'));
+    const corePkg = req('@nestjs/core/package.json') as {
+      version?: string;
+    };
+    const major = Number.parseInt(
+      String(corePkg.version ?? '').split('.')[0] ?? '',
+      10,
+    );
+    if (Number.isFinite(major) && major >= 11) {
+      segment = '{*path}';
+    }
+  } catch {
+    // Fall back to legacy `*` if `@nestjs/core` can't be resolved.
+  }
+  cachedMiddlewareWildcardSegment = segment;
+  return segment;
+}
 
 type RouterMiddlewareEntry =
   // eslint-disable-next-line @typescript-eslint/no-unsafe-function-type
@@ -396,9 +430,10 @@ export class EndpointRouterModule {
     const excludeRoutes = middlewareOptions?.exclude?.map((p) =>
       normalizedParentBasePath ? `${normalizedParentBasePath}/${p}` : p,
     );
+    const wildcardSegment = getMiddlewareWildcardSegment();
     const forRoutesPattern = normalizedParentBasePath
-      ? `${normalizedParentBasePath}/*`
-      : '*';
+      ? `${normalizedParentBasePath}/${wildcardSegment}`
+      : wildcardSegment;
 
     class RouterModule extends EndpointRouterModule implements NestModule {
       configure(consumer: MiddlewareConsumer) {

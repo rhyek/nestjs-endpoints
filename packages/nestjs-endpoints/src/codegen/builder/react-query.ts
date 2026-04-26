@@ -109,11 +109,21 @@ export const useApiClient = () => {
           },
         );
         result.implementation = result.implementation.replace(
-          /const queryOptions\s+=\s+(.+)\(((?:params,)?options)\)/,
-          (_, c1, c2) => {
+          // Match `getXxxQueryOptions(...args, options)` regardless of how
+          // many positional arguments precede `options`. Path-param queries
+          // generate calls like `getXxxQueryOptions(restaurantId, recipeId,
+          // options)`, which the previous regex (only `(params,)?options`)
+          // missed — leaving `client` un-merged and TS complaining.
+          /const queryOptions\s+=\s+([\w$]+)\(([^()]*)\)/,
+          (match, fnName: string, args: string) => {
+            if (!/\boptions\b/.test(args)) return match;
+            const newArgs = args.replace(
+              /\boptions\b/,
+              'Object.assign({ client }, options)',
+            );
             return `
       const client = useApiClient();
-      const queryOptions = ${c1}(${c2.replace('options', 'Object.assign({ client }, options)')});
+      const queryOptions = ${fnName}(${newArgs});
           `;
           },
         );
@@ -124,9 +134,16 @@ export const useApiClient = () => {
           },
         );
         result.implementation = result.implementation.replace(
-          /return\s+(.+)\((?:data,)?axiosOptions\)/,
-          (match, captured) =>
-            `${match.replace(captured, `options.client.${captured}`)}.then((res) => res.data);`,
+          // Match `return fnName(...args, axiosOptions)` regardless of
+          // how many positional args precede `axiosOptions`. Path-param
+          // mutations generate calls like
+          // `return recipesEdit(recipeId, data, axiosOptions)`, which the
+          // previous regex (only `(data,)?axiosOptions`) missed.
+          /return\s+([\w$]+)\(([^()]*)\)/,
+          (match, fnName: string, args: string) => {
+            if (!/\baxiosOptions\b/.test(args)) return match;
+            return `return options.client.${fnName}(${args}).then((res) => res.data);`;
+          },
         );
         result.implementation = result.implementation.replace(
           /const queryFn.+=>\s+(.+\().+\)/,

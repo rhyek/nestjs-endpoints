@@ -6,7 +6,7 @@
 
 **nestjs-endpoints** is a lightweight tool for writing clean, succinct, end-to-end type-safe HTTP APIs with NestJS that encourages the [REPR](https://www.apitemplatepack.com/docs/introduction/repr-pattern/) design pattern, code colocation, and the Single Responsibility Principle.
 
-It's inspired by the [Fast Endpoints](https://fast-endpoints.com/) .NET library, [tRPC](https://trpc.io/), and Next.js' file-based routing.
+It's inspired by the [Fast Endpoints](https://fast-endpoints.com/) .NET library, [tRPC](https://trpc.io/), and [TanStack Router](https://tanstack.com/router)'s file-based routing.
 
 An endpoint can be as simple as this:
 
@@ -254,12 +254,36 @@ Endpoint-file rules:
 
 - Filenames must either end in `.endpoint.ts` or be `endpoint.ts` (`js`, `cjs`, `mjs`, `mts` also supported)
 - Path segments that begin with an underscore (`_`) are removed
-- Route parameters are **not** supported (`user/:userId`)
+- Path parameters: a `$`-prefixed segment becomes a `:param` (TanStack Router-style)
+- A `.` inside one filename or folder splits it into multiple URL segments
+- Each declared param must be validated with the `params` Zod schema on the endpoint
 
 Examples (assume `rootDirectory` is `./endpoints`):
 
-- `src/endpoints/user/find-all.endpoint.ts` -> `user/find-all`
-- `src/endpoints/user/_mutations/create/endpoint.ts` -> `user/create`
+| File                                                          | URL                                               |
+| ------------------------------------------------------------- | ------------------------------------------------- |
+| `../user/find-all.endpoint.ts`                                | `user/find-all`                                   |
+| `../user/_mutations/create/endpoint.ts`                       | `user/create`                                     |
+| `../recipes/edit/$recipeId.endpoint.ts`                       | `recipes/edit/:recipeId`                          |
+| `../recipes/$recipeId.view/endpoint.ts`                       | `recipes/:recipeId/view`                          |
+| `../recipes/$recipeId.delete.endpoint.ts`                     | `recipes/:recipeId/delete`                        |
+| `../restaurant/$restaurantId/recipes/$recipeId.view/endpoint.ts` | `restaurant/:restaurantId/recipes/:recipeId/view` |
+
+```ts
+// src/endpoints/recipes/edit/$recipeId.endpoint.ts → PATCH /recipes/edit/:recipeId
+export default endpoint({
+  method: 'patch',
+  // Path-param keys must match the URL `:names`. Coerce since they
+  // arrive as strings.
+  params: z.object({ recipeId: z.coerce.number() }),
+  input: z.object({ name: z.string() }),
+  inject: { recipes: RecipesRepository },
+  handler: ({ params, input, recipes }) =>
+    recipes.rename(params.recipeId, input.name),
+});
+```
+
+The generated SDK drops `:param` segments from the method name — the typed positional argument already conveys it: `client.recipesEdit(recipeId, { name })`.
 
 > _**Note:**_ Bundled projects via Webpack or similar are not supported.
 

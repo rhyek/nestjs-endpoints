@@ -7,6 +7,7 @@
 - **Namespaces**: `namespace?: boolean | string` on `EndpointRouterModule.create()` nests generated SDK hooks/methods into an `api` object that mirrors the router hierarchy (`api.shop.recipes.useCreate(...)`).
 - **Namespace-filtered clients**: `setupCodegen` accepts `namespaces?: string[]` per client — each filtered client ships only operations and schemas belonging to the listed top-level namespaces.
 - **Built-in docs viewer**: `openapi.ui?: { path, options? }` mounts an API reference at `path` using the same doc the codegen consumes. Uses [Scalar](https://scalar.com) when `@scalar/api-reference` is installed (optional peer dep); falls back to Swagger UI otherwise.
+- **Path parameters in file-based routing**: a `$`-prefixed segment becomes a `:param` (TanStack Router-style), and `.` inside one filename or folder splits into multiple URL segments. `recipes/edit/$recipeId.endpoint.ts` → `PATCH /recipes/edit/:recipeId`; `recipes/$recipeId.view/endpoint.ts` → `GET /recipes/:recipeId/view`; multiple params per route are supported. Path params are validated with a new `params` Zod schema option on `endpoint(...)` (e.g. `params: z.object({ recipeId: z.coerce.number() })`); the generated SDK drops `:param` segments from the method name — the typed positional argument conveys it (`client.recipesEdit(recipeId, body)`).
 
 ### Breaking changes
 

@@ -1,6 +1,8 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { ZodValidationException } from 'nestjs-endpoints';
 import { AuthService } from '../src/auth/auth.service';
+import recipesEditEndpoint from '../src/endpoints/recipes/edit/$recipeId.endpoint';
+import { RecipesRepository } from '../src/endpoints/recipes/repository.service';
 import userCreateEndpoint from '../src/endpoints/user/create.endpoint';
 import userFindEndpoint from '../src/endpoints/user/find.endpoint';
 import { userListNoPath as userListNoPathEndpoint } from '../src/endpoints/user/list/user-list-no-path.endpoint';
@@ -74,4 +76,38 @@ test('can test controllers directly without http pipeline', async () => {
   });
   await expect(userPurge.invoke()).resolves.toEqual(undefined);
   await expect(userListNoPath.invoke()).resolves.toEqual([]);
+});
+
+test('invoke threads path params through the second arg', async () => {
+  const moduleFixture: TestingModule = await Test.createTestingModule({
+    controllers: [recipesEditEndpoint],
+    providers: [RecipesRepository],
+  }).compile();
+  const app = moduleFixture.createNestApplication();
+  app.useLogger(false);
+  await app.init();
+  const repo = app.get(RecipesRepository);
+  repo.add('Pizza');
+
+  const recipesEdit = app.get(recipesEditEndpoint);
+  // Path param strings get coerced by the Zod schema, just like an HTTP call.
+  await expect(
+    recipesEdit.invoke(
+      { name: 'Margherita' },
+      { params: { recipeId: '1' } },
+    ),
+  ).resolves.toEqual({ id: 1, name: 'Margherita' });
+
+  // Validation errors on params should surface as ZodValidationException.
+  try {
+    await recipesEdit.invoke(
+      { name: 'X' },
+      { params: { recipeId: 'nope' } },
+    );
+    throw new Error('Should not reach here');
+  } catch (error) {
+    expect(error).toBeInstanceOf(ZodValidationException);
+    const issues = (error as ZodValidationException).getZodError().issues;
+    expect(issues).toMatchObject([{ path: ['recipeId'] }]);
+  }
 });
