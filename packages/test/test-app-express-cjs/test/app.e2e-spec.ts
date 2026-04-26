@@ -668,7 +668,7 @@ test('spec works', async () => {
         post: {
           operationId: 'UserAppointmentCreate',
           summary: 'Create an appointment',
-          tags: ['user', 'user/appointment'],
+          tags: ['user/appointment'],
           parameters: [],
           requestBody: {
             required: true,
@@ -708,7 +708,7 @@ test('spec works', async () => {
         get: {
           operationId: 'UserAppointmentCount',
           summary: '',
-          tags: ['user', 'user/appointment'],
+          tags: ['user/appointment'],
           parameters: [
             {
               name: 'userId',
@@ -977,12 +977,7 @@ test('spec works', async () => {
             },
           },
           summary: '',
-          tags: [
-            'src',
-            'src/endpoints',
-            'src/endpoints/user',
-            'src/endpoints/user/list',
-          ],
+          tags: ['src/endpoints/user/list'],
         },
       },
       '/user/list-with-path': {

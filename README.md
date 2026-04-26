@@ -6,7 +6,7 @@
 
 **nestjs-endpoints** is a lightweight tool for writing clean, succinct, end-to-end type-safe HTTP APIs with NestJS that encourages the [REPR](https://www.apitemplatepack.com/docs/introduction/repr-pattern/) design pattern, code colocation, and the Single Responsibility Principle.
 
-It's inspired by the [Fast Endpoints](https://fast-endpoints.com/) .NET library, [tRPC](https://trpc.io/), and Next.js' file-based routing.
+It's inspired by the [Fast Endpoints](https://fast-endpoints.com/) .NET library, [tRPC](https://trpc.io/), and [TanStack Router](https://tanstack.com/router)'s file-based routing.
 
 An endpoint can be as simple as this:
 
@@ -44,15 +44,14 @@ const { data: greeting, error, status } = useGreet({ name: 'Satie' });
 - **Two routing styles:** manual imports with explicit paths, or file-based routing that scans your project.
 - **Module-scoped middleware, interceptors, and guards** — a gap in vanilla NestJS.
 - **Schema validation:** compile- and run-time validation of input and output using Zod.
-- **OpenAPI 3.1.1:** generated via `@nestjs/swagger` + [zod-openapi](https://github.com/samchungy/zod-openapi).
+- **OpenAPI 3.1.1:** generated via `@nestjs/swagger` + [zod-openapi](https://github.com/samchungy/zod-openapi). Integrated [Scalar](https://scalar.com) doc viewer (Swagger UI as fallback).
 - **End-to-end type safety:** `axios` and `@tanstack/react-query` client libraries auto-generated with [orval](https://orval.dev/).
+- **Namespaced SDK:** opt-in router namespaces surface generated hooks and methods as a nested `api` object (`api.shop.recipes.create(...)`); each client can be filtered to a subset of namespaces.
 - **Adapter-agnostic:** Express or Fastify; CommonJS or ESM.
 
-## New in v2
+## Example
 
-- **Zod v4**
-- **zod-openapi v5**
-- **OpenAPI 3.1.1**
+Full runnable example [here](./examples/file-based-routing) — NestJS API with nested router modules and namespaces, plus a minimal React + `@tanstack/react-query` front-end consuming the generated SDK.
 
 ## Requirements
 
@@ -67,42 +66,9 @@ npm install nestjs-endpoints @nestjs/swagger zod
 
 ## Setup
 
-Pick automatic scanning, traditional manual imports, or mix both.
+The idiomatic path is automatic file-based routing; traditional manual imports are also supported, and the two can be mixed.
 
-### Option 1. Traditional
-
-Import endpoints like regular NestJS controllers. No extra setup.
-
-`src/health-check.ts`
-
-```typescript
-import { endpoint } from 'nestjs-endpoints';
-
-export const healthCheck = endpoint({
-  path: '/status/health',
-  inject: {
-    health: HealthService,
-  },
-  handler: ({ health }) => health.check(),
-});
-```
-
-`src/app.module.ts`
-
-```typescript
-import { Module } from '@nestjs/common';
-import { healthCheck } from './health-check';
-
-@Module({
-  controllers: [healthCheck],
-  providers: [HealthService],
-})
-class AppModule {}
-```
-
-Endpoint available at `/status/health`.
-
-### Option 2. Automatic (file-based routing)
+### Option 1. Automatic (file-based routing)
 
 `src/endpoints/status/health.ts`
 
@@ -135,51 +101,50 @@ export class AppModule {}
 
 Endpoint available at `/status/health`.
 
+### Option 2. Traditional
+
+Import endpoints like regular NestJS controllers. No extra setup.
+
+`src/health-check.ts`
+
+```typescript
+import { endpoint } from 'nestjs-endpoints';
+
+export const healthCheck = endpoint({
+  path: '/status/health',
+  inject: {
+    health: HealthService,
+  },
+  handler: ({ health }) => health.check(),
+});
+```
+
+`src/app.module.ts`
+
+```typescript
+import { Module } from '@nestjs/common';
+import { healthCheck } from './health-check';
+
+@Module({
+  controllers: [healthCheck],
+  providers: [HealthService],
+})
+class AppModule {}
+```
+
+Endpoint available at `/status/health`.
+
 ### Complex query parameters
 
 For GET endpoints with nested-object query params, [configure](https://docs.nestjs.com/controllers#query-parameters) the Express or Fastify adapter accordingly.
 
 ## Usage
 
-`src/endpoints/user/find.endpoint.ts`
-
-```typescript
-import { endpoint, z } from 'nestjs-endpoints';
-
-export default endpoint({
-  input: z.object({
-    // GET endpoints use query params for input,
-    // so we need to coerce the string to a number
-    id: z.coerce.number(),
-  }),
-  output: z
-    .object({
-      id: z.number(),
-      name: z.string(),
-      email: z.string().email(),
-    })
-    .nullable(),
-  inject: {
-    db: DbService,
-  },
-  injectOnRequest: {
-    session: decorated<Session>(Session()),
-  }
-  // The handler's parameters are fully typed, and its
-  // return value is type-checked against the output schema
-  handler: async ({ input, db, session }) => {
-    if (session.isAuthorized()) {
-      return await db.user.find(input.id);
-    }
-    return null;
-  }
-});
-```
-
 `src/endpoints/user/create.endpoint.ts`
 
 ```typescript
-import { endpoint, z } from 'nestjs-endpoints';
+import { Session, UnauthorizedException } from '@nestjs/common';
+import { decorated, endpoint, z } from 'nestjs-endpoints';
 
 export default endpoint({
   method: 'post',
@@ -193,7 +158,13 @@ export default endpoint({
   inject: {
     db: DbService,
   },
-  handler: async ({ input, db }) => {
+  injectOnRequest: {
+    session: decorated<Session>(Session()),
+  },
+  handler: async ({ input, db, session }) => {
+    if (!session.isAuthorized()) {
+      throw new UnauthorizedException();
+    }
     const user = await db.user.create(input);
     return {
       id: user.id,
@@ -204,12 +175,9 @@ export default endpoint({
 });
 ```
 
-You call the above using:
+Call it with:
 
 ```bash
-❯ curl 'http://localhost:3000/user/find?id=1'
-null%
-
 # bad input
 ❯ curl -s -X 'POST' 'http://localhost:3000/user/create' \
 -H 'Content-Type: application/json' \
@@ -237,21 +205,85 @@ null%
 {"id":1}%
 ```
 
+## Dependency injection
+
+`endpoint()` maps onto the two tiers of DI you already know from vanilla NestJS:
+
+- **`inject`** — class-level providers, resolved once per endpoint instance. Equivalent to constructor-injected providers on a controller.
+
+  ```ts
+  inject: {
+    db: DbService;
+  }
+  // ≡
+  @Controller()
+  class X {
+    constructor(private readonly db: DbService) {}
+  }
+  ```
+
+- **`injectOnRequest`** — per-request values pulled in at handler time. Equivalent to parameter decorators like `@Req()`, `@Session()`, `@Headers()` on a controller method.
+
+  ```ts
+  injectOnRequest: {
+    session: decorated<Session>(Session())
+  }
+  // ≡
+  @Post()
+  async create(@Session() session: Session) {}
+  ```
+
+  `decorated<T>(decorator)` pairs a NestJS parameter decorator with the TypeScript type you want visible on the handler.
+
+## Endpoint router
+
+`EndpointRouterModule.create({...})` walks its subtree looking for `*.endpoint.ts` and `router.module.ts` files, auto-registers them, and derives each endpoint's HTTP path using file-based routing.
+
+Each router owns its own URL prefix, providers, middleware, interceptors, guards, and SDK namespace; nested routers compose with their parent's.
+
 ### File-based routing
 
-HTTP paths for endpoints are derived from the file's path on disk:
+HTTP paths for endpoints are derived from each file's position on disk.
 
-- `rootDirectory` is trimmed from the start
+Router-level rules:
+
+- `rootDirectory` is trimmed from the start of every path it owns
 - Optional `basePath` is prepended
+
+Endpoint-file rules:
+
+- Filenames must either end in `.endpoint.ts` or be `endpoint.ts` (`js`, `cjs`, `mjs`, `mts` also supported)
 - Path segments that begin with an underscore (`_`) are removed
-- Filenames must either end in `.endpoint.ts` or be `endpoint.ts`
-- `js`, `cjs`, `mjs`, `mts` are also supported.
-- Route parameters are **not** supported (`user/:userId`)
+- Path parameters: a `$`-prefixed segment becomes a `:param` (TanStack Router-style)
+- A `.` inside one filename or folder splits it into multiple URL segments
+- Each declared param must be validated with the `params` Zod schema on the endpoint
 
 Examples (assume `rootDirectory` is `./endpoints`):
 
-- `src/endpoints/user/find-all.endpoint.ts` -> `user/find-all`
-- `src/endpoints/user/_mutations/create/endpoint.ts` -> `user/create`
+| File                                                          | URL                                               |
+| ------------------------------------------------------------- | ------------------------------------------------- |
+| `../user/find-all.endpoint.ts`                                | `user/find-all`                                   |
+| `../user/_mutations/create/endpoint.ts`                       | `user/create`                                     |
+| `../recipes/edit/$recipeId.endpoint.ts`                       | `recipes/edit/:recipeId`                          |
+| `../recipes/$recipeId.view/endpoint.ts`                       | `recipes/:recipeId/view`                          |
+| `../recipes/$recipeId.delete.endpoint.ts`                     | `recipes/:recipeId/delete`                        |
+| `../restaurant/$restaurantId/recipes/$recipeId.view/endpoint.ts` | `restaurant/:restaurantId/recipes/:recipeId/view` |
+
+```ts
+// src/endpoints/recipes/edit/$recipeId.endpoint.ts → PATCH /recipes/edit/:recipeId
+export default endpoint({
+  method: 'patch',
+  // Path-param keys must match the URL `:names`. Coerce since they
+  // arrive as strings.
+  params: z.object({ recipeId: z.coerce.number() }),
+  input: z.object({ name: z.string() }),
+  inject: { recipes: RecipesRepository },
+  handler: ({ params, input, recipes }) =>
+    recipes.rename(params.recipeId, input.name),
+});
+```
+
+The generated SDK drops `:param` segments from the method name — the typed positional argument already conveys it: `client.recipesEdit(recipeId, { name })`.
 
 > _**Note:**_ Bundled projects via Webpack or similar are not supported.
 
@@ -323,9 +355,44 @@ export default EndpointRouterModule.create({
 });
 ```
 
+### Namespaces
+
+A router can opt into a namespace so its endpoints land in a nested bucket on the generated SDK's `api` object that mirrors the router hierarchy.
+
+```typescript
+// src/shop/router.module.ts
+EndpointRouterModule.create({
+  providers: [ShopService],
+  namespace: true,
+});
+
+// src/shop/recipes/router.module.ts (nested under shop)
+EndpointRouterModule.create({
+  providers: [RecipesRepository],
+  namespace: true,
+});
+```
+
+```ts
+await client.shop.recipes.create({ name: 'Pizza' });
+// vs. the flat name: client.shopRecipesCreate(...)
+```
+
+`namespace` accepts:
+
+- `false` / omitted — inherit the parent's chain.
+- `true` — mirror `basePath`: use the `basePath` value if set, otherwise the router's folder name.
+- `string` — explicit segment.
+
 ## Codegen (optional)
 
 Generate a type-safe client SDK (axios and/or react-query) from your endpoints. Uses [orval](https://orval.dev/) under the hood and works with both scanned and manually-imported endpoints.
+
+Optional: install `@scalar/api-reference` to get a [Scalar](https://scalar.com)-powered docs viewer (nicer UI, auto-generated `x-tagGroups`) when you use [`setupCodegen`'s `openapi.ui`](#using-setupcodegen) option. Without it, Swagger UI is used as the fallback.
+
+```bash
+npm install @scalar/api-reference
+```
 
 ### Using `setupCodegen`
 
@@ -337,6 +404,12 @@ import { setupCodegen } from 'nestjs-endpoints';
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
   await setupCodegen(app, {
+    // Optional
+    openapi: {
+      // Optional: mounts Swagger UI at /docs using the same doc the
+      // codegen consumes.
+      ui: { path: 'docs' },
+    },
     clients: [
       {
         type: 'axios',
@@ -352,21 +425,21 @@ async function bootstrap() {
 }
 ```
 
+Each generated output file exports a single `api` object and an `ApiClient` type.
+
 ### axios
 
 ```ts
-import { createApiClient } from './generated/axios-client';
+import { api } from './generated/axios-client';
 
-const client = createApiClient({
+const client = api.createAxiosClient({
   baseURL: process.env.API_BASE_URL,
-  headers: {
-    'x-test': 'test-1',
-  },
+  headers: { 'x-test': 'test-1' },
 });
-// Access to axios instance
+// Access to the underlying axios instance
 client.axios.defaults.headers.common['x-test'] = 'test-2';
 
-const { id } = await client.userCreate({
+const { data: user } = await client.userCreate({
   name: 'Tom',
   email: 'tom@gmail.com',
 });
@@ -375,16 +448,14 @@ const { id } = await client.userCreate({
 ### react-query
 
 ```typescript
-import {
-  ApiClientProvider,
-  createApiClient,
-} from './generated/react-query-client';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { api } from './generated/react-query-client';
 
 export function App() {
   const queryClient = useMemo(() => new QueryClient({}), []);
   const apiClient = useMemo(
     () =>
-      createApiClient({
+      api.createReactQueryClient({
         baseURL: import.meta.env.VITE_API_BASE_URL,
       }),
     [],
@@ -392,25 +463,22 @@ export function App() {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <ApiClientProvider client={apiClient}>
+      <api.Provider client={apiClient}>
         <UserPage />
-      </ApiClientProvider>
+      </api.Provider>
     </QueryClientProvider>
   );
 }
 --
-import {
-  useUserCreate,
-  useApiClient,
-} from './generated/react-query-client';
+import { api } from './generated/react-query-client';
 
 export function UserPage() {
   // react-query mutation hook
-  const userCreate = useUserCreate();
+  const userCreate = api.useUserCreate();
   const handler = () => userCreate.mutateAsync({ ... });
 
-  // You can also use the api client, directly
-  const client = useApiClient();
+  // You can also reach for the axios-bound client directly
+  const client = api.useAxios();
   const handler = () => client.userCreate({ ... });
   ...
 }
@@ -420,6 +488,33 @@ More examples:
 
 - [axios](https://github.com/rhyek/nestjs-endpoints/blob/f9fc77c0af9439e35e2ed3f26aa3e645795ed44f/packages/test/test-app-express-cjs/test/client.e2e-spec.ts#L15)
 - [react-query](https://github.com/rhyek/nestjs-endpoints/tree/main/packages/test/test-react-query-client)
+
+### Per-client namespace filter
+
+Emit multiple client files from the same server, each limited to a subset of top-level [namespaces](#namespaces):
+
+```typescript
+await setupCodegen(app, {
+  clients: [
+    // Full-access backend client — every operation.
+    { type: 'axios', outputFile: process.cwd() + '/generated/backend.ts' },
+
+    // Front-end clients, each limited to the namespaces they need.
+    {
+      type: 'react-query',
+      outputFile: process.cwd() + '/generated/admin-client.tsx',
+      namespaces: ['auth', 'admin'],
+    },
+    {
+      type: 'react-query',
+      outputFile: process.cwd() + '/generated/shop-client.tsx',
+      namespaces: ['auth', 'shop'],
+    },
+  ],
+});
+```
+
+Each filtered client only ships the types its operations reference. Omit `namespaces` for full access.
 
 ### Manual codegen with OpenAPI spec file
 
@@ -445,7 +540,7 @@ async function bootstrap() {
 
 ## Advanced Usage
 
-A fuller endpoint example: multi-status output, per-endpoint decorators, request-time injection. Full example [here](https://github.com/rhyek/nestjs-endpoints/tree/main/packages/test/test-app-express-cjs). You can also freely mix these with plain NestJS controllers.
+A fuller endpoint example: multi-status output, per-endpoint decorators, request-time injection.
 
 `src/endpoints/user/appointment/create.endpoint.ts`
 
@@ -540,10 +635,12 @@ To call this endpoint:
 
 ```typescript
 // Use .overwrite for same-type transforms:
-z.string().overwrite((s) => s.toUpperCase())
+z.string().overwrite((s) => s.toUpperCase());
 
 // Or annotate the output type:
-z.string().transform((s) => s.toUpperCase()).meta({ type: 'string' })
+z.string()
+  .transform((s) => s.toUpperCase())
+  .meta({ type: 'string' });
 ```
 
 ## Testing
