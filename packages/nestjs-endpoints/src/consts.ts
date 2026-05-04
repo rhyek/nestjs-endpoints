@@ -9,12 +9,14 @@ export const settings: {
     setupFn: (settings: {
       rootDirectories: string[];
       basePath: string;
+      namespaceChain: string[];
     }) => void;
   }[];
   openapi: {
     components: {
       schemas: Record<string, any>;
     };
+    tags: { name: string; description: string }[];
   };
 } = {
   endpoints: [],
@@ -22,6 +24,7 @@ export const settings: {
     components: {
       schemas: {},
     },
+    tags: [],
   },
 };
 

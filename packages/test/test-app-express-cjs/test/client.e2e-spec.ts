@@ -93,4 +93,105 @@ describe('generated client', () => {
       await app.close();
     }
   });
+
+  test.concurrent(
+    'namespaced axios api — reaches un-namespaced + nested operations',
+    async () => {
+      const moduleFixture: TestingModule = await Test.createTestingModule({
+        imports: [AppModule],
+      }).compile();
+      const { app } = await createApp(moduleFixture);
+      try {
+        const client = createApiClient({
+          baseURL: await app.getUrl(),
+        });
+        // Un-namespaced operation (no router namespace) sits at the root
+        // of the client using its flat camelCase name.
+        const greet = await client.greet({ name: 'Clara' });
+        expect(greet.data).toBe('Hello, Clara!');
+        // One-level namespace bucket (from `namespace: 'articles'`).
+        const latest = await client.articles.latest();
+        expect(latest.data).toMatchObject({ title: expect.any(String) });
+        // Two-level nested namespace bucket (shop → cart, from two routers
+        // both declaring `namespace: true`).
+        const cart = await client.shop.cart.add({ item: 'apple' });
+        expect(cart.data).toMatchObject({ added: 'apple' });
+      } finally {
+        await app.close();
+      }
+    },
+  );
+
+  test.concurrent(
+    'path params: typed signatures + multi-param via $-segment routing',
+    async () => {
+      const moduleFixture: TestingModule = await Test.createTestingModule({
+        imports: [AppModule],
+      }).compile();
+      const { app } = await createApp(moduleFixture);
+      try {
+        const client = createApiClient({
+          baseURL: await app.getUrl(),
+        });
+        // Seed a recipe so we have something to address by id.
+        const { data: created } = await client.recipesCreate({
+          name: 'Pizza',
+        });
+        expect(created).toEqual({ id: 1, name: 'Pizza' });
+
+        // PATCH /recipes/edit/:recipeId — :param drops out of the
+        // method name; the path param is still the first positional arg.
+        const { data: edited } = await client.recipesEdit(created.id, {
+          name: 'Margherita',
+        });
+        expect(edited).toEqual({ id: 1, name: 'Margherita' });
+
+        // GET /recipes/:recipeId/view
+        const { data: viewed } = await client.recipesView(created.id);
+        expect(viewed).toMatchObject({ id: 1, name: 'Margherita' });
+
+        // DELETE /recipes/:recipeId/delete
+        const { data: removed } = await client.recipesDelete(created.id);
+        expect(removed).toEqual({ id: 1, name: 'Margherita' });
+
+        // Multi-param: GET /restaurant/:restaurantId/recipes/:recipeId/view
+        const { data: multi } = await client.restaurantRecipesView(7, 42);
+        expect(multi).toEqual({ restaurantId: 7, recipeId: 42 });
+      } finally {
+        await app.close();
+      }
+    },
+  );
+
+  test.concurrent(
+    'axios wrapper exposes .axios — interceptors observe requests to namespaced methods',
+    async () => {
+      const moduleFixture: TestingModule = await Test.createTestingModule({
+        imports: [AppModule],
+      }).compile();
+      const { app } = await createApp(moduleFixture);
+      try {
+        const underlying = Axios.create({
+          baseURL: await app.getUrl(),
+        });
+        const client = createApiClient(underlying);
+        // .axios must be the exact instance the wrapper is bound to —
+        // mutations made on it (defaults, interceptors) apply to every
+        // subsequent call, namespaced or flat.
+        expect(client.axios).toBe(underlying);
+
+        const seenUrls: string[] = [];
+        client.axios.interceptors.request.use((config) => {
+          if (config.url) seenUrls.push(config.url);
+          return config;
+        });
+
+        const cart = await client.shop.cart.add({ item: 'apple' });
+        expect(cart.data).toMatchObject({ added: 'apple' });
+        expect(seenUrls).toContain('/shop/cart/add');
+      } finally {
+        await app.close();
+      }
+    },
+  );
 });

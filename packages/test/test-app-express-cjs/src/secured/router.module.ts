@@ -5,4 +5,5 @@ export default EndpointsRouterModule.register({
   rootDirectory: 'endpoints',
   providers: [SecretHeaderGuard],
   guards: [SecretHeaderGuard],
+  namespace: true,
 });

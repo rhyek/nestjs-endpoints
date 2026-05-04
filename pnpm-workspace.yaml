@@ -1,5 +1,8 @@
 packages:
   - 'packages/*'
   - 'packages/test/*'
+  # Self-contained, copy-pasteable showcases live under examples/ and
+  # are intentionally excluded from this workspace.
+  - '!examples/**'
 overrides:
   'reflect-metadata': '0.1.14'

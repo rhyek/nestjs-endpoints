@@ -9,8 +9,14 @@ echo '{"type": "commonjs"}' > dist/cjs/package.json
 pnpm tsc --project tsconfig.esm.json && pnpm tsc-alias --project tsconfig.esm.json
 echo '{"type": "module"}' > dist/esm/package.json
 # Modify the ESM router-module.js to use dynamic import instead of require
+# and swap __dirname (used to anchor createRequire for version detection)
+# for the ESM-equivalent import.meta.dirname.
 sed -i.bak 's/require(f).default/await import(f).then((m) => m.default)/g' dist/esm/endpoint-router.module.js
+sed -i.bak 's/__dirname/import.meta.dirname/g' dist/esm/endpoint-router.module.js
 rm -f dist/esm/endpoint-router.module.js.bak
 # Modify the ESM codegen/setup.js to use import.meta.dirname instead of __dirname
 sed -i.bak 's/__dirname/import.meta.dirname/g' dist/esm/codegen/setup.js
 rm -f dist/esm/codegen/setup.js.bak
+# Same swap for setup-openapi.js (uses __dirname to anchor createRequire).
+sed -i.bak 's/__dirname/import.meta.dirname/g' dist/esm/setup-openapi.js
+rm -f dist/esm/setup-openapi.js.bak

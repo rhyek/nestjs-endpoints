@@ -7,6 +7,7 @@ import {
   Head,
   Inject,
   Options,
+  Param,
   Patch,
   Post,
   Put,
@@ -15,7 +16,12 @@ import {
   Type,
 } from '@nestjs/common';
 import { HttpAdapterHost } from '@nestjs/core';
-import { ApiBody, ApiOperation, ApiResponse } from '@nestjs/swagger';
+import {
+  ApiBody,
+  ApiExtension,
+  ApiOperation,
+  ApiResponse,
+} from '@nestjs/swagger';
 import { z, ZodNull, ZodNullable, ZodType } from 'zod';
 import { settings } from './consts';
 import {
@@ -23,6 +29,7 @@ import {
   ZodValidationException,
 } from './exceptions';
 import {
+  ApiParams,
   ApiQueries,
   getCallsiteFile,
   getEndpointHttpPath,
@@ -128,6 +135,7 @@ type HandlerMethod<
     | Record<string, WithDecorator<any>>
     | undefined = undefined,
   InputSchema extends Schema | SchemaDef | undefined = undefined,
+  ParamsSchema extends Schema | SchemaDef | undefined = undefined,
   OutputSchema extends OutputSchemaUnion = undefined,
 > = (
   params: (InjectProviders extends undefined
@@ -157,6 +165,13 @@ type HandlerMethod<
             ExtractSchemaFromSchemaDef<NonNullable<InputSchema>>
           >;
           rawInput: unknown;
+        }) &
+    (ParamsSchema extends undefined
+      ? object
+      : {
+          params: z.output<
+            ExtractSchemaFromSchemaDef<NonNullable<ParamsSchema>>
+          >;
         }) & {
       response: <
         Status extends OutputMapKey<OutputSchema>,
@@ -171,6 +186,13 @@ type HandlerMethod<
           ? object
           : {
               input: ExtractSchemaFromSchemaDef<NonNullable<InputSchema>>;
+            }) &
+        (ParamsSchema extends undefined
+          ? object
+          : {
+              params: ExtractSchemaFromSchemaDef<
+                NonNullable<ParamsSchema>
+              >;
             });
     },
 ) => OutputSchema extends undefined
@@ -184,16 +206,38 @@ type HandlerMethod<
         >
       : never;
 
+type InvokeOptions<
+  ParamsSchema extends Schema | SchemaDef | undefined = undefined,
+> = ParamsSchema extends undefined
+  ? object
+  : {
+      params: z.input<
+        ExtractSchemaFromSchemaDef<NonNullable<ParamsSchema>>
+      >;
+    };
+
 type InvokeMethod<
   InputSchema extends Schema | SchemaDef | undefined = undefined,
+  ParamsSchema extends Schema | SchemaDef | undefined = undefined,
   OutputSchema extends OutputSchemaUnion = undefined,
 > = InputSchema extends undefined
-  ? () => MaybePromise<OutputMapResponseUnion<OutputSchema>>
-  : (
-      rawInput: z.input<
-        ExtractSchemaFromSchemaDef<NonNullable<InputSchema>>
-      >,
-    ) => MaybePromise<OutputMapResponseUnion<OutputSchema>>;
+  ? ParamsSchema extends undefined
+    ? () => MaybePromise<OutputMapResponseUnion<OutputSchema>>
+    : (
+        opts: InvokeOptions<ParamsSchema>,
+      ) => MaybePromise<OutputMapResponseUnion<OutputSchema>>
+  : ParamsSchema extends undefined
+    ? (
+        rawInput: z.input<
+          ExtractSchemaFromSchemaDef<NonNullable<InputSchema>>
+        >,
+      ) => MaybePromise<OutputMapResponseUnion<OutputSchema>>
+    : (
+        rawInput: z.input<
+          ExtractSchemaFromSchemaDef<NonNullable<InputSchema>>
+        >,
+        opts: InvokeOptions<ParamsSchema>,
+      ) => MaybePromise<OutputMapResponseUnion<OutputSchema>>;
 
 type EndpointControllerClass<
   InjectProviders extends
@@ -203,18 +247,22 @@ type EndpointControllerClass<
     | Record<string, WithDecorator<any>>
     | undefined = undefined,
   InputSchema extends Schema | SchemaDef | undefined = undefined,
+  ParamsSchema extends Schema | SchemaDef | undefined = undefined,
   OutputSchema extends OutputSchemaUnion = undefined,
 > = Type<{
   handler: HandlerMethod<
     InjectProviders,
     InjectOnRequestParameters,
     InputSchema,
+    ParamsSchema,
     OutputSchema
   >;
   /**
-   * Invoke the endpoint with raw input. Useful for testing.
+   * Invoke the endpoint with raw input. Useful for testing. When the
+   * endpoint declares a `params` schema, the second argument carries the
+   * raw path parameters (`{ params: { ... } }`).
    */
-  invoke: InvokeMethod<InputSchema, OutputSchema>;
+  invoke: InvokeMethod<InputSchema, ParamsSchema, OutputSchema>;
 }>;
 
 export function endpoint<
@@ -225,6 +273,7 @@ export function endpoint<
     | Record<string, WithDecorator<any>>
     | undefined = undefined,
   InputSchema extends Schema | SchemaDef | undefined = undefined,
+  ParamsSchema extends Schema | SchemaDef | undefined = undefined,
   OutputSchema extends OutputSchemaUnion = undefined,
 >(params: {
   /**
@@ -258,6 +307,25 @@ export function endpoint<
    * ```
    */
   input?: InputSchema;
+  /**
+   * Path parameters Zod schema. Keys must match the URL parameter names
+   * in the endpoint's path (e.g. `:recipeId` ↔ `params: { recipeId }`).
+   * Path params arrive as strings — use `z.coerce` for numbers.
+   *
+   * With file-based routing, declare path params in the filename or
+   * folder using a `$`-prefix (e.g. `recipes/$recipeId/view.endpoint.ts`
+   * → `recipes/:recipeId/view`).
+   *
+   * ```ts
+   * endpoint({
+   *   params: z.object({
+   *     recipeId: z.coerce.number(),
+   *   }),
+   *   handler: ({ params: { recipeId } }) => {}
+   * })
+   * ```
+   */
+  params?: ParamsSchema;
   /**
    * Output Zod schema.
    *
@@ -351,12 +419,14 @@ export function endpoint<
     InjectProviders,
     InjectOnRequestParameters,
     InputSchema,
+    ParamsSchema,
     OutputSchema
   >;
 }): EndpointControllerClass<
   InjectProviders,
   InjectOnRequestParameters,
   InputSchema,
+  ParamsSchema,
   OutputSchema
 > {
   const {
@@ -365,6 +435,7 @@ export function endpoint<
     summary,
     tags,
     input,
+    params: paramsSchema,
     output,
     inject,
     injectMethod,
@@ -378,9 +449,11 @@ export function endpoint<
   const setupFn = ({
     rootDirectories,
     basePath,
+    namespaceChain,
   }: {
     rootDirectories: string[];
     basePath: string;
+    namespaceChain: string[];
   }) => {
     const { httpPath, httpPathPascalName, httpPathSegments } = (() => {
       if (explicitPath) {
@@ -430,6 +503,7 @@ export function endpoint<
 
     // define method parameters
     const inputKey = Symbol('input');
+    const paramsKey = Symbol('params');
     const resKey = Symbol('res');
     const methodParamDecorators: Record<
       string | symbol,
@@ -439,6 +513,9 @@ export function endpoint<
       methodParamDecorators.push({
         [inputKey]: httpMethod === 'get' ? Query() : Body(),
       });
+    }
+    if (paramsSchema) {
+      methodParamDecorators.push({ [paramsKey]: Param() });
     }
     injectOnRequest ??= injectMethod ?? injectAtRequest;
     if (injectOnRequest) {
@@ -472,6 +549,7 @@ export function endpoint<
       this: any,
       handlerParams: Record<string | symbol, any>,
       rawInput: any,
+      rawParams: any,
     ) {
       if (inject) {
         for (const key of Object.keys(inject)) {
@@ -489,13 +567,33 @@ export function endpoint<
         handlerParams.rawInput = rawInput;
         handlerParams.schemas.input = schema;
       }
+      if (paramsSchema) {
+        const schema: ZodType =
+          paramsSchema instanceof SchemaDef
+            ? paramsSchema.schema
+            : paramsSchema;
+        const parsed = schema.safeParse(rawParams ?? {});
+        if (parsed.error) {
+          throw new ZodValidationException(parsed.error);
+        }
+        handlerParams.params = parsed.data;
+        handlerParams.schemas.params = schema;
+      }
       // eslint-disable-next-line @typescript-eslint/await-thenable
       const result: any = await handler(handlerParams as any);
       return result;
     };
 
     // invoke method
-    (cls.prototype as any).invoke = async function (rawInput: any) {
+    (cls.prototype as any).invoke = async function (
+      rawInputOrOpts?: any,
+      maybeOpts?: any,
+    ) {
+      // When the endpoint has no `input` schema, callers can pass the
+      // options object as the first argument: `invoke({ params })`.
+      const rawInput = input ? rawInputOrOpts : undefined;
+      const opts = input ? maybeOpts : rawInputOrOpts;
+      const rawParams = paramsSchema ? opts?.params : undefined;
       const handlerParams: Record<string | symbol, any> = {
         response,
         schemas: {},
@@ -504,6 +602,7 @@ export function endpoint<
         this,
         handlerParams,
         rawInput,
+        rawParams,
       );
       if (result instanceof EndpointResponse) {
         validateOutput(result);
@@ -534,10 +633,12 @@ export function endpoint<
         }
       }
       const rawInput = injectedMethodParams[inputKey];
+      const rawParams = injectedMethodParams[paramsKey];
       const result = await commonHandlerLogic.call(
         this,
         handlerParams,
         rawInput,
+        rawParams,
       );
       let endpointResponse: EndpointResponse;
       if (result instanceof EndpointResponse) {
@@ -572,17 +673,33 @@ export function endpoint<
     }
 
     // method
-    const _tags: string[] = [];
-    for (let i = 0; i < httpPathSegments.length - 1; i++) {
-      const tag = httpPathSegments.slice(0, i + 1).join('/');
-      _tags.push(tag);
-    }
+    const autoTag = ((): string | null => {
+      if (namespaceChain.length > 0) {
+        return namespaceChain.join('/');
+      }
+      // No namespace declared — fall back to the URL prefix (everything
+      // but the leaf) so Swagger UI still groups meaningfully. Path
+      // parameters (`:id`) are dropped so the tag stays a clean folder
+      // name like `recipes` rather than `recipes/:id`.
+      if (httpPathSegments.length > 1) {
+        const tagSegments = httpPathSegments
+          .slice(0, -1)
+          .filter((s) => !s.startsWith(':'));
+        if (tagSegments.length > 0) {
+          return tagSegments.join('/');
+        }
+      }
+      return null;
+    })();
     const methodDecorators: MethodDecorator[] = [
       ApiOperation({
         operationId: httpPathPascalName,
-        tags: [..._tags, ...(tags ?? [])],
+        tags: [...(autoTag ? [autoTag] : []), ...(tags ?? [])],
         summary: summary ?? '',
       }),
+      ...(namespaceChain.length > 0
+        ? [ApiExtension('x-namespace', namespaceChain)]
+        : []),
       httpMethodDecorators[httpMethod](''),
       ...(decorators ?? []),
     ];
@@ -600,6 +717,13 @@ export function endpoint<
         });
         methodDecorators.push(ApiBody({ schema: openApiSchema }));
       }
+    }
+    if (paramsSchema) {
+      const schema: ZodType =
+        paramsSchema instanceof SchemaDef
+          ? paramsSchema.schema
+          : paramsSchema;
+      methodDecorators.push(ApiParams(schema as any));
     }
     if (outputSchemas) {
       for (const [status, schema] of Object.entries(outputSchemas)) {
@@ -639,7 +763,11 @@ export function endpoint<
       setupFn,
     });
   } else {
-    setupFn({ rootDirectories: [process.cwd()], basePath: '' });
+    setupFn({
+      rootDirectories: [process.cwd()],
+      basePath: '',
+      namespaceChain: [],
+    });
   }
 
   return cls as any;

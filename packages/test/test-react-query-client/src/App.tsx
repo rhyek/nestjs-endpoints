@@ -1,7 +1,9 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import React, { useMemo } from 'react';
-import { createApiClient } from '../../test-app-express-cjs/generated/react-query-client';
-import { ApiClientProvider } from '../../test-app-express-cjs/generated/react-query-client';
+import {
+  ApiClientProvider,
+  createApiClient,
+} from '../../test-app-express-cjs/generated/react-query-client';
 import { UserPage } from './UserPage';
 
 interface AppProps {

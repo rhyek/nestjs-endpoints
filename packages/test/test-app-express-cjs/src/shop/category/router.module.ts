@@ -6,4 +6,5 @@ export default EndpointsRouterModule.register({
   // basePath omitted — inferred as 'shop/category':
   //   parent shop's basePath ('shop') + this module's folder name ('category').
   providers: [CategoryService],
+  namespace: true,
 });

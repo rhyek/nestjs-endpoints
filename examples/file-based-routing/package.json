@@ -1,0 +1,8 @@
+{
+  "name": "file-based-routing-example",
+  "private": true,
+  "scripts": {
+    "dev": "pnpm -r --parallel run dev",
+    "test": "pnpm --filter api test"
+  }
+}

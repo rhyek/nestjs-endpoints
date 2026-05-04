@@ -9,4 +9,7 @@ export default EndpointsRouterModule.register({
   // basePath intentionally omitted — inferred as 'shop' from this
   // router.module.ts file's containing folder.
   providers: [ShopService],
+  // Namespace inference mirrors basePath: segment 'shop' is picked up
+  // from this router.module.ts file's containing folder.
+  namespace: true,
 });
