@@ -1,17 +1,18 @@
 import { useEffect, useState } from 'react';
-import { api } from '../generated/react-query-client';
+import { useApiClient } from '../generated/react-query-client';
 import { Catering } from './Catering';
 import { Recipes } from './Recipes';
 
 export function Shop() {
-  // The hook pattern: `api.<namespace>.useX()` reacts to its own
-  // lifecycle and plugs into the QueryClient cache.
-  const homepage = api.shop.useHomepage();
+  // `useApiClient()` returns one object that exposes BOTH React Query
+  // hooks (`useXxx`) and bound axios methods at every namespace bucket.
+  const client = useApiClient();
 
-  // The imperative pattern: `api.useAxios()` returns the same
-  // namespaced shape as `api.createAxiosClient(...)` bound to the
-  // axios instance set up by the provider — useful for one-off calls.
-  const client = api.useAxios();
+  // Hook pattern — reacts to its own lifecycle and plugs into the
+  // QueryClient cache.
+  const homepage = client.shop.useHomepage();
+
+  // Imperative pattern — useful for one-off calls.
   const [visitors, setVisitors] = useState<number | null>(null);
   useEffect(() => {
     let cancelled = false;

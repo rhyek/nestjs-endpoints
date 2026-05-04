@@ -1,14 +1,15 @@
 import React, { useState } from 'react';
-import { api } from '../generated/react-query-client';
+import { useApiClient } from '../generated/react-query-client';
 
 export function Recipes() {
   // Namespaced hooks come from the nested bucket that mirrors the
   // router hierarchy: shop/router.module.ts + shop/recipes/router.module.ts.
-  const list = api.shop.recipes.useList();
-  const create = api.shop.recipes.useCreate();
+  const client = useApiClient();
+  const list = client.shop.recipes.useList();
+  const create = client.shop.recipes.useCreate();
   // Path-param mutation — `useEdit` was generated from
   // shop/recipes/edit/$recipeId.endpoint.ts. Mutate with { recipeId, data }.
-  const edit = api.shop.recipes.useEdit();
+  const edit = client.shop.recipes.useEdit();
   const [name, setName] = useState('');
 
   const renameRecipe = async (recipeId: number) => {

@@ -1,7 +1,7 @@
 import { endpoint, z } from 'nestjs-endpoints';
 import { RecipesRepository } from './repository.service';
 
-// GET /shop/recipes/list → api.shop.recipes.useList()
+// GET /shop/recipes/list → client.shop.recipes.useList()
 export default endpoint({
   output: z.array(
     z.object({

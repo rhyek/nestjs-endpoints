@@ -1,7 +1,7 @@
 import { endpoint, z } from 'nestjs-endpoints';
 import { RecipesRepository } from './repository.service';
 
-// POST /shop/recipes/create → api.shop.recipes.useCreate()
+// POST /shop/recipes/create → client.shop.recipes.useCreate()
 export default endpoint({
   method: 'post',
   input: z.object({

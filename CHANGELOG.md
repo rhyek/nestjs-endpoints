@@ -11,7 +11,7 @@
 
 ### Breaking changes
 
-- **Generated client surface**: each output file now exports a single `api` object (plus `type ApiClient`). Setup primitives live on it (`api.createAxiosClient` / `api.createReactQueryClient` / `api.Provider` / `api.useAxios`); operations live at `api.<name>` or inside a namespace bucket. The raw orval output is still generated as a sibling `*.flat.ts[x]` file but is now an internal artifact — don't import from it.
+- **Generated client surface**: each output file now exports `createApiClient` (and, for react-query, `useApiClient` + `ApiClientProvider`) at the top level — no more `api` namespace object. The value returned by `createApiClient(...)` and (for react-query) `useApiClient()` is one and the same: a namespaced client that mirrors the router hierarchy, with both axios methods and React Query hooks living side by side on every bucket — `client.shop.recipes.create(...)` next to `client.shop.recipes.useCreate(...)`. Per-operation hooks (`useUserCreate`, etc.) are no longer reachable as bare top-level imports; use the client. The raw orval output is still generated as a sibling `*.flat.ts[x]` file but is an internal artifact — don't import from it.
 
 ## 2.3.0 (2026-04-18)
 

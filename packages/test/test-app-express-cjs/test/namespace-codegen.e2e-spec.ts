@@ -1,68 +1,90 @@
-import { api as axiosApi } from '../generated/axios-client';
-import { api as rqApi } from '../generated/react-query-client';
-import { api as shopRqApi } from '../generated/shop-react-query-client';
+import {
+  createApiClient as createAxiosApiClient,
+  type ApiClient as AxiosApiClient,
+} from '../generated/axios-client';
+import {
+  createApiClient as createRqApiClient,
+  type ApiClient as RqApiClient,
+} from '../generated/react-query-client';
+import { createApiClient as createShopRqApiClient } from '../generated/shop-react-query-client';
 
 // Compile-time assertions.
 //
-// Leaf signatures flow through the wrapper unchanged — if the
-// namespaced `api.createAxiosClient()` output ever loses a parameter or
-// narrows its return type, these assignments stop type-checking.
-type Client = ReturnType<typeof axiosApi.createAxiosClient>;
-const _authLoginPreservesShape: Client['authLogin'] =
-  null as unknown as Client['authLogin'];
-const _shopCartAddPreservesShape: Client['shop']['cart']['add'] =
-  null as unknown as Client['shop']['cart']['add'];
+// Leaf signatures flow through the wrapper unchanged — if `createApiClient()`
+// ever loses a parameter or narrows its return type, these assignments
+// stop type-checking.
+const _authLoginPreservesShape: AxiosApiClient['authLogin'] =
+  null as unknown as AxiosApiClient['authLogin'];
+const _shopCartAddPreservesShape: AxiosApiClient['shop']['cart']['add'] =
+  null as unknown as AxiosApiClient['shop']['cart']['add'];
 void _authLoginPreservesShape;
 void _shopCartAddPreservesShape;
 
-// The react-query wrapper's `useAxios()` must return the same shape as
-// `createAxiosClient(cfg)` — .axios passthrough + namespaced buckets.
-type RqUseAxios = ReturnType<typeof rqApi.useAxios>;
-const _useAxiosHasAxios: RqUseAxios['axios'] =
-  null as unknown as Client['axios'];
-const _useAxiosHasNamespaced: RqUseAxios['shop']['cart']['add'] =
-  null as unknown as Client['shop']['cart']['add'];
-void _useAxiosHasAxios;
-void _useAxiosHasNamespaced;
+// The react-query wrapper's client must match the axios client's namespaced
+// shape (`.axios` passthrough + the same buckets), and additionally expose
+// per-namespace `useXxx` hooks alongside the axios methods.
+const _rqHasAxios: RqApiClient['axios'] =
+  null as unknown as AxiosApiClient['axios'];
+const _rqHasNamespaced: RqApiClient['shop']['cart']['add'] =
+  null as unknown as AxiosApiClient['shop']['cart']['add'];
+const _rqHasHooksAlongsideAxiosMethods: RqApiClient['shop']['cart']['useAdd'] =
+  null as unknown as RqApiClient['shop']['cart']['useAdd'];
+void _rqHasAxios;
+void _rqHasNamespaced;
+void _rqHasHooksAlongsideAxiosMethods;
 
 describe('namespace codegen wrappers', () => {
-  test('full react-query api exposes every namespace bucket', () => {
-    const keys = Object.keys(rqApi);
+  test('full react-query client exposes every namespace bucket plus paired hooks', () => {
+    // Build a client without making any HTTP calls — we only inspect
+    // structure here.
+    const client = createRqApiClient({ baseURL: 'http://localhost' });
+    const keys = Object.keys(client);
     expect(keys).toEqual(
-      expect.arrayContaining(['shop', 'articles', 'secured']),
+      expect.arrayContaining(['shop', 'articles', 'secured', 'axios']),
     );
-    // Setup primitives live on `api` itself.
-    expect(typeof rqApi.createReactQueryClient).toBe('function');
-    expect(typeof rqApi.Provider).toBe('function');
-    expect(typeof rqApi.useAxios).toBe('function');
-    // Un-namespaced hooks sit at root with their full flat names.
-    expect(typeof rqApi.useAuthLogin).toBe('function');
-    // Namespaced hooks are stripped of their namespace prefix and
-    // nested under buckets.
-    expect(typeof rqApi.shop.usePromoToday).toBe('function');
-    expect(typeof rqApi.shop.cart.useAdd).toBe('function');
-    expect(typeof rqApi.shop.category.useList).toBe('function');
-    expect(typeof rqApi.shop.recipes.useCreate).toBe('function');
-    expect(typeof rqApi.articles.useLatest).toBe('function');
-    expect(typeof rqApi.secured.useMe).toBe('function');
+    // Un-namespaced ops sit at root in BOTH axios and hook form.
+    expect(typeof client.authLogin).toBe('function');
+    expect(typeof client.useAuthLogin).toBe('function');
+    // Namespaced buckets carry both axios methods and the hook for each op.
+    expect(typeof client.shop.promoToday).toBe('function');
+    expect(typeof client.shop.usePromoToday).toBe('function');
+    expect(typeof client.shop.cart.add).toBe('function');
+    expect(typeof client.shop.cart.useAdd).toBe('function');
+    expect(typeof client.shop.category.list).toBe('function');
+    expect(typeof client.shop.category.useList).toBe('function');
+    expect(typeof client.shop.recipes.create).toBe('function');
+    expect(typeof client.shop.recipes.useCreate).toBe('function');
+    expect(typeof client.articles.latest).toBe('function');
+    expect(typeof client.articles.useLatest).toBe('function');
+    expect(typeof client.secured.me).toBe('function');
+    expect(typeof client.secured.useMe).toBe('function');
   });
 
-  test('filtered shop react-query api contains only the shop namespace', () => {
-    // Filter keeps setup primitives plus the `shop` bucket and nothing
-    // else.
-    const keys = Object.keys(shopRqApi).sort();
-    expect(keys).toEqual(
-      ['createReactQueryClient', 'Provider', 'useAxios', 'shop'].sort(),
-    );
-    expect(typeof shopRqApi.shop.usePromoToday).toBe('function');
-    expect(typeof shopRqApi.shop.cart.useAdd).toBe('function');
-    expect(typeof shopRqApi.shop.recipes.useCreate).toBe('function');
+  test('filtered shop react-query client contains only the shop namespace', () => {
+    const client = createShopRqApiClient({ baseURL: 'http://localhost' });
+    const keys = Object.keys(client);
+    expect(keys).toEqual(['axios', 'shop'].sort());
+    expect(typeof client.shop.promoToday).toBe('function');
+    expect(typeof client.shop.usePromoToday).toBe('function');
+    expect(typeof client.shop.cart.add).toBe('function');
+    expect(typeof client.shop.cart.useAdd).toBe('function');
+    expect(typeof client.shop.recipes.create).toBe('function');
+    expect(typeof client.shop.recipes.useCreate).toBe('function');
     // Buckets that belong to other top-level namespaces must not exist
     // on the filtered client.
-    expect('articles' in shopRqApi).toBe(false);
-    expect('secured' in shopRqApi).toBe(false);
+    expect('articles' in client).toBe(false);
+    expect('secured' in client).toBe(false);
     // Un-namespaced flat operations (e.g. greet) are also excluded
     // when a filter is in effect.
-    expect('useGreet' in shopRqApi).toBe(false);
+    expect('greet' in client).toBe(false);
+    expect('useGreet' in client).toBe(false);
+  });
+
+  test('axios-only wrapper omits hooks but mirrors namespaced shape', () => {
+    const client = createAxiosApiClient({ baseURL: 'http://localhost' });
+    expect(typeof client.shop.cart.add).toBe('function');
+    // Axios output is non-React and must not carry hook references.
+    expect('useAdd' in client.shop.cart).toBe(false);
+    expect('useAuthLogin' in client).toBe(false);
   });
 });

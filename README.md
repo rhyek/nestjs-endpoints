@@ -31,11 +31,11 @@ Hello, Satie!%
 ```
 
 ```ts
-// axios client
+// axios call
 const greeting = await client.greet({ name: 'Satie' });
 
-// react-query client
-const { data: greeting, error, status } = useGreet({ name: 'Satie' });
+// react-query hook
+const { data: greeting, error, status } = client.useGreet({ name: 'Satie' });
 ```
 
 ## Features
@@ -46,7 +46,7 @@ const { data: greeting, error, status } = useGreet({ name: 'Satie' });
 - **Schema validation:** compile- and run-time validation of input and output using Zod.
 - **OpenAPI 3.1.1:** generated via `@nestjs/swagger` + [zod-openapi](https://github.com/samchungy/zod-openapi). Integrated [Scalar](https://scalar.com) doc viewer (Swagger UI as fallback).
 - **End-to-end type safety:** `axios` and `@tanstack/react-query` client libraries auto-generated with [orval](https://orval.dev/).
-- **Namespaced SDK:** opt-in router namespaces surface generated hooks and methods as a nested `api` object (`api.shop.recipes.create(...)`); each client can be filtered to a subset of namespaces.
+- **Namespaced SDK:** opt-in router namespaces surface generated hooks and methods as a nested client object that mirrors the router hierarchy (`client.shop.recipes.create(...)` and `client.shop.recipes.useCreate(...)` side by side); each client can be filtered to a subset of namespaces.
 - **Adapter-agnostic:** Express or Fastify; CommonJS or ESM.
 
 ## Example
@@ -357,7 +357,7 @@ export default EndpointRouterModule.create({
 
 ### Namespaces
 
-A router can opt into a namespace so its endpoints land in a nested bucket on the generated SDK's `api` object that mirrors the router hierarchy.
+A router can opt into a namespace so its endpoints land in a nested bucket on the generated SDK client that mirrors the router hierarchy.
 
 ```typescript
 // src/shop/router.module.ts
@@ -374,8 +374,9 @@ EndpointRouterModule.create({
 ```
 
 ```ts
+// axios method and react-query hook live on the same bucket
 await client.shop.recipes.create({ name: 'Pizza' });
-// vs. the flat name: client.shopRecipesCreate(...)
+const created = client.shop.recipes.useCreate();
 ```
 
 `namespace` accepts:
@@ -425,21 +426,21 @@ async function bootstrap() {
 }
 ```
 
-Each generated output file exports a single `api` object and an `ApiClient` type.
+Each generated output file exports `createApiClient`, an `ApiClient` type, and (for react-query) `useApiClient` + `ApiClientProvider`. The client object is namespaced — operations live under buckets that mirror the router hierarchy. For react-query, every namespace bucket carries both axios methods and React Query hooks, so `client.shop.recipes.create(...)` and `client.shop.recipes.useCreate()` sit side by side.
 
 ### axios
 
 ```ts
-import { api } from './generated/axios-client';
+import { createApiClient } from './generated/axios-client';
 
-const client = api.createAxiosClient({
+const client = createApiClient({
   baseURL: process.env.API_BASE_URL,
   headers: { 'x-test': 'test-1' },
 });
 // Access to the underlying axios instance
 client.axios.defaults.headers.common['x-test'] = 'test-2';
 
-const { data: user } = await client.userCreate({
+const { data: user } = await client.user.create({
   name: 'Tom',
   email: 'tom@gmail.com',
 });
@@ -449,38 +450,38 @@ const { data: user } = await client.userCreate({
 
 ```typescript
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { api } from './generated/react-query-client';
+import {
+  ApiClientProvider,
+  createApiClient,
+} from './generated/react-query-client';
 
 export function App() {
   const queryClient = useMemo(() => new QueryClient({}), []);
   const apiClient = useMemo(
-    () =>
-      api.createReactQueryClient({
-        baseURL: import.meta.env.VITE_API_BASE_URL,
-      }),
+    () => createApiClient({ baseURL: import.meta.env.VITE_API_BASE_URL }),
     [],
   );
 
   return (
     <QueryClientProvider client={queryClient}>
-      <api.Provider client={apiClient}>
+      <ApiClientProvider client={apiClient}>
         <UserPage />
-      </api.Provider>
+      </ApiClientProvider>
     </QueryClientProvider>
   );
 }
 --
-import { api } from './generated/react-query-client';
+import { useApiClient } from './generated/react-query-client';
 
 export function UserPage() {
-  // react-query mutation hook
-  const userCreate = api.useUserCreate();
-  const handler = () => userCreate.mutateAsync({ ... });
+  const client = useApiClient();
 
-  // You can also reach for the axios-bound client directly
-  const client = api.useAxios();
-  const handler = () => client.userCreate({ ... });
-  ...
+  // react-query mutation hook on the same bucket
+  const userCreate = client.user.useCreate();
+  const onCreate = () => userCreate.mutateAsync({ ... });
+
+  // imperative axios call lives next to the hook
+  const onPurge = () => client.user.purge();
 }
 ```
 

@@ -1,6 +1,6 @@
 import { EndpointRouterModule } from 'nestjs-endpoints';
 
-// namespace: true → SDK bucket `api.shop.*` (inferred from folder name).
+// namespace: true → SDK bucket `client.shop.*` (inferred from folder name).
 export default EndpointRouterModule.create({
   namespace: true,
   description:

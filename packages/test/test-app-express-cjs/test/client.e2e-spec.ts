@@ -1,6 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import Axios from 'axios';
-import { api } from '../generated/axios-client';
+import { createApiClient } from '../generated/axios-client';
 import { AppModule } from '../src/app.module';
 import { createApp } from './create-app';
 
@@ -11,7 +11,7 @@ describe('generated client', () => {
     }).compile();
     const { app } = await createApp(moduleFixture);
     try {
-      const client = api.createAxiosClient({
+      const client = createApiClient({
         baseURL: await app.getUrl(),
       });
       await expect(client.userGet({ id: 1 })).rejects.toMatchObject({
@@ -51,7 +51,7 @@ describe('generated client', () => {
       const axios = Axios.create({
         baseURL: await app.getUrl(),
       });
-      const client = api.createAxiosClient(axios);
+      const client = createApiClient(axios);
       await expect(client.userGet({ id: 1 })).rejects.toMatchObject({
         response: {
           status: 404,
@@ -84,7 +84,7 @@ describe('generated client', () => {
     }).compile();
     const { app } = await createApp(moduleFixture);
     try {
-      const client = api.createAxiosClient({
+      const client = createApiClient({
         baseURL: await app.getUrl(),
       });
       const { data } = await client.greet({ name: 'Alice' });
@@ -102,7 +102,7 @@ describe('generated client', () => {
       }).compile();
       const { app } = await createApp(moduleFixture);
       try {
-        const client = api.createAxiosClient({
+        const client = createApiClient({
           baseURL: await app.getUrl(),
         });
         // Un-namespaced operation (no router namespace) sits at the root
@@ -130,7 +130,7 @@ describe('generated client', () => {
       }).compile();
       const { app } = await createApp(moduleFixture);
       try {
-        const client = api.createAxiosClient({
+        const client = createApiClient({
           baseURL: await app.getUrl(),
         });
         // Seed a recipe so we have something to address by id.
@@ -174,7 +174,7 @@ describe('generated client', () => {
         const underlying = Axios.create({
           baseURL: await app.getUrl(),
         });
-        const client = api.createAxiosClient(underlying);
+        const client = createApiClient(underlying);
         // .axios must be the exact instance the wrapper is bound to —
         // mutations made on it (defaults, interceptors) apply to every
         // subsequent call, namespaced or flat.

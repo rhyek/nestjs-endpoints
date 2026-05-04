@@ -2,47 +2,56 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { render, renderHook } from '@testing-library/react';
 import Axios from 'axios';
 import React, { useMemo } from 'react';
-import { api } from '../../test-app-express-cjs/generated/react-query-client';
+import {
+  ApiClientProvider,
+  createApiClient,
+  useApiClient,
+  type ApiClient,
+} from '../../test-app-express-cjs/generated/react-query-client';
 
-function withProviders(
-  apiClient: ReturnType<typeof api.createReactQueryClient>,
-) {
+function withProviders(apiClient: ApiClient) {
   return ({ children }: { children: React.ReactNode }) => {
     const queryClient = useMemo(() => new QueryClient(), []);
     return (
       <QueryClientProvider client={queryClient}>
-        <api.Provider client={apiClient}>{children}</api.Provider>
+        <ApiClientProvider client={apiClient}>
+          {children}
+        </ApiClientProvider>
       </QueryClientProvider>
     );
   };
 }
 
-describe('api.useAxios()', () => {
-  test('returns the namespaced shape with `.axios` exposed', () => {
+describe('useApiClient()', () => {
+  test('returns the namespaced shape with `.axios` exposed and hooks alongside axios methods', () => {
     const underlying = Axios.create({ baseURL: 'http://localhost:9999' });
-    const apiClient = api.createReactQueryClient(underlying);
+    const apiClient = createApiClient(underlying);
 
-    const { result } = renderHook(() => api.useAxios(), {
+    const { result } = renderHook(() => useApiClient(), {
       wrapper: withProviders(apiClient),
     });
 
     const client = result.current;
     // `.axios` is the exact axios instance wired into the wrapper.
     expect(client.axios).toBe(underlying);
-    // Namespaced buckets exist and their leaves are callable.
+    // Namespaced buckets carry both axios methods and react-query hooks.
     expect(typeof client.shop.recipes.create).toBe('function');
+    expect(typeof client.shop.recipes.useCreate).toBe('function');
     expect(typeof client.shop.cart.add).toBe('function');
+    expect(typeof client.shop.cart.useAdd).toBe('function');
     expect(typeof client.articles.latest).toBe('function');
-    // Un-namespaced operations sit at root.
+    expect(typeof client.articles.useLatest).toBe('function');
+    // Un-namespaced operations sit at root, also in both forms.
     expect(typeof client.greet).toBe('function');
+    expect(typeof client.useGreet).toBe('function');
   });
 
   test('returned object is memoized across re-renders', () => {
-    const apiClient = api.createReactQueryClient({
+    const apiClient = createApiClient({
       baseURL: 'http://localhost:9999',
     });
 
-    const { result, rerender } = renderHook(() => api.useAxios(), {
+    const { result, rerender } = renderHook(() => useApiClient(), {
       wrapper: withProviders(apiClient),
     });
 
@@ -53,13 +62,13 @@ describe('api.useAxios()', () => {
     expect(second).toBe(first);
   });
 
-  test('rendered under <api.Provider> — nested method is reachable', () => {
-    const apiClient = api.createReactQueryClient({
+  test('rendered under <ApiClientProvider> — nested method is reachable', () => {
+    const apiClient = createApiClient({
       baseURL: 'http://localhost:9999',
     });
 
     function Probe() {
-      const client = api.useAxios();
+      const client = useApiClient();
       // Type-level: `client.shop.cart.add(...)` must compile as a call.
       const call = client.shop.cart.add;
       return (
@@ -71,9 +80,9 @@ describe('api.useAxios()', () => {
 
     const { getByTestId } = render(
       <QueryClientProvider client={new QueryClient()}>
-        <api.Provider client={apiClient}>
+        <ApiClientProvider client={apiClient}>
           <Probe />
-        </api.Provider>
+        </ApiClientProvider>
       </QueryClientProvider>,
     );
     expect(getByTestId('type').textContent).toBe('ok');

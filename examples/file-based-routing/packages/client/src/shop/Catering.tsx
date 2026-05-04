@@ -1,11 +1,12 @@
 import React, { useState } from 'react';
-import { api } from '../generated/react-query-client';
+import { useApiClient } from '../generated/react-query-client';
 
 export function Catering() {
   // `shop/catering/book.endpoint.ts` has no catering/router.module.ts,
   // so `catering` contributes to the URL only. The hook lives on the
-  // parent shop bucket: `api.shop.useCateringBook`.
-  const book = api.shop.useCateringBook();
+  // parent shop bucket: `client.shop.useCateringBook()`.
+  const client = useApiClient();
+  const book = client.shop.useCateringBook();
   const [email, setEmail] = useState('');
   const [date, setDate] = useState('');
 

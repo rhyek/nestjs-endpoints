@@ -17,16 +17,16 @@ const HTTP_METHODS = [
 type ClientType = 'axios' | 'react-query';
 
 /**
- * Two naming shapes are emitted per wrapper:
+ * Each operation is emitted in two forms inside the same namespace
+ * bucket on the wrapper's client object:
  *
- * - `plain` — camelCase identifiers matching the raw methods on the
- *   axios client (e.g. `shopRecipesCreate`). Used both for the
- *   `createAxiosClient` factory's returned object and for the RQ
- *   wrapper's `useAxios()` body, so `api.useAxios()` returns the same
- *   namespaced shape as `api.createAxiosClient(...)`.
- * - `hook` — `use` + PascalCase identifiers matching orval's emitted
- *   React Query hooks (e.g. `useShopRecipesCreate`). Used for the
- *   static `api.*` hook surface on the RQ wrapper.
+ * - `plain`  — camelCase axios method (e.g. `signOut`) bound to the
+ *   client's axios instance.
+ * - `hook`   — `use` + PascalCase React Query hook (e.g. `useSignOut`)
+ *   imported directly from the flat module (it reads its client from
+ *   React context, so it doesn't need to be bound to this instance).
+ *
+ * The axios-only wrapper omits the `hook` form.
  */
 type Shape = 'plain' | 'hook';
 
@@ -39,7 +39,8 @@ type NamespacedOp = {
 };
 
 type BucketNode = {
-  methods: Map<string, NamespacedOp>;
+  /** keyed by propertyName; entries are present in plain and/or hook form */
+  methods: Map<string, { plain?: NamespacedOp; hook?: NamespacedOp }>;
   buckets: Map<string, BucketNode>;
 };
 
@@ -103,6 +104,7 @@ function collectOperations(
 function placeOp(
   root: BucketNode,
   op: NamespacedOp,
+  variant: Shape,
   reservedRootNames: ReadonlySet<string>,
 ) {
   let bucket = root;
@@ -111,7 +113,7 @@ function placeOp(
     if (bucket === root && reservedRootNames.has(segment)) {
       throw new Error(
         `Router namespace segment "${segment}" collides with a reserved ` +
-          `api-object key. Rename the router namespace.`,
+          `client-object key. Rename the router namespace.`,
       );
     }
     let next = bucket.buckets.get(segment);
@@ -131,7 +133,7 @@ function placeOp(
   const { propertyName, sourceName } = op;
   if (isRoot && reservedRootNames.has(propertyName)) {
     throw new Error(
-      `Operation "${sourceName}" collides with a reserved api-object ` +
+      `Operation "${sourceName}" collides with a reserved client-object ` +
         `key "${propertyName}". Rename the endpoint or give the router ` +
         `an explicit namespace so the operation moves into a bucket.`,
     );
@@ -143,24 +145,32 @@ function placeOp(
         `level. Rename the operation or the conflicting router namespace.`,
     );
   }
-  const existing = bucket.methods.get(propertyName);
-  if (existing) {
+  let entry = bucket.methods.get(propertyName);
+  if (!entry) {
+    entry = {};
+    bucket.methods.set(propertyName, entry);
+  }
+  if (entry[variant]) {
     throw new Error(
       `Two operations resolve to the same wrapper property "${propertyName}" ` +
-        `at the same level ("${existing.sourceName}" and "${sourceName}"). ` +
+        `at the same level ("${entry[variant].sourceName}" and "${sourceName}"). ` +
         `Rename one of the endpoints or adjust their namespaces.`,
     );
   }
-  bucket.methods.set(propertyName, op);
+  entry[variant] = op;
 }
 
 function buildBucketRoot(
-  ops: NamespacedOp[],
+  plainOps: NamespacedOp[],
+  hookOps: NamespacedOp[],
   reserved: ReadonlySet<string>,
 ): BucketNode {
   const root = emptyBucket();
-  for (const op of ops) {
-    placeOp(root, op, reserved);
+  for (const op of plainOps) {
+    placeOp(root, op, 'plain', reserved);
+  }
+  for (const op of hookOps) {
+    placeOp(root, op, 'hook', reserved);
   }
   return root;
 }
@@ -178,7 +188,8 @@ function safeKey(name: string): string {
 function serializeBucket(
   bucket: BucketNode,
   indent: string,
-  sourceAccess: (sourceName: string) => string,
+  plainAccess: (sourceName: string) => string,
+  hookAccess: ((sourceName: string) => string) | null,
   chain: string[],
   tagDescriptions: Map<string, string>,
   rootExtras: string[] = [],
@@ -188,10 +199,17 @@ function serializeBucket(
   for (const extra of rootExtras) {
     lines.push(`${inner}${extra},`);
   }
-  for (const [name, op] of bucket.methods) {
-    lines.push(
-      `${inner}${safeKey(name)}: ${sourceAccess(op.sourceName)},`,
-    );
+  for (const [name, entry] of bucket.methods) {
+    if (entry.plain) {
+      lines.push(
+        `${inner}${safeKey(name)}: ${plainAccess(entry.plain.sourceName)},`,
+      );
+    }
+    if (entry.hook && hookAccess) {
+      lines.push(
+        `${inner}${safeKey(name)}: ${hookAccess(entry.hook.sourceName)},`,
+      );
+    }
   }
   for (const [name, child] of bucket.buckets) {
     const childChain = [...chain, name];
@@ -212,7 +230,8 @@ function serializeBucket(
       `${inner}${safeKey(name)}: ${serializeBucket(
         child,
         inner,
-        sourceAccess,
+        plainAccess,
+        hookAccess,
         childChain,
         tagDescriptions,
       )},`,
@@ -235,15 +254,8 @@ function flatImportPath(
   return rel.startsWith('.') ? rel : `./${rel}`;
 }
 
-/** Keys the axios client object (returned by createAxiosClient / useAxios) reserves. */
-const PLAIN_CLIENT_RESERVED: ReadonlySet<string> = new Set(['axios']);
-
-/** Keys the hook-surface `api` root reserves on the RQ wrapper. */
-const HOOK_ROOT_RESERVED: ReadonlySet<string> = new Set([
-  'createReactQueryClient',
-  'Provider',
-  'useAxios',
-]);
+/** Reserved at the root of the namespaced client object. */
+const ROOT_RESERVED: ReadonlySet<string> = new Set(['axios']);
 
 export async function writeNamespacedWrapper(params: {
   document: OpenAPIObject;
@@ -254,10 +266,12 @@ export async function writeNamespacedWrapper(params: {
   const { document, wrapperOutputFile, flatOutputFile, clientType } =
     params;
 
-  // The `plain` tree (camelCase, namespaced buckets) is used by both
-  // wrappers for the axios-bound client surface.
   const plainOps = collectOperations(document, 'plain');
-  const plainRoot = buildBucketRoot(plainOps, PLAIN_CLIENT_RESERVED);
+  const hookOps =
+    clientType === 'react-query'
+      ? collectOperations(document, 'hook')
+      : [];
+  const root = buildBucketRoot(plainOps, hookOps, ROOT_RESERVED);
 
   const tagDescriptions = new Map<string, string>();
   for (const tag of document.tags ?? []) {
@@ -273,76 +287,89 @@ export async function writeNamespacedWrapper(params: {
     ' *',
     ' * The orval-generated flat client lives in the sibling',
     ` * \`${path.basename(flatOutputFile)}\` file; this wrapper is the`,
-    ' * consumer-facing entry point and only exposes the namespaced',
-    ' * `api` object plus the `ApiClient` type.',
+    ' * consumer-facing entry point and exposes only the namespaced',
+    ' * client surface plus the `ApiClient` type.',
     ' */',
   ].join('\n');
 
   let body: string;
   if (clientType === 'react-query') {
-    const hookOps = collectOperations(document, 'hook');
-    const hookRoot = buildBucketRoot(hookOps, HOOK_ROOT_RESERVED);
-
-    // The `useAxios()` hook body: wrap the flat client returned by
-    // useApiClient() into the namespaced/axios shape, memoized on the
-    // underlying client identity so the returned object is stable
-    // across renders.
-    const plainTreeForUseAxios = serializeBucket(
-      plainRoot,
-      '      ',
+    // Both `createApiClient(config)` and `useApiClient()` return the
+    // same namespaced shape: per-namespace buckets each holding the
+    // axios methods (instance-bound) AND the React Query hooks (which
+    // pull their client from React context, so they don't need
+    // per-instance binding).
+    const buildExpr = serializeBucket(
+      root,
+      '    ',
       (src) => `_client.${src}`,
-      [],
-      tagDescriptions,
-      ['axios: _client.axios'],
-    );
-    const useAxiosExpr =
-      `useAxios: () => {\n` +
-      `    const _client = _flat.useApiClient();\n` +
-      `    return _useMemo(() => (${plainTreeForUseAxios}), [_client]);\n` +
-      `  }`;
-
-    const hookTree = serializeBucket(
-      hookRoot,
-      '',
       (src) => `_flat.${src}`,
       [],
       tagDescriptions,
-      [
-        'createReactQueryClient: _flat.createApiClient',
-        'Provider: _flat.ApiClientProvider',
-        useAxiosExpr,
-      ],
+      ['axios: _client.axios'],
     );
-
     body =
-      `import { useMemo as _useMemo } from 'react';\n` +
-      `import * as _flat from '${importPath}';\n` +
+      `import {\n` +
+      `  createElement as _createElement,\n` +
+      `  useMemo as _useMemo,\n` +
+      `  type ReactNode as _ReactNode,\n` +
+      `} from 'react';\n` +
+      `import * as _flat from '${importPath}';\n\n` +
       `export type * from '${importPath}';\n\n` +
-      `export const api = ${hookTree} as const;\n` +
-      `export type ApiClient = ReturnType<typeof api.useAxios>;\n`;
+      `// Hidden link from the public client value back to the underlying\n` +
+      `// flat axios bag, so ApiClientProvider can put the flat client into\n` +
+      `// React context (where the generated hooks read it from).\n` +
+      `const _CLIENT_FLAT = Symbol.for('nestjs-endpoints:flat-client');\n\n` +
+      `const _build = (_client: ReturnType<typeof _flat.createApiClient>) => {\n` +
+      `  const client = ${buildExpr};\n` +
+      `  Object.defineProperty(client, _CLIENT_FLAT, {\n` +
+      `    value: _client,\n` +
+      `    enumerable: false,\n` +
+      `  });\n` +
+      `  return client;\n` +
+      `};\n\n` +
+      `export const createApiClient = (\n` +
+      `  ...args: Parameters<typeof _flat.createApiClient>\n` +
+      `) => _build(_flat.createApiClient(...args));\n\n` +
+      `export type ApiClient = ReturnType<typeof createApiClient>;\n\n` +
+      `export const useApiClient = (): ApiClient => {\n` +
+      `  const _client = _flat.useApiClient();\n` +
+      `  return _useMemo(() => _build(_client), [_client]);\n` +
+      `};\n\n` +
+      `export const ApiClientProvider = ({\n` +
+      `  client,\n` +
+      `  children,\n` +
+      `}: {\n` +
+      `  client: ApiClient;\n` +
+      `  children: _ReactNode;\n` +
+      `}) =>\n` +
+      `  _createElement(\n` +
+      `    _flat.ApiClientContext.Provider,\n` +
+      `    {\n` +
+      `      value: (client as unknown as Record<symbol, ReturnType<typeof _flat.createApiClient>>)[_CLIENT_FLAT],\n` +
+      `    },\n` +
+      `    children,\n` +
+      `  );\n`;
   } else {
-    // The `api.createAxiosClient(config)` factory returns the same
-    // namespaced/axios shape as the RQ wrapper's `useAxios()`.
-    const plainTree = serializeBucket(
-      plainRoot,
+    const buildExpr = serializeBucket(
+      root,
       '    ',
       (src) => `_client.${src}`,
+      null,
       [],
       tagDescriptions,
       ['axios: _client.axios'],
     );
     body =
-      `import { createApiClient as _createApiClient } from '${importPath}';\n` +
+      `import { createApiClient as _createApiClient } from '${importPath}';\n\n` +
       `export type * from '${importPath}';\n\n` +
-      `export const api = {\n` +
-      `  createAxiosClient: (\n` +
-      `    ...args: Parameters<typeof _createApiClient>\n` +
-      `  ) => {\n` +
-      `    const _client = _createApiClient(...args);\n` +
-      `    return ${plainTree} as const;\n` +
-      `  },\n` +
-      `} as const;\n` +
-      `export type ApiClient = ReturnType<typeof api.createAxiosClient>;\n`;
+      `export const createApiClient = (\n` +
+      `  ...args: Parameters<typeof _createApiClient>\n` +
+      `) => {\n` +
+      `  const _client = _createApiClient(...args);\n` +
+      `  return ${buildExpr};\n` +
+      `};\n\n` +
+      `export type ApiClient = ReturnType<typeof createApiClient>;\n`;
   }
 
   await fs.mkdir(path.dirname(wrapperOutputFile), { recursive: true });

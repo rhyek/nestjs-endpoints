@@ -3,7 +3,7 @@ import { RecipesRepository } from '../repository.service';
 
 // File:  shop/recipes/edit/$recipeId.endpoint.ts
 // URL:   PATCH /shop/recipes/edit/:recipeId
-// SDK:   api.shop.recipes.useEdit() — mutate with { recipeId, data: { name } }
+// SDK:   client.shop.recipes.useEdit() — mutate with { recipeId, data: { name } }
 export default endpoint({
   method: 'patch',
   params: z.object({

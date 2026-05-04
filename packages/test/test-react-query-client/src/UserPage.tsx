@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from 'react';
-import { api } from '../../test-app-express-cjs/generated/react-query-client';
+import { useApiClient } from '../../test-app-express-cjs/generated/react-query-client';
 
 export function UserPage() {
-  const { data, error, status, refetch } = api.useUserGet(
+  const apiClient = useApiClient();
+  const { data, error, status, refetch } = apiClient.useUserGet(
     {
       id: 1,
     },
@@ -12,9 +13,8 @@ export function UserPage() {
       },
     },
   );
-  const { mutateAsync: createUser } = api.useUserCreate();
+  const { mutateAsync: createUser } = apiClient.useUserCreate();
 
-  const apiClient = api.useAxios();
   const [purged, setPurged] = useState(false);
   useEffect(() => {
     void (async () => {

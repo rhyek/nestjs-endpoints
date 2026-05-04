@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
-import { api } from '../../test-app-express-cjs/generated/react-query-client';
+import { useApiClient } from '../../test-app-express-cjs/generated/react-query-client';
 
 export function GreetPage() {
+  const apiClient = useApiClient();
   const [name, setName] = useState('');
-  const { data, error, status, refetch } = api.useGreet(
+  const { data, error, status, refetch } = apiClient.useGreet(
     { name },
     {
       query: {
