@@ -1,6 +1,6 @@
 /**
  * Convert a kebab-or-mixed string segment into a PascalCase token so it
- * can be matched against (or stripped from) a flat orval-generated name.
+ * can be matched against (or stripped from) a flat generated client name.
  * Matches the rules used by `getHttpPathPascalName` in helpers.ts.
  */
 function segmentToPascal(segment: string): string {
@@ -10,8 +10,8 @@ function segmentToPascal(segment: string): string {
 }
 
 /**
- * Strip the namespace chain's PascalCase prefix from an orval-generated
- * flat function / hook name. The transform is lenient: if the flat name
+ * Strip the namespace chain's PascalCase prefix from a generated flat
+ * function / hook name. The transform is lenient: if the flat name
  * does not begin with the expected tokens, the original name is returned
  * unchanged.
  *
@@ -37,8 +37,8 @@ export function stripNamespaceFromFlatName(
 
   const hasUsePrefix = /^use[A-Z]/.test(flatName);
   const rawBody = hasUsePrefix ? flatName.slice(3) : flatName;
-  // Orval emits plain fns as camelCase (`userCreate`) and hooks as
-  // `use` + PascalCase (`useUserCreate`). Normalize to PascalCase so a
+  // The generated client emits plain fns as camelCase (`userCreate`) and hooks
+  // as `use` + PascalCase (`useUserCreate`). Normalize to PascalCase so a
   // single prefix-match handles both forms.
   const body = rawBody.charAt(0).toUpperCase() + rawBody.slice(1);
 

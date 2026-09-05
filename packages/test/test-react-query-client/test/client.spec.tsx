@@ -1,9 +1,25 @@
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
+import {
+  ApiClientProvider,
+  createApiClient,
+  useApiClient,
+} from '../../test-app-express-cjs/generated/react-query-client';
 import { App } from '../src/App';
 import { GreetPage } from '../src/GreetPage';
+import { OptionalParamsPage } from '../src/OptionalParamsPage';
 import { UserPage } from '../src/UserPage';
+
+function SpreadGreet() {
+  const api = useApiClient();
+  const { data } = api.useGreet(
+    { name: 'Spread' },
+    { query: { retry: false } },
+  );
+  return <div data-testid="spread-greeting">{data ?? ''}</div>;
+}
 
 describe('Client', () => {
   test('hello world', () => {
@@ -51,6 +67,44 @@ describe('Client', () => {
       expect(await screen.findByTestId('greeting')).toHaveTextContent(
         'Hello, World!',
       );
+    });
+  });
+
+  test('optional-params hook works when called with no arguments', async () => {
+    render(
+      <App>
+        <OptionalParamsPage />
+      </App>,
+    );
+
+    // If the bound client weren't injected (the binding regression), the query
+    // would hit the unbound default client and never resolve to this payload.
+    await vitest.waitFor(async () => {
+      expect(
+        await screen.findByTestId('optional-result'),
+      ).toHaveTextContent('"ok":true');
+    });
+  });
+
+  test('a spread client still carries its context through ApiClientProvider', async () => {
+    const apiClient = createApiClient({
+      baseURL: `http://localhost:${import.meta.env.VITE_WEB_API_PORT}`,
+    });
+    // Spreading copies enumerable own properties, including the hidden context
+    // symbol. A regression to a non-enumerable symbol would drop it here, and
+    // every hook would throw "must be used within an <ApiClientProvider>".
+    const spread = { ...apiClient } as typeof apiClient;
+    render(
+      <QueryClientProvider client={new QueryClient()}>
+        <ApiClientProvider client={spread}>
+          <SpreadGreet />
+        </ApiClientProvider>
+      </QueryClientProvider>,
+    );
+    await vitest.waitFor(async () => {
+      expect(
+        await screen.findByTestId('spread-greeting'),
+      ).toHaveTextContent('Hello, Spread!');
     });
   });
 });

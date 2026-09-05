@@ -1,4 +1,5 @@
 node_modules/
+.DS_Store
 openapi.json
 *.e2e-spec.ts
 !packages/test/test-app-express-cjs/**/*.e2e-spec.ts

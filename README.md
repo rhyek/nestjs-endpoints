@@ -45,7 +45,7 @@ const { data: greeting, error, status } = client.useGreet({ name: 'Satie' });
 - **Module-scoped middleware, interceptors, and guards** — a gap in vanilla NestJS.
 - **Schema validation:** compile- and run-time validation of input and output using Zod.
 - **OpenAPI 3.1.1:** generated via `@nestjs/swagger` + [zod-openapi](https://github.com/samchungy/zod-openapi). Integrated [Scalar](https://scalar.com) doc viewer (Swagger UI as fallback).
-- **End-to-end type safety:** `axios` and `@tanstack/react-query` client libraries auto-generated with [orval](https://orval.dev/).
+- **End-to-end type safety:** `axios` and `@tanstack/react-query` client libraries auto-generated with [Kubb](https://kubb.dev/).
 - **Namespaced SDK:** opt-in router namespaces surface generated hooks and methods as a nested client object that mirrors the router hierarchy (`client.shop.recipes.create(...)` and `client.shop.recipes.useCreate(...)` side by side); each client can be filtered to a subset of namespaces.
 - **Adapter-agnostic:** Express or Fastify; CommonJS or ESM.
 
@@ -387,7 +387,7 @@ const created = client.shop.recipes.useCreate();
 
 ## Codegen (optional)
 
-Generate a type-safe client SDK (axios and/or react-query) from your endpoints. Uses [orval](https://orval.dev/) under the hood and works with both scanned and manually-imported endpoints.
+Generate a type-safe client SDK (axios and/or react-query) from your endpoints. Uses [Kubb](https://kubb.dev/) under the hood and works with both scanned and manually-imported endpoints. The react-query client requires `@tanstack/react-query` >= 5.80.
 
 Optional: install `@scalar/api-reference` to get a [Scalar](https://scalar.com)-powered docs viewer (nicer UI, auto-generated `x-tagGroups`) when you use [`setupCodegen`'s `openapi.ui`](#using-setupcodegen) option. Without it, Swagger UI is used as the fallback.
 
@@ -519,7 +519,7 @@ Each filtered client only ships the types its operations reference. Omit `namesp
 
 ### Manual codegen with OpenAPI spec file
 
-If you only need the OpenAPI spec or want to drive orval (or another tool) yourself:
+If you only need the OpenAPI spec or want to drive your own generator (Kubb, orval, or another tool) yourself:
 
 `src/main.ts`
 
@@ -533,7 +533,7 @@ async function bootstrap() {
     outputFile: process.cwd() + '/openapi.json',
   });
   if (changed) {
-    void import('orval').then(({ generate }) => generate());
+    // Run your OpenAPI generator of choice against ./openapi.json here.
   }
   await app.listen(3000);
 }

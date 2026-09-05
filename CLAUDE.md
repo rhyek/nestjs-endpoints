@@ -8,3 +8,5 @@
     - Other files have specific purposes
   - packages/test/test-react-query-client is meant to test the generated react-query client.
     - You will need to first add code in packages/test/test-react-query-client/src that imports the client queries or mutations, and then add tests in packages/test/test-react-query-client/test
+
+I'll sometimes ask you to look at how i impelmented something in a different project that i worked on in the past or currently. I want stuff i've solved there to help guide solutions for this project. you should never mention the other project by name or the fact there we're referencing any other project in any planning documents whether that's implementation phases, technical design docs, nothing, nor in source code. Especially important that no mention of the other project ever reaches source code as comments or otherwise during implementation.

@@ -194,4 +194,29 @@ describe('generated client', () => {
       }
     },
   );
+
+  test.concurrent(
+    'method with all-optional params is callable with no arguments',
+    async () => {
+      const moduleFixture: TestingModule = await Test.createTestingModule({
+        imports: [AppModule],
+      }).compile();
+      const { app } = await createApp(moduleFixture);
+      try {
+        const client = createApiClient({ baseURL: await app.getUrl() });
+        // Called with NO arguments — the bound client must still be injected
+        // into the (omitted) trailing config, not slid into the optional
+        // `params` slot.
+        await expect(client.optionalParams()).resolves.toMatchObject({
+          data: { ok: true, q: null },
+        });
+        // And still works when the optional params are provided.
+        await expect(
+          client.optionalParams({ q: 'hi' }),
+        ).resolves.toMatchObject({ data: { ok: true, q: 'hi' } });
+      } finally {
+        await app.close();
+      }
+    },
+  );
 });

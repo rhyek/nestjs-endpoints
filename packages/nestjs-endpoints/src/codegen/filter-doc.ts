@@ -1,15 +1,10 @@
 import type { OpenAPIObject } from '@nestjs/swagger';
+import { isHttpMethod } from './http-methods';
 
-const HTTP_METHODS = new Set([
-  'get',
-  'post',
-  'put',
-  'delete',
-  'patch',
-  'head',
-  'options',
-  'trace',
-]);
+type PathItem = Record<string, unknown>;
+type Schemas = NonNullable<
+  NonNullable<OpenAPIObject['components']>['schemas']
+>;
 
 /**
  * Produce a copy of `doc` that contains only operations whose top-level
@@ -27,12 +22,12 @@ export function filterOpenApiDocByNamespaces(
     return doc;
   }
   const allowed = new Set(allowedTopNamespaces);
-  const filteredPaths: Record<string, any> = {};
+  const filteredPaths: Record<string, PathItem> = {};
   for (const [pathKey, pathItem] of Object.entries(doc.paths ?? {})) {
     if (!pathItem || typeof pathItem !== 'object') continue;
-    const keptItem: Record<string, any> = {};
+    const keptItem: PathItem = {};
     for (const [key, value] of Object.entries(pathItem)) {
-      if (!HTTP_METHODS.has(key)) {
+      if (!isHttpMethod(key)) {
         // Carry forward non-operation keys (parameters, summary, etc.).
         keptItem[key] = value;
         continue;
@@ -44,9 +39,7 @@ export function filterOpenApiDocByNamespaces(
       if (typeof top !== 'string' || !allowed.has(top)) continue;
       keptItem[key] = value;
     }
-    const hasOperations = Object.keys(keptItem).some((k) =>
-      HTTP_METHODS.has(k),
-    );
+    const hasOperations = Object.keys(keptItem).some(isHttpMethod);
     if (hasOperations) {
       filteredPaths[pathKey] = keptItem;
     }
@@ -76,7 +69,7 @@ export function filterOpenApiDocByNamespaces(
   };
   walk(filteredPaths);
 
-  const prunedSchemas: Record<string, any> = {};
+  const prunedSchemas: Schemas = {};
   for (const name of reachable) {
     const schema = doc.components?.schemas?.[name];
     if (schema) prunedSchemas[name] = schema;
@@ -84,7 +77,7 @@ export function filterOpenApiDocByNamespaces(
 
   return {
     ...doc,
-    paths: filteredPaths,
+    paths: filteredPaths as OpenAPIObject['paths'],
     components: {
       ...doc.components,
       schemas: prunedSchemas,

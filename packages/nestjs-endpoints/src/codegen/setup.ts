@@ -1,12 +1,14 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { INestApplication } from '@nestjs/common';
-import type { QueryOptions } from 'orval';
 import { setupOpenAPI, SetupOpenAPIOptions } from '../setup-openapi';
-import { axios } from './builder/axios';
-import { reactQuery } from './builder/react-query';
 import { filterOpenApiDocByNamespaces } from './filter-doc';
-import { writeNamespacedWrapper } from './wrapper';
+import {
+  generateAxiosClient,
+  generateReactQueryClient,
+  outputDirFor,
+  type ReactQueryPluginOptions,
+} from './kubb/generate';
 
 export async function setupCodegen(
   app: INestApplication,
@@ -29,7 +31,13 @@ export async function setupCodegen(
         }
       | {
           type: 'react-query';
-          options?: QueryOptions;
+          /**
+           * Forwarded to the underlying `@kubb/plugin-react-query` generator —
+           * customise query/mutation/suspense/infinite generation, query keys,
+           * etc. The `client` option (HTTP-client wiring) is managed by
+           * nestjs-endpoints and is omitted from this type.
+           */
+          options?: ReactQueryPluginOptions;
         }
     ))[];
     /**
@@ -50,120 +58,100 @@ export async function setupCodegen(
           `operations) or list one or more top-level namespace segments.`,
       );
     }
+    if (!path.extname(client.outputFile)) {
+      throw new Error(
+        `setupCodegen: client "outputFile" must include a file extension ` +
+          `(e.g. ".ts" or ".tsx"); got "${client.outputFile}". The generated ` +
+          `tree is written to a sibling directory named after it, so an ` +
+          `extensionless path would collide the wrapper file with its dir.`,
+      );
+    }
   }
 
   const openapiOutputFile =
     params.openapi?.outputFile ??
     path.resolve(__dirname, '__generated-openapi.json');
   if (params.forceGenerate) {
-    // Wipe every artifact this call owns — the openapi file (only when
-    // it's a real file path, not a Writable stream), each client's
-    // wrapper `outputFile`, and its orval-emitted `.flat` sibling — so
-    // the downstream generators start from an empty slate.
-    const filesToRemove: string[] = [];
+    // Wipe every artifact this call owns so the generators start from an empty
+    // slate — the openapi file (only when it's a real path, not a Writable),
+    // each client's wrapper `outputFile`, and its sibling Kubb output directory.
+    const removals: Promise<unknown>[] = [];
+    const ignore = () => {
+      /* ignore if it doesn't exist */
+    };
     if (typeof openapiOutputFile === 'string') {
-      filesToRemove.push(openapiOutputFile);
+      removals.push(fs.unlink(openapiOutputFile).catch(ignore));
     }
     for (const client of params.clients) {
-      filesToRemove.push(
-        client.outputFile,
-        flatPathFor(client.outputFile),
+      removals.push(fs.unlink(client.outputFile).catch(ignore));
+      removals.push(
+        fs
+          .rm(outputDirFor(client.outputFile), {
+            recursive: true,
+            force: true,
+          })
+          .catch(ignore),
       );
     }
-    await Promise.all(
-      filesToRemove.map((f) =>
-        fs.unlink(f).catch(() => {
-          /* ignore if file doesn't exist */
-        }),
-      ),
-    );
+    await Promise.all(removals);
   }
   const { document, changed } = await setupOpenAPI(app, {
     ...params.openapi,
     outputFile: openapiOutputFile,
   });
-  const outputFileExists = await Promise.all(
-    params.clients.map((client) =>
-      fs
-        .stat(client.outputFile)
-        .then(() => true)
-        .catch(() => false),
+  // A client needs (re)generating when its wrapper file OR its sibling output
+  // directory is missing — checking both makes regeneration self-healing if the
+  // generated tree is partially deleted while the openapi doc is unchanged.
+  const pathExists = (p: string) =>
+    fs
+      .stat(p)
+      .then(() => true)
+      .catch(() => false);
+  const outputExists = await Promise.all(
+    params.clients.map(async (client) =>
+      (
+        await Promise.all([
+          pathExists(client.outputFile),
+          pathExists(outputDirFor(client.outputFile)),
+        ])
+      ).every(Boolean),
     ),
   );
-  if (
-    params.forceGenerate ||
-    changed ||
-    outputFileExists.some((exists) => !exists)
-  ) {
-    await import('orval').then(async ({ generate }) => {
-      await Promise.all(
-        params.clients
-          .filter(
-            (_, index) =>
-              params.forceGenerate || changed || !outputFileExists[index],
-          )
-          .map(async (client) => {
-            const filteredDoc = filterOpenApiDocByNamespaces(
-              document,
-              client.namespaces,
-            );
-            const flatOutputFile = flatPathFor(client.outputFile);
+  const shouldRegenerate = (index: number) =>
+    params.forceGenerate || changed || !outputExists[index];
+
+  if (params.clients.some((_, index) => shouldRegenerate(index))) {
+    await Promise.all(
+      params.clients
+        .filter((_, index) => shouldRegenerate(index))
+        .map(async (client) => {
+          const filteredDoc = filterOpenApiDocByNamespaces(
+            document,
+            client.namespaces,
+          );
+          try {
             if (client.type === 'axios') {
-              await generate({
-                input: {
-                  target: filteredDoc as any,
-                },
-                output: {
-                  target: flatOutputFile,
-                  client: axios(),
-                  mode: 'single',
-                  indexFiles: false,
-                },
+              await generateAxiosClient({
+                document: filteredDoc,
+                outputFile: client.outputFile,
               });
-            } else if (client.type === 'react-query') {
-              const queryOptions: QueryOptions = {
-                version: 5,
-                ...client.options,
-              };
-              await generate({
-                input: {
-                  target: filteredDoc as any,
-                },
-                output: {
-                  target: flatOutputFile,
-                  client: reactQuery(),
-                  mode: 'single',
-                  indexFiles: false,
-                  override: {
-                    query: queryOptions,
-                  },
-                },
+            } else {
+              await generateReactQueryClient({
+                document: filteredDoc,
+                outputFile: client.outputFile,
+                options: client.options,
               });
             }
-            await writeNamespacedWrapper({
-              document: filteredDoc,
-              wrapperOutputFile: client.outputFile,
-              flatOutputFile,
-              clientType: client.type,
-            });
-          }),
-      );
-    });
+          } catch (err) {
+            throw new Error(
+              `setupCodegen: failed to generate the ${client.type} client ` +
+                `"${client.outputFile}": ${(err as Error).message}`,
+              { cause: err },
+            );
+          }
+        }),
+    );
   }
 
   return { document };
-}
-
-/**
- * Pick the sibling path orval writes the raw/flat client to. The
- * consumer-facing wrapper file lives at the user's `outputFile`; the
- * flat artifact sits beside it with a `.flat` segment inserted before
- * the extension (e.g., `axios-client.ts` → `axios-client.flat.ts`).
- */
-function flatPathFor(outputFile: string): string {
-  const ext = path.extname(outputFile);
-  if (!ext) {
-    return `${outputFile}.flat`;
-  }
-  return `${outputFile.slice(0, -ext.length)}.flat${ext}`;
 }
