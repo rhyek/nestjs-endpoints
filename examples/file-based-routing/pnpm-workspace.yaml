@@ -1,2 +1,9 @@
 packages:
   - 'packages/*'
+
+# pnpm 11: every package with a build script must be decided explicitly.
+allowBuilds:
+  esbuild: true
+  '@scarf/scarf': false
+  es5-ext: false
+  vue-demi: false
