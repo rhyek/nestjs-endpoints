@@ -2,6 +2,10 @@
 
 ## 4.0.0 (2026-09-05)
 
+### Features
+
+- **`npx nestjs-endpoints init` installs a coding-agent skill** pointing at the full library guide the package now ships at `docs/agents.md`.
+
 ### Fixes
 
 - **`invoke()` on an endpoint with a single `output` schema is now typed as the parsed body**, matching what it has always returned at runtime; it previously claimed to return an `EndpointResponse` wrapper, so `const { id } = await create.invoke(...)` failed to compile. The per-status `output` map form still resolves to the `EndpointResponse` union.

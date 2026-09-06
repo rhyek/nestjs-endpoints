@@ -79,6 +79,14 @@ export default tseslint.config(
     },
   },
   {
+    // The `nestjs-endpoints` bin is the one place in the package that is
+    // supposed to talk to a terminal.
+    files: ['packages/nestjs-endpoints/src/cli.ts'],
+    rules: {
+      'no-console': 'off',
+    },
+  },
+  {
     files: ['packages/test/test-react-query-client/**'],
     rules: {
       'no-console': 'off',

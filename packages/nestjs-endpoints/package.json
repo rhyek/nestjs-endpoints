@@ -25,10 +25,15 @@
   ],
   "files": [
     "src",
-    "dist"
+    "dist",
+    "docs",
+    "assets"
   ],
   "type": "module",
   "types": "./dist/index.d.ts",
+  "bin": {
+    "nestjs-endpoints": "./dist/cli.js"
+  },
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",

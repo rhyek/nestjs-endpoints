@@ -68,6 +68,25 @@ This package is **ESM-only**. CommonJS projects are not supported.
 npm install nestjs-endpoints @nestjs/swagger zod
 ```
 
+### Coding agents
+
+The package ships an agent guide — the complete reference for `endpoint()`,
+file-based routing, routers, namespaces, codegen, and the generated client — at
+`node_modules/nestjs-endpoints/docs/agents.md`.
+
+To install a skill that points your coding agent at it:
+
+```bash
+npx nestjs-endpoints init
+```
+
+This writes `.claude/skills/nestjs-endpoints/SKILL.md` (mirroring into
+`.agents/` and `.cursor/` when those already exist), and rewrites it from the
+current template every time — the file is managed, as its banner says. Re-run it
+after upgrading, or wire `npx nestjs-endpoints init --refresh` into a
+`postinstall` hook: that form rewrites only an unedited skill file that is out of
+date, and is a no-op otherwise.
+
 ## Setup
 
 The idiomatic path is automatic file-based routing; traditional manual imports are also supported, and the two can be mixed.
@@ -491,7 +510,7 @@ export function UserPage() {
 
 More examples:
 
-- [axios](https://github.com/rhyek/nestjs-endpoints/blob/f9fc77c0af9439e35e2ed3f26aa3e645795ed44f/packages/test/test-app-express-cjs/test/client.e2e-spec.ts#L15)
+- [axios](https://github.com/rhyek/nestjs-endpoints/blob/main/packages/test/test-app-express/test/client.e2e-spec.ts)
 - [react-query](https://github.com/rhyek/nestjs-endpoints/tree/main/packages/test/test-react-query-client)
 
 ### Per-client namespace filter
