@@ -7,7 +7,7 @@ import {
   createApiClient,
   useApiClient,
   type ApiClient,
-} from '../../test-app-express-cjs/generated/react-query-client';
+} from '../../test-app-express/generated/react-query-client';
 
 function withProviders(apiClient: ApiClient) {
   return ({ children }: { children: React.ReactNode }) => {

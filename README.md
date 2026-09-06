@@ -47,7 +47,7 @@ const { data: greeting, error, status } = client.useGreet({ name: 'Satie' });
 - **OpenAPI 3.1.1:** generated via `@nestjs/swagger` + [zod-openapi](https://github.com/samchungy/zod-openapi). Integrated [Scalar](https://scalar.com) doc viewer (Swagger UI as fallback).
 - **End-to-end type safety:** `axios` and `@tanstack/react-query` client libraries auto-generated with [Kubb](https://kubb.dev/).
 - **Namespaced SDK:** opt-in router namespaces surface generated hooks and methods as a nested client object that mirrors the router hierarchy (`client.shop.recipes.create(...)` and `client.shop.recipes.useCreate(...)` side by side); each client can be filtered to a subset of namespaces.
-- **Adapter-agnostic:** Express or Fastify; CommonJS or ESM.
+- **Adapter-agnostic:** Express or Fastify.
 
 ## Example
 
@@ -55,8 +55,12 @@ Full runnable example [here](./examples/file-based-routing) — NestJS API with 
 
 ## Requirements
 
-- Node.js >= 20
+- Node.js >= 24
+- NestJS >= 12
+- TypeScript >= 6
 - Zod >= 4.1
+
+This package is **ESM-only**. CommonJS projects are not supported.
 
 ## Installation
 
@@ -252,7 +256,7 @@ Router-level rules:
 
 Endpoint-file rules:
 
-- Filenames must either end in `.endpoint.ts` or be `endpoint.ts` (`js`, `cjs`, `mjs`, `mts` also supported)
+- Filenames must either end in `.endpoint.ts` or be `endpoint.ts` (`js`, `mjs`, `mts` also supported)
 - Path segments that begin with an underscore (`_`) are removed
 - Path parameters: a `$`-prefixed segment becomes a `:param` (TanStack Router-style)
 - A `.` inside one filename or folder splits it into multiple URL segments

@@ -3,7 +3,7 @@ import React, { useMemo } from 'react';
 import {
   ApiClientProvider,
   createApiClient,
-} from '../../test-app-express-cjs/generated/react-query-client';
+} from '../../test-app-express/generated/react-query-client';
 import { UserPage } from './UserPage';
 
 interface AppProps {

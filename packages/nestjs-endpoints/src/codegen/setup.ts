@@ -1,14 +1,14 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { INestApplication } from '@nestjs/common';
-import { setupOpenAPI, SetupOpenAPIOptions } from '../setup-openapi';
-import { filterOpenApiDocByNamespaces } from './filter-doc';
+import { setupOpenAPI, SetupOpenAPIOptions } from '../setup-openapi.js';
+import { filterOpenApiDocByNamespaces } from './filter-doc.js';
 import {
   generateAxiosClient,
   generateReactQueryClient,
   outputDirFor,
   type ReactQueryPluginOptions,
-} from './kubb/generate';
+} from './kubb/generate.js';
 
 export async function setupCodegen(
   app: INestApplication,
@@ -70,7 +70,7 @@ export async function setupCodegen(
 
   const openapiOutputFile =
     params.openapi?.outputFile ??
-    path.resolve(__dirname, '__generated-openapi.json');
+    path.resolve(import.meta.dirname, '__generated-openapi.json');
   if (params.forceGenerate) {
     // Wipe every artifact this call owns so the generators start from an empty
     // slate — the openapi file (only when it's a real path, not a Writable),

@@ -4,15 +4,15 @@ export {
   decorated,
   schema,
   EndpointResponse,
-} from './endpoint-fn';
+} from './endpoint-fn.js';
 export {
   ZodValidationException,
   ZodSerializationException,
-} from './exceptions';
-export * from './helpers';
-export * from './setup-openapi';
-export * from './codegen';
+} from './exceptions.js';
+export * from './helpers.js';
+export * from './setup-openapi.js';
+export * from './codegen/index.js';
 export {
   EndpointRouterModule,
   EndpointsRouterModule,
-} from './endpoint-router.module';
+} from './endpoint-router.module.js';

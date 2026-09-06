@@ -10,7 +10,8 @@ import {
 import callsites from 'callsites';
 import { z, ZodPipe, ZodTransform } from 'zod';
 import { createSchema } from 'zod-openapi';
-import { zodToOpenApi } from './zod-to-openapi';
+import { callsiteFileToPath } from './callsite.js';
+import { zodToOpenApi } from './zod-to-openapi.js';
 
 function isDirPathSegment(dir: string) {
   const segment = path.basename(dir);
@@ -110,9 +111,7 @@ export function getHttpPathPascalName(httpPath: string) {
 
 export const ApiQueries = <
   T extends
-    | z.ZodObject
-    | z.ZodPipe<z.ZodObject>
-    | z.ZodPipe<any, z.ZodObject>,
+    z.ZodObject | z.ZodPipe<z.ZodObject> | z.ZodPipe<any, z.ZodObject>,
 >(
   zodObject: T,
 ) => {
@@ -156,9 +155,7 @@ export const ApiQueries = <
 
 export const ApiParams = <
   T extends
-    | z.ZodObject
-    | z.ZodPipe<z.ZodObject>
-    | z.ZodPipe<any, z.ZodObject>,
+    z.ZodObject | z.ZodPipe<z.ZodObject> | z.ZodPipe<any, z.ZodObject>,
 >(
   zodObject: T,
 ) => {
@@ -209,11 +206,11 @@ export function getCallsiteFile() {
   if (!callsite) {
     throw new Error('Callsite not found');
   }
-  const result = callsite.getFileName()?.replace(/^file:\/\//, '');
-  if (!result) {
+  const fileName = callsite.getFileName();
+  if (!fileName) {
     throw new Error('Callsite file not found');
   }
-  return result;
+  return callsiteFileToPath(fileName);
 }
 
 export const moduleAls = new AsyncLocalStorage<{

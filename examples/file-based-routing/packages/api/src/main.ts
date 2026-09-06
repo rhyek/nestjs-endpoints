@@ -7,7 +7,10 @@ async function bootstrap() {
   const app = await NestFactory.create(AppModule);
   app.enableCors({ origin: '*' });
 
-  const clientDir = path.resolve(__dirname, '../../client/src/generated');
+  const clientDir = path.resolve(
+    import.meta.dirname,
+    '../../client/src/generated',
+  );
   await setupCodegen(app, {
     openapi: {
       // optional. setting so the openapi doc is visible.

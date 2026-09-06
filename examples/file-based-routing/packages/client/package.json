@@ -3,19 +3,20 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "vite"
+    "dev": "vite",
+    "tscheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@tanstack/react-query": "^5.101.0",
-    "axios": "^1.7.9",
-    "react": "^19.1.0",
-    "react-dom": "^19.1.0"
+    "@tanstack/react-query": "^5.102.8",
+    "axios": "^1.20.0",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8"
   },
   "devDependencies": {
-    "@types/react": "^19.1.0",
-    "@types/react-dom": "^19.1.1",
-    "@vitejs/plugin-react": "^4.3.4",
-    "typescript": "^5.7.3",
-    "vite": "^6.2.5"
+    "@types/react": "^19.2.18",
+    "@types/react-dom": "^19.2.7",
+    "@vitejs/plugin-react": "^6.1.1",
+    "typescript": "^6.0.3",
+    "vite": "^8.2.2"
   }
 }

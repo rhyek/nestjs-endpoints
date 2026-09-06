@@ -7,8 +7,8 @@
  * expressions.
  */
 import type { OpenAPIObject } from '@nestjs/swagger';
-import { HTTP_METHODS } from '../http-methods';
-import { stripNamespaceFromFlatName } from './name-transform';
+import { HTTP_METHODS } from '../http-methods.js';
+import { stripNamespaceFromFlatName } from './name-transform.js';
 
 /**
  * Each operation is emitted in one of two forms inside its namespace bucket on

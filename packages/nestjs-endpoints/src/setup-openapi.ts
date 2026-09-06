@@ -9,8 +9,8 @@ import {
   SwaggerCustomOptions,
   SwaggerModule,
 } from '@nestjs/swagger';
-import { settings } from './consts';
-import { getCallsiteFile } from './helpers';
+import { settings } from './consts.js';
+import { getCallsiteFile } from './helpers.js';
 
 export type SetupOpenAPIOptions = {
   configure?: (documentBuilder: DocumentBuilder) => void;
@@ -119,7 +119,7 @@ export async function setupOpenAPI(
         options.ui.path,
         app,
         document,
-        options.ui.options as SwaggerCustomOptions | undefined,
+        options.ui.options,
       );
     }
   }
@@ -163,7 +163,7 @@ export async function setupOpenAPI(
  */
 function findScalarBundle(): string | null {
   try {
-    const req = createRequire(path.join(__dirname, 'package.json'));
+    const req = createRequire(import.meta.url);
     const entry = req.resolve('@scalar/api-reference');
     let dir = path.dirname(entry);
     while (true) {

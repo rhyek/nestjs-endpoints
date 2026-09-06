@@ -1,27 +1,29 @@
 {
   "name": "api",
   "private": true,
+  "type": "module",
   "scripts": {
     "dev": "tsx watch --clear-screen=false src/main.ts",
-    "test": "vitest run"
+    "test": "vitest run",
+    "tscheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@nestjs/common": "^11.0.13",
-    "@nestjs/core": "^11.0.13",
-    "@nestjs/platform-express": "^11.0.13",
-    "@nestjs/swagger": "^11.1.1",
-    "@scalar/api-reference": "^1.52.3",
+    "@nestjs/common": "^12.0.1",
+    "@nestjs/core": "^12.0.1",
+    "@nestjs/platform-express": "^12.0.1",
+    "@nestjs/swagger": "^12.0.1",
+    "@scalar/api-reference": "^1.67.0",
     "nestjs-endpoints": "file:../../../../packages/nestjs-endpoints",
-    "reflect-metadata": "0.1.14",
-    "rxjs": "^7.8.1",
-    "zod": "^4.1.5"
+    "reflect-metadata": "^0.2.2",
+    "rxjs": "^7.8.2",
+    "zod": "^4.5.4"
   },
   "devDependencies": {
-    "@nestjs/testing": "^11.0.13",
-    "@types/node": "^22.13.1",
-    "axios": "^1.7.9",
-    "tsx": "^4.19.3",
-    "typescript": "^5.7.3",
-    "vitest": "^3.2.4"
+    "@nestjs/testing": "^12.0.1",
+    "@types/node": "^24.13.3",
+    "axios": "^1.20.0",
+    "tsx": "^4.23.13",
+    "typescript": "^6.0.3",
+    "vitest": "^5.0.0"
   }
 }

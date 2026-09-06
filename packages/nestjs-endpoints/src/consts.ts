@@ -1,7 +1,6 @@
-export const endpointFileRegex = /\bendpoint\.(js|ts|mjs|cjs|mts)$/;
+export const endpointFileRegex = /\bendpoint\.(js|ts|mjs|mts)$/;
 
-export const routerModuleFileRegex =
-  /\brouter\.module\.(js|ts|mjs|cjs|mts)$/;
+export const routerModuleFileRegex = /\brouter\.module\.(js|ts|mjs|mts)$/;
 
 export const settings: {
   endpoints: {

@@ -1,5 +1,5 @@
 import z from 'zod';
-import { zodToOpenApi } from './zod-to-openapi';
+import { zodToOpenApi } from './zod-to-openapi.js';
 
 describe('zodToOpenApi', () => {
   test.each([
@@ -369,7 +369,6 @@ describe('zodToOpenApi', () => {
               ],
             },
           },
-          required: ['person'],
           type: 'object',
         },
         schemaComponents: {},

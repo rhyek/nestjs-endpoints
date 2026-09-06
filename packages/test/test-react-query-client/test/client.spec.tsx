@@ -6,7 +6,7 @@ import {
   ApiClientProvider,
   createApiClient,
   useApiClient,
-} from '../../test-app-express-cjs/generated/react-query-client';
+} from '../../test-app-express/generated/react-query-client';
 import { App } from '../src/App';
 import { GreetPage } from '../src/GreetPage';
 import { OptionalParamsPage } from '../src/OptionalParamsPage';
@@ -93,7 +93,7 @@ describe('Client', () => {
     // Spreading copies enumerable own properties, including the hidden context
     // symbol. A regression to a non-enumerable symbol would drop it here, and
     // every hook would throw "must be used within an <ApiClientProvider>".
-    const spread = { ...apiClient } as typeof apiClient;
+    const spread = { ...apiClient };
     render(
       <QueryClientProvider client={new QueryClient()}>
         <ApiClientProvider client={spread}>

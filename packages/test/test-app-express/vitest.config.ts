@@ -1,4 +1,4 @@
-import path from 'path';
+import path from 'node:path';
 import swc from 'unplugin-swc';
 import tsconfigPaths from 'vite-tsconfig-paths';
 import { defineConfig } from 'vitest/config';
@@ -6,8 +6,15 @@ import { defineConfig } from 'vitest/config';
 export default defineConfig({
   test: {
     globals: true,
-    root: path.resolve(__dirname, '../../../'),
-    include: [`${path.resolve(__dirname, 'test')}/**/*.e2e-spec.ts`],
+    // vitest 5 turned `clearMocks` on by default, which runs
+    // `vi.clearAllMocks()` before every test. The suites here are
+    // `concurrent`, so that clears the call history of spies belonging to
+    // tests that are still in flight.
+    clearMocks: false,
+    root: path.resolve(import.meta.dirname, '../../../'),
+    include: [
+      `${path.resolve(import.meta.dirname, 'test')}/**/*.e2e-spec.ts`,
+    ],
   },
   plugins: [
     // This is required to build the test files with SWC

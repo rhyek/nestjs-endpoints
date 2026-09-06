@@ -10,11 +10,8 @@ export default tseslint.config(
     ignores: [
       '**/node_modules',
       '**/dist',
-      'examples/**/generated',
-      'packages/test-endpoints-module/*',
-      '!packages/test-endpoints-module/test-app-express-cjs/',
-      'packages/test-endpoints-router-module/*',
-      '!packages/test-endpoints-router-module/test-app-express-cjs/',
+      // Codegen output — every test app has one, not just the examples.
+      '**/generated',
     ],
   },
   eslint.configs.recommended,

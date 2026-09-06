@@ -3,6 +3,7 @@
   "private": true,
   "scripts": {
     "dev": "pnpm -r --parallel run dev",
-    "test": "pnpm --filter api test"
+    "test": "pnpm --filter api test",
+    "tscheck": "pnpm -r run tscheck"
   }
 }

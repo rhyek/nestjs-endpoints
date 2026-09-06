@@ -1,5 +1,5 @@
 import type { OpenAPIObject } from '@nestjs/swagger';
-import { buildClientObjectExpression } from './buckets';
+import { buildClientObjectExpression } from './buckets.js';
 
 /**
  * Build the consumer-facing axios wrapper source. It imports the Kubb-generated

@@ -1,15 +1,15 @@
 import path from 'node:path';
 import type { UserConfig } from '@kubb/core';
 import type { OpenAPIObject } from '@nestjs/swagger';
-import { emitPlugin } from './emit-plugin';
+import { emitPlugin } from './emit-plugin.js';
 import {
   AXIOS_CLIENT_RUNTIME_SOURCE,
   REACT_QUERY_CLIENT_RUNTIME_SOURCE,
-} from './runtime';
+} from './runtime.js';
 import {
   buildAxiosWrapperSource,
   buildReactQueryWrapperSource,
-} from './wrapper';
+} from './wrapper.js';
 
 /**
  * Options forwarded to `@kubb/plugin-react-query` (the public `options` field on

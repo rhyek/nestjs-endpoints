@@ -4,5 +4,6 @@ packages:
   # Self-contained, copy-pasteable showcases live under examples/ and
   # are intentionally excluded from this workspace.
   - '!examples/**'
-overrides:
-  'reflect-metadata': '0.1.14'
+# NOTE: dependency overrides live in the root package.json under `pnpm.overrides`.
+# An `overrides:` block here is only read by pnpm >= 10, and .tool-versions pins
+# pnpm 9 -- one here would be silently ignored.

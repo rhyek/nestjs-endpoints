@@ -1,6 +1,6 @@
 import type { OpenAPIObject } from '@nestjs/swagger';
 import { describe, expect, test } from 'vitest';
-import { buildClientObjectExpression } from './buckets';
+import { buildClientObjectExpression } from './buckets.js';
 
 /** Build a minimal OpenAPI document from a `paths` map for the bucket builder. */
 function doc(paths: Record<string, unknown>): OpenAPIObject {

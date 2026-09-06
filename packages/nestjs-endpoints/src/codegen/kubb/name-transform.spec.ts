@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import { stripNamespaceFromFlatName } from './name-transform';
+import { stripNamespaceFromFlatName } from './name-transform.js';
 
 describe('stripNamespaceFromFlatName', () => {
   test('returns the flat name unchanged when chain is empty', () => {

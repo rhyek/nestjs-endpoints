@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { useApiClient } from '../../test-app-express-cjs/generated/react-query-client';
+import { useApiClient } from '../../test-app-express/generated/react-query-client';
 
 export function UserPage() {
   const apiClient = useApiClient();

@@ -23,11 +23,11 @@ import {
   ApiResponse,
 } from '@nestjs/swagger';
 import { z, ZodNull, ZodNullable, ZodType } from 'zod';
-import { settings } from './consts';
+import { settings } from './consts.js';
 import {
   ZodSerializationException,
   ZodValidationException,
-} from './exceptions';
+} from './exceptions.js';
 import {
   ApiParams,
   ApiQueries,
@@ -35,17 +35,11 @@ import {
   getEndpointHttpPath,
   getHttpPathPascalName,
   moduleAls,
-} from './helpers';
-import { zodToOpenApi } from './zod-to-openapi';
+} from './helpers.js';
+import { zodToOpenApi } from './zod-to-openapi.js';
 
 type HttpMethod =
-  | 'get'
-  | 'post'
-  | 'put'
-  | 'delete'
-  | 'patch'
-  | 'head'
-  | 'options';
+  'get' | 'post' | 'put' | 'delete' | 'patch' | 'head' | 'options';
 
 const httpMethodDecorators = {
   get: Get,
@@ -88,10 +82,7 @@ export function schema<S extends Schema>(
   return new SchemaDef<S>(schema, spec?.description);
 }
 type OutputSchemaUnion =
-  | Schema
-  | SchemaDef
-  | Record<number, Schema | SchemaDef>
-  | undefined;
+  Schema | SchemaDef | Record<number, Schema | SchemaDef> | undefined;
 
 type OutputMap<OS extends OutputSchemaUnion> = OS extends undefined
   ? never
@@ -127,13 +118,50 @@ type OutputMapResponseUnion<OS extends OutputSchemaUnion> = {
   >;
 }[keyof OutputMap<OS> & number];
 
+/**
+ * A body as it is *surfaced*, after the output schema has parsed it — so a
+ * `.transform()` has already been applied. The mirror image of
+ * `OutputMapValue`, which describes what a handler may hand *in*
+ * (pre-transform).
+ */
+type OutputMapBody<
+  OS extends OutputSchemaUnion,
+  K extends OutputMapKey<OS>,
+> = OS extends undefined
+  ? any
+  : OutputMap<OS>[K] extends Schema
+    ? z.output<OutputMap<OS>[K]>
+    : never;
+
+type InvokeResponseUnion<OS extends OutputSchemaUnion> = {
+  [Status in OutputMapKey<OS>]: EndpointResponse<
+    Status,
+    OutputMapBody<OS, Status>
+  >;
+}[keyof OutputMap<OS> & number];
+
+/**
+ * What `invoke()` resolves to, mirroring what it actually returns.
+ *
+ * A handler that returns an explicit `response(...)` has its
+ * `EndpointResponse` passed straight through; a handler that returns a plain
+ * value has the parsed body returned instead. Only the per-status map form
+ * obliges a handler to return a response, so that form resolves to the
+ * response union and the single-schema form resolves to the body.
+ */
+type InvokeReturn<OS extends OutputSchemaUnion> = OS extends undefined
+  ? any
+  : OS extends Schema | SchemaDef
+    ? z.output<ExtractSchemaFromSchemaDef<OS>>
+    : OS extends Record<number, Schema | SchemaDef>
+      ? InvokeResponseUnion<OS>
+      : never;
+
 type HandlerMethod<
   InjectProviders extends
-    | Record<string, Type<any> | WithDecorator<any>>
-    | undefined = undefined,
+    Record<string, Type<any> | WithDecorator<any>> | undefined = undefined,
   InjectOnRequestParameters extends
-    | Record<string, WithDecorator<any>>
-    | undefined = undefined,
+    Record<string, WithDecorator<any>> | undefined = undefined,
   InputSchema extends Schema | SchemaDef | undefined = undefined,
   ParamsSchema extends Schema | SchemaDef | undefined = undefined,
   OutputSchema extends OutputSchemaUnion = undefined,
@@ -141,9 +169,9 @@ type HandlerMethod<
   params: (InjectProviders extends undefined
     ? object
     : {
-        [p in keyof InjectProviders]: InjectProviders[p] extends WithDecorator<
-          infer ParameterType
-        >
+        [
+          p in keyof InjectProviders
+        ]: InjectProviders[p] extends WithDecorator<infer ParameterType>
           ? ParameterType
           : InjectProviders[p] extends Type<infer ParameterType>
             ? ParameterType
@@ -152,7 +180,9 @@ type HandlerMethod<
     (InjectOnRequestParameters extends undefined
       ? object
       : {
-          [p in keyof InjectOnRequestParameters]: InjectOnRequestParameters[p] extends WithDecorator<
+          [
+            p in keyof InjectOnRequestParameters
+          ]: InjectOnRequestParameters[p] extends WithDecorator<
             infer ParameterType
           >
             ? ParameterType
@@ -222,30 +252,28 @@ type InvokeMethod<
   OutputSchema extends OutputSchemaUnion = undefined,
 > = InputSchema extends undefined
   ? ParamsSchema extends undefined
-    ? () => MaybePromise<OutputMapResponseUnion<OutputSchema>>
+    ? () => MaybePromise<InvokeReturn<OutputSchema>>
     : (
         opts: InvokeOptions<ParamsSchema>,
-      ) => MaybePromise<OutputMapResponseUnion<OutputSchema>>
+      ) => MaybePromise<InvokeReturn<OutputSchema>>
   : ParamsSchema extends undefined
     ? (
         rawInput: z.input<
           ExtractSchemaFromSchemaDef<NonNullable<InputSchema>>
         >,
-      ) => MaybePromise<OutputMapResponseUnion<OutputSchema>>
+      ) => MaybePromise<InvokeReturn<OutputSchema>>
     : (
         rawInput: z.input<
           ExtractSchemaFromSchemaDef<NonNullable<InputSchema>>
         >,
         opts: InvokeOptions<ParamsSchema>,
-      ) => MaybePromise<OutputMapResponseUnion<OutputSchema>>;
+      ) => MaybePromise<InvokeReturn<OutputSchema>>;
 
 type EndpointControllerClass<
   InjectProviders extends
-    | Record<string, Type<any> | WithDecorator<any>>
-    | undefined = undefined,
+    Record<string, Type<any> | WithDecorator<any>> | undefined = undefined,
   InjectOnRequestParameters extends
-    | Record<string, WithDecorator<any>>
-    | undefined = undefined,
+    Record<string, WithDecorator<any>> | undefined = undefined,
   InputSchema extends Schema | SchemaDef | undefined = undefined,
   ParamsSchema extends Schema | SchemaDef | undefined = undefined,
   OutputSchema extends OutputSchemaUnion = undefined,
@@ -267,11 +295,9 @@ type EndpointControllerClass<
 
 export function endpoint<
   InjectProviders extends
-    | Record<string, Type<any> | WithDecorator<any>>
-    | undefined = undefined,
+    Record<string, Type<any> | WithDecorator<any>> | undefined = undefined,
   InjectOnRequestParameters extends
-    | Record<string, WithDecorator<any>>
-    | undefined = undefined,
+    Record<string, WithDecorator<any>> | undefined = undefined,
   InputSchema extends Schema | SchemaDef | undefined = undefined,
   ParamsSchema extends Schema | SchemaDef | undefined = undefined,
   OutputSchema extends OutputSchemaUnion = undefined,

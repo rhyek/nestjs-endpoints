@@ -57,12 +57,16 @@ test('can test controllers directly without http pipeline', async () => {
       ],
     });
   }
-  await expect(
-    userCreate.invoke({
-      name: 'John',
-      email: 'john@example.com',
-    }),
-  ).resolves.toEqual({ id: 1 });
+  const created = await userCreate.invoke({
+    name: 'John',
+    email: 'john@example.com',
+  });
+  expect(created).toEqual({ id: 1 });
+  // Type-level gate: an endpoint with a single `output` schema resolves to
+  // the parsed body, not an `EndpointResponse` wrapper. `tscheck` fails if
+  // that regresses, which `.resolves.toEqual()` alone would not catch.
+  const createdId: number = created.id;
+  expect(createdId).toBe(1);
   expect(userRepository.findAll()).toEqual([
     { id: 1, name: 'John', email: 'john@example.com' },
   ]);

@@ -9,10 +9,9 @@
     "experimentalDecorators": true,
     "sourceMap": true,
     "outDir": "./dist",
-    "baseUrl": "./",
     "skipLibCheck": true,
     "strict": true,
     "noImplicitAny": true,
-    "types": ["vitest/globals"]
+    "types": ["node", "vitest/globals"]
   }
 }

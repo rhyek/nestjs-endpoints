@@ -1,5 +1,21 @@
 # Changelog
 
+## 4.0.0 (2026-09-05)
+
+### Fixes
+
+- **`invoke()` on an endpoint with a single `output` schema is now typed as the parsed body**, matching what it has always returned at runtime; it previously claimed to return an `EndpointResponse` wrapper, so `const { id } = await create.invoke(...)` failed to compile. The per-status `output` map form still resolves to the `EndpointResponse` union.
+- **Router middleware no longer emits `LegacyRouteConverter` deprecation warnings on NestJS 12.**
+- **File-based routing now works when the project path contains a space**, and on Windows.
+- **A `.nullish().default(...)` field wrapped in `z.preprocess(...)` is no longer marked `required`** in the generated OpenAPI document, matching the same field declared without `preprocess`.
+
+### Breaking changes
+
+- **This package is now ESM-only.** Set `"type": "module"` in your project; CommonJS is no longer supported.
+- **NestJS >= 12 is required.** Run `nest upgrade` to migrate.
+- **Node.js >= 24 is required.**
+- **TypeScript >= 6 is required.**
+
 ## 3.0.0 (2026-04-19)
 
 ### Features

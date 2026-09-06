@@ -1,5 +1,5 @@
 import type { OpenAPIObject } from '@nestjs/swagger';
-import { isHttpMethod } from './http-methods';
+import { isHttpMethod } from './http-methods.js';
 
 type PathItem = Record<string, unknown>;
 type Schemas = NonNullable<
@@ -77,7 +77,7 @@ export function filterOpenApiDocByNamespaces(
 
   return {
     ...doc,
-    paths: filteredPaths as OpenAPIObject['paths'],
+    paths: filteredPaths,
     components: {
       ...doc.components,
       schemas: prunedSchemas,

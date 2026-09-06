@@ -1,6 +1,6 @@
 import type { ZodType } from 'zod';
 import { createSchema } from 'zod-openapi';
-import { openApiVersion, settings } from './consts';
+import { openApiVersion, settings } from './consts.js';
 
 export function zodToOpenApi(params: {
   schema: ZodType;
