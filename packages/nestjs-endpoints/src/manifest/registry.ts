@@ -1,6 +1,7 @@
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { DEFAULT_IMPORT_EXTENSION, ImportExtension } from './render.js';
+import { syncManifest } from './sync.js';
 
 export type EndpointManifestLoader = () => Promise<unknown>;
 
@@ -44,8 +45,12 @@ export function registerEndpointManifest(
   definition: EndpointManifestDefinition,
 ): void {
   const file = fileURLToPath(url);
-  const keys = Object.keys(definition.files);
-  registry.set(file, createManifest(file, definition, keys));
+  const loadableKeys = syncManifest(
+    file,
+    Object.keys(definition.files),
+    definition.importExtension ?? DEFAULT_IMPORT_EXTENSION,
+  );
+  registry.set(file, createManifest(file, definition, loadableKeys));
 }
 
 /**

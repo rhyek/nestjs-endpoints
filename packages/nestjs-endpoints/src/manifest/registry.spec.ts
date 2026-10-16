@@ -6,6 +6,11 @@ import {
   registerEndpointManifest,
 } from './registry.js';
 
+// Lookup only: keeping files in sync is covered by sync.spec.ts.
+vi.mock('./sync.js', () => ({
+  syncManifest: (_file: string, keys: readonly string[]) => keys,
+}));
+
 const loader = () => Promise.resolve({});
 
 describe('createManifest', () => {

@@ -537,7 +537,8 @@ function missingManifestMessage(rootDirectory: string): string {
   const shown = path.relative(process.cwd(), rootDirectory) || '.';
   return [
     `nestjs-endpoints: no endpoint manifest covers "${shown}".`,
-    `File-based routing loads endpoint files through a generated ${MANIFEST_FILE_NAME} that the app imports once.`,
+    `File-based routing loads endpoint files through a generated ${MANIFEST_FILE_NAME}, which must be imported before Nest builds the module.`,
     `Create it with \`npx nestjs-endpoints init\` (or \`npx nestjs-endpoints generate\`), then import it from your app module: import './endpoints.gen.js';`,
+    `A test that imports a router module without the app module imports it too, or lists it in Vitest's \`setupFiles\`. Importing it loads no endpoints.`,
   ].join('\n');
 }
