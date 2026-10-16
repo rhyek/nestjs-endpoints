@@ -12,6 +12,9 @@ export default tseslint.config(
       '**/dist',
       // Codegen output — every test app has one, not just the examples.
       '**/generated',
+      // Endpoint manifests: rewritten by the app as endpoint files come and
+      // go, so they stay in the generator's own format.
+      '**/endpoints.gen.ts',
     ],
   },
   eslint.configs.recommended,
