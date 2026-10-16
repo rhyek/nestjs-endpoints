@@ -8,26 +8,32 @@ import {
 } from './render.js';
 
 /**
- * Writes the manifest atomically (temp file, then rename), so a process
- * importing it — or another process writing it at the same moment, like
- * parallel test workers — never sees half a file.
+ * Writes the manifest unless the file already says exactly that — a needless
+ * write still restarts watchers. Atomically (temp file, then rename), so a
+ * process importing it, or another writing it at the same moment like
+ * parallel test workers, never sees half a file. Returns whether it wrote.
  */
 export function writeManifest(
   file: string,
   keys: readonly string[],
   importExtension: ImportExtension,
-): void {
+): boolean {
+  const content = renderManifest(keys, importExtension);
+  if (fs.existsSync(file) && fs.readFileSync(file, 'utf8') === content) {
+    return false;
+  }
   const temp = path.join(
     path.dirname(file),
     `.${path.basename(file)}.${crypto.randomUUID()}.tmp`,
   );
-  fs.writeFileSync(temp, renderManifest(keys, importExtension));
+  fs.writeFileSync(temp, content);
   try {
     fs.renameSync(temp, file);
   } catch (error) {
     fs.rmSync(temp, { force: true });
     throw error;
   }
+  return true;
 }
 
 /**

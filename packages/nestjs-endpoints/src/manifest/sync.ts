@@ -57,20 +57,25 @@ export function syncManifest(
   }
   const scanned = scanRoutingFiles(path.dirname(sourceFile));
   const diff = diffKeys(declaredKeys, scanned);
-  if (diff && mode === 'check') {
-    throw new Error(staleMessage(sourceFile, diff));
-  }
   if (diff) {
-    tryWrite(sourceFile, scanned, importExtension, diff);
+    if (mode === 'check') {
+      throw new Error(staleMessage(sourceFile, diff));
+    }
+    const current = tryWrite(sourceFile, scanned, importExtension, diff);
+    // A test run cannot load what its manifest did not list, and later test
+    // files would load the rewritten one: fail clearly rather than let the
+    // first file's 404s look like flakiness.
+    if (current && diff.added.length && env.NODE_ENV === 'test') {
+      throw new Error(rerunMessage(sourceFile, diff));
+    }
   }
   if (!env.NODE_ENV || env.NODE_ENV === 'development') {
     watchSourceTree(sourceFile, scanned, importExtension);
   }
-  if (!diff) {
-    return declaredKeys;
-  }
   const present = new Set(scanned);
-  return declaredKeys.filter((key) => present.has(key));
+  return diff
+    ? declaredKeys.filter((key) => present.has(key))
+    : declaredKeys;
 }
 
 interface KeyDiff {
@@ -78,7 +83,7 @@ interface KeyDiff {
   removed: string[];
 }
 
-export function diffKeys(
+function diffKeys(
   before: readonly string[],
   after: readonly string[],
 ): KeyDiff | undefined {
@@ -89,7 +94,7 @@ export function diffKeys(
   return added.length || removed.length ? { added, removed } : undefined;
 }
 
-function describe({ added, removed }: KeyDiff): string {
+function formatDiff({ added, removed }: KeyDiff): string {
   return [
     ...added.map((key) => `  + ${key}`),
     ...removed.map((key) => `  - ${key}`),
@@ -99,13 +104,22 @@ function describe({ added, removed }: KeyDiff): string {
 function staleMessage(sourceFile: string, diff: KeyDiff): string {
   return [
     `nestjs-endpoints: ${displayPath(sourceFile)} is out of date with the endpoint files beside it:`,
-    describe(diff),
+    formatDiff(diff),
     'Regenerate it with `npx nestjs-endpoints generate` (or by starting the app once in development) and commit it.',
   ].join('\n');
 }
 
+function rerunMessage(sourceFile: string, diff: KeyDiff): string {
+  return [
+    `nestjs-endpoints: ${displayPath(sourceFile)} was out of date and has been regenerated:`,
+    formatDiff(diff),
+    'This run loaded the previous version, which cannot serve the added endpoints. Run the tests again.',
+  ].join('\n');
+}
+
 /**
- * Never fatal: a read-only or locked source tree (a deploy that does not set
+ * Returns whether the source manifest is current afterwards. Never fatal: a
+ * read-only or locked source tree (a deploy that does not set
  * `NODE_ENV=production`, a container) must not stop the app.
  */
 function tryWrite(
@@ -113,22 +127,28 @@ function tryWrite(
   keys: readonly string[],
   importExtension: ImportExtension,
   diff: KeyDiff,
-): void {
+): boolean {
+  let written: boolean;
   try {
-    writeManifest(sourceFile, keys, importExtension);
+    written = writeManifest(sourceFile, keys, importExtension);
   } catch (error) {
     logger.warn(
-      `${displayPath(sourceFile)} is out of date but could not be rewritten (${(error as Error).message}):\n${describe(diff)}`,
+      `${displayPath(sourceFile)} is out of date but could not be rewritten (${(error as Error).message}):\n${formatDiff(diff)}`,
     );
-    return;
+    return false;
+  }
+  if (!written) {
+    // The source manifest is current; only the running (compiled) copy lags.
+    return true;
   }
   logger.log(
-    `Updated ${displayPath(sourceFile)}:\n${describe(diff)}${
+    `Updated ${displayPath(sourceFile)}:\n${formatDiff(diff)}${
       diff.added.length
         ? '\nAdded endpoints are served after a restart, which --watch does on its own.'
         : ''
     }`,
   );
+  return true;
 }
 
 /**

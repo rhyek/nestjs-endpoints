@@ -21,6 +21,14 @@ test('writeManifest replaces the file and leaves no temp file behind', () => {
   expect(fs.readdirSync(dir)).toEqual(['endpoints.gen.ts']);
 });
 
+test('writeManifest leaves a file that already says the same alone', () => {
+  expect(writeManifest(file, ['a.endpoint.ts'], 'js')).toBe(true);
+  const before = fs.statSync(file).mtimeMs;
+  expect(writeManifest(file, ['a.endpoint.ts'], 'js')).toBe(false);
+  expect(fs.statSync(file).mtimeMs).toBe(before);
+  expect(writeManifest(file, ['a.endpoint.ts'], 'ts')).toBe(true);
+});
+
 describe('readImportExtension', () => {
   test('reads what the generator wrote', () => {
     writeManifest(file, [], 'ts');

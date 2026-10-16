@@ -513,7 +513,8 @@ needed) and `node --watch` / `tsx watch` restart when it changes.
   `development`) the app rewrites it at startup and on every add / delete /
   rename of an endpoint or router-module file while running; a watcher then
   restarts the app with the new route set. Test runs rewrite it at startup
-  only. With `CI` set, an out-of-date manifest fails startup. With
+  only, and when endpoint files were added that run fails with "Run the tests
+  again" (it loaded the old list). With `CI` set, an out-of-date manifest fails startup. With
   `NODE_ENV=production` it is used as is.
 - **A new endpoint is served after a restart.** Under a watcher that is
   automatic; without one, restart the app.
@@ -989,5 +990,6 @@ whose folders should become buckets. URLs are unaffected.
 | Routes disappear in production | The build bundles the app; file-based routing needs real files on disk. |
 | `no endpoint manifest covers "<dir>"` | `src/endpoints.gen.ts` is missing or not imported. Run `npx nestjs-endpoints init`, then import it from the app module — or, in a test that imports a router module directly, from the test or Vitest `setupFiles` (§10.4). |
 | `endpoints.gen.ts is out of date` (CI) | Endpoint files were added/removed without the manifest being regenerated. Run `npx nestjs-endpoints generate` and commit it. |
+| `endpoints.gen.ts was out of date and has been regenerated … Run the tests again` | A test run found endpoint files the manifest didn't list. It has been rewritten; re-run (Vitest's watch mode does so on its own). |
 | A new endpoint 404s until restart | Expected without a watcher: the manifest was updated, the running process predates the file. Restart, or run under `node --watch` / `tsx watch`. |
 | `Cannot find the source of …endpoints.gen.js (no source map?)` | A compiled app without source maps can't locate the manifest to keep it in sync. Enable `sourceMap`, or run `npx nestjs-endpoints generate` after changing endpoint files. |

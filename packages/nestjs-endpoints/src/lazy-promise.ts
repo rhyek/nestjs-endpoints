@@ -1,6 +1,7 @@
 /**
  * A promise that starts its work the first time it is awaited, and shares that
- * one result with every later await.
+ * one result with every later await. Only `then` is overridden: `await`,
+ * `catch` and `finally` all go through it.
  *
  * It is a real `Promise` subclass because NestJS's scanner only awaits module
  * imports that pass `instanceof Promise`.
@@ -27,16 +28,5 @@ export class LazyPromise<T> extends Promise<T> {
   ): Promise<TResult1 | TResult2> {
     this.#started ??= this.#run();
     return this.#started.then(onfulfilled, onrejected);
-  }
-
-  override catch<TResult = never>(
-    onrejected?: ((reason: any) => TResult | PromiseLike<TResult>) | null,
-  ): Promise<T | TResult> {
-    return this.then(undefined, onrejected);
-  }
-
-  override finally(onfinally?: (() => void) | null): Promise<T> {
-    this.#started ??= this.#run();
-    return this.#started.finally(onfinally);
   }
 }

@@ -23,9 +23,8 @@ describe('createManifest', () => {
   };
 
   test('builds a sorted directory tree of the loadable keys', () => {
-    const manifest = createManifest(file, { files }, Object.keys(files));
+    const manifest = createManifest(file, files, Object.keys(files));
     expect(manifest.dir).toBe('/app/src');
-    expect(manifest.importExtension).toBe('js');
     expect([...manifest.tree.get('/app/src')!]).toEqual([
       ['shop', true],
       ['top.endpoint.ts', false],
@@ -43,13 +42,12 @@ describe('createManifest', () => {
     );
   });
 
-  test('exposes only the loadable keys, but remembers all declared ones', () => {
-    const manifest = createManifest(file, { files }, ['top.endpoint.ts']);
+  test('exposes only the loadable keys', () => {
+    const manifest = createManifest(file, files, ['top.endpoint.ts']);
     expect([...manifest.tree.keys()]).toEqual(['/app/src']);
     expect([...manifest.loaders.keys()]).toEqual([
       '/app/src/top.endpoint.ts',
     ]);
-    expect(manifest.keys).toEqual(Object.keys(files));
   });
 });
 
@@ -75,8 +73,8 @@ describe('findManifestCovering', () => {
   test('registering the same manifest again replaces it', () => {
     register('/again', ['old.endpoint.ts']);
     register('/again', ['new.endpoint.ts']);
-    expect(findManifestCovering('/again')?.keys).toEqual([
-      'new.endpoint.ts',
+    expect([...findManifestCovering('/again')!.loaders.keys()]).toEqual([
+      '/again/new.endpoint.ts',
     ]);
   });
 });

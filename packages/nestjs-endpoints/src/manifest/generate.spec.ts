@@ -16,9 +16,11 @@ beforeEach(() => {
 
 describe('generateManifest', () => {
   test('writes the manifest for the directory', () => {
-    const { file, keys } = generateManifest({ dir: src });
+    const { file, keys, written } = generateManifest({ dir: src });
     expect(file).toBe(path.join(src, 'endpoints.gen.ts'));
     expect(keys).toEqual(['shop/stats.endpoint.ts']);
+    expect(written).toBe(true);
+    expect(generateManifest({ dir: src }).written).toBe(false);
     expect(fs.readFileSync(file, 'utf8')).toContain(
       'import("./shop/stats.endpoint.js")',
     );
@@ -44,16 +46,13 @@ describe('generateManifest', () => {
 });
 
 describe('markGenerated', () => {
-  const manifest = () => path.join(src, 'endpoints.gen.ts');
   const read = (name: string) =>
     fs.readFileSync(path.join(cwd, name), 'utf8');
 
   test('creates .gitattributes, and leaves prettier alone when unused', () => {
-    expect(markGenerated(cwd, manifest())).toEqual([
-      path.join(cwd, '.gitattributes'),
-    ]);
+    expect(markGenerated(cwd)).toEqual([path.join(cwd, '.gitattributes')]);
     expect(read('.gitattributes')).toBe(
-      'src/endpoints.gen.ts linguist-generated\n',
+      '**/endpoints.gen.ts linguist-generated\n',
     );
     expect(fs.existsSync(path.join(cwd, '.prettierignore'))).toBe(false);
   });
@@ -61,11 +60,11 @@ describe('markGenerated', () => {
   test('appends to existing files once', () => {
     fs.writeFileSync(path.join(cwd, '.gitattributes'), '* text=auto');
     fs.writeFileSync(path.join(cwd, '.prettierignore'), 'dist\n');
-    markGenerated(cwd, manifest());
-    expect(markGenerated(cwd, manifest())).toEqual([]);
+    markGenerated(cwd);
+    expect(markGenerated(cwd)).toEqual([]);
     expect(read('.gitattributes')).toBe(
-      '* text=auto\nsrc/endpoints.gen.ts linguist-generated\n',
+      '* text=auto\n**/endpoints.gen.ts linguist-generated\n',
     );
-    expect(read('.prettierignore')).toBe('dist\nsrc/endpoints.gen.ts\n');
+    expect(read('.prettierignore')).toBe('dist\n**/endpoints.gen.ts\n');
   });
 });

@@ -4,7 +4,7 @@
 
 ### Features
 
-- **File-based routing works under Vitest with no extra config, and `node --watch` / `tsx watch` serve new endpoint files without a manual restart**, through an endpoint manifest the app keeps up to date. See [the endpoint manifest](README.md#the-endpoint-manifest).
+- **File-based routing works under Vitest with no extra config, and `node --watch` / `tsx watch` serve new endpoint files without a manual restart.** See [the endpoint manifest](README.md#the-endpoint-manifest).
 - **`npx nestjs-endpoints generate` rewrites the endpoint manifest on demand**, and `init` now creates it.
 - **`npx nestjs-endpoints init` installs a coding-agent skill** pointing at the full library guide the package now ships at `docs/agents.md`.
 
@@ -14,7 +14,7 @@
 - **Router middleware no longer emits `LegacyRouteConverter` deprecation warnings on NestJS 12.**
 - **File-based routing now works when the project path contains a space**, and on Windows.
 - **A `.nullish().default(...)` field wrapped in `z.preprocess(...)` is no longer marked `required`** in the generated OpenAPI document, matching the same field declared without `preprocess`.
-- **`ApiQueries` / `ApiParams` accept `z.preprocess(...)` schemas under zod 4.6**, which previously failed to compile.
+- **`ApiQueries` / `ApiParams` accept `z.preprocess(...)` schemas under zod 4.6.**
 
 ### Breaking changes
 

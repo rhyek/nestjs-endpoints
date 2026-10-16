@@ -15,13 +15,8 @@ export interface EndpointManifestDefinition {
 }
 
 export interface RegisteredManifest {
-  /** Absolute path of the running manifest module. */
-  file: string;
   /** The manifest's directory; every key is relative to it. */
   dir: string;
-  importExtension: ImportExtension;
-  /** The keys as declared in the manifest file. */
-  keys: readonly string[];
   /** Absolute path (with the key's extension) → loader. */
   loaders: ReadonlyMap<string, EndpointManifestLoader>;
   /** Absolute directory → its children, sorted; `true` marks a directory. */
@@ -50,7 +45,7 @@ export function registerEndpointManifest(
     Object.keys(definition.files),
     definition.importExtension ?? DEFAULT_IMPORT_EXTENSION,
   );
-  registry.set(file, createManifest(file, definition, loadableKeys));
+  registry.set(file, createManifest(file, definition.files, loadableKeys));
 }
 
 /**
@@ -58,7 +53,7 @@ export function registerEndpointManifest(
  */
 export function createManifest(
   file: string,
-  definition: EndpointManifestDefinition,
+  files: EndpointManifestDefinition['files'],
   loadableKeys: readonly string[],
 ): RegisteredManifest {
   const dir = path.dirname(file);
@@ -74,7 +69,7 @@ export function createManifest(
   };
   for (const key of loadableKeys) {
     const absolute = path.join(dir, ...key.split('/'));
-    loaders.set(absolute, definition.files[key]);
+    loaders.set(absolute, files[key]);
     addChild(path.dirname(absolute), path.basename(absolute), false);
     for (
       let current = path.dirname(absolute);
@@ -92,15 +87,7 @@ export function createManifest(
       ),
     ]),
   );
-  return {
-    file,
-    dir,
-    importExtension:
-      definition.importExtension ?? DEFAULT_IMPORT_EXTENSION,
-    keys: Object.keys(definition.files),
-    loaders,
-    tree,
-  };
+  return { dir, loaders, tree };
 }
 
 /** The most specific registered manifest whose directory contains `dir`. */

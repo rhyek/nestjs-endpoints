@@ -72,7 +72,7 @@ describe('at startup', () => {
     touch('a.endpoint.ts');
     touch('shop/router.module.ts');
     writeManifest(manifest, [], 'js');
-    expect(syncManifest(manifest, [], 'js', TEST)).toEqual([]);
+    expect(syncManifest(manifest, [], 'js', DEV)).toEqual([]);
     expect(keysOnDisk()).toEqual([
       'a.endpoint.ts',
       'shop/router.module.ts',
@@ -107,14 +107,35 @@ describe('at startup', () => {
   test('a renamed endpoint is swapped, and the old name is not loaded', () => {
     touch('new-name.endpoint.ts');
     expect(
-      syncManifest(manifest, ['old-name.endpoint.ts'], 'js', TEST),
+      syncManifest(manifest, ['old-name.endpoint.ts'], 'js', DEV),
     ).toEqual([]);
     expect(keysOnDisk()).toEqual(['new-name.endpoint.ts']);
   });
 
+  test('a test run that finds added endpoints regenerates, then fails clearly', () => {
+    touch('a.endpoint.ts');
+    touch('new.endpoint.ts');
+    writeManifest(manifest, ['a.endpoint.ts'], 'js');
+    expect(() =>
+      syncManifest(manifest, ['a.endpoint.ts'], 'js', TEST),
+    ).toThrow(
+      /regenerated:\n {2}\+ new\.endpoint\.ts\n.*Run the tests again/,
+    );
+    expect(keysOnDisk()).toEqual(['a.endpoint.ts', 'new.endpoint.ts']);
+    // The next run loads the regenerated manifest.
+    expect(
+      syncManifest(
+        manifest,
+        ['a.endpoint.ts', 'new.endpoint.ts'],
+        'js',
+        TEST,
+      ),
+    ).toEqual(['a.endpoint.ts', 'new.endpoint.ts']);
+  });
+
   test('the import extension is kept', () => {
     touch('a.endpoint.ts');
-    syncManifest(manifest, [], 'ts', TEST);
+    syncManifest(manifest, [], 'ts', DEV);
     expect(readImportExtension(manifest)).toBe('ts');
     expect(fs.readFileSync(manifest, 'utf8')).toContain(
       'import("./a.endpoint.ts")',
@@ -198,6 +219,25 @@ describe('compiled apps', () => {
       ),
     ).toEqual(['a.endpoint.ts']);
     expect(keysOnDisk()).toEqual(['a.endpoint.ts']);
+  });
+
+  test('a current source manifest is not rewritten while dist/ lags behind', () => {
+    fs.writeFileSync(
+      compiled,
+      'export {};\n//# sourceMappingURL=endpoints.gen.js.map\n',
+    );
+    fs.writeFileSync(`${compiled}.map`, map);
+    writeManifest(manifest, ['a.endpoint.ts'], 'js');
+    const before = fs.statSync(manifest).mtimeMs;
+    expect(
+      syncManifest(
+        compiled,
+        ['a.endpoint.ts', 'gone.endpoint.ts'],
+        'js',
+        TEST,
+      ),
+    ).toEqual(['a.endpoint.ts']);
+    expect(fs.statSync(manifest).mtimeMs).toBe(before);
   });
 
   test('without a source map nothing is synced, with a warning', () => {

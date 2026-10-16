@@ -7,7 +7,6 @@ import {
   generateManifest,
   markGenerated,
 } from './manifest/generate.js';
-import { ImportExtension } from './manifest/render.js';
 import {
   installSkill,
   isSkillInstalled,
@@ -39,10 +38,9 @@ function flag(argv: string[], name: string): string | undefined {
   return i === -1 ? undefined : argv[i + 1];
 }
 
-function manifestOptions(argv: string[]): {
-  dir: string;
-  importExtension?: ImportExtension;
-} {
+type ManifestOptions = Parameters<typeof generateManifest>[0];
+
+function manifestOptions(argv: string[]): ManifestOptions {
   const importExtension = flag(argv, '--import-extension');
   if (
     importExtension !== undefined &&
@@ -59,10 +57,14 @@ function manifestOptions(argv: string[]): {
   };
 }
 
-function runGenerate(argv: string[]): { file: string } {
-  const { file, keys } = generateManifest(manifestOptions(argv));
+function runGenerate(options: ManifestOptions): { file: string } {
+  const { file, keys, written } = generateManifest(options);
+  const count = `${keys.length} file${keys.length === 1 ? '' : 's'}`;
+  const shown = path.relative(process.cwd(), file);
   console.log(
-    `Wrote ${path.relative(process.cwd(), file)} (${keys.length} file${keys.length === 1 ? '' : 's'})`,
+    written
+      ? `Wrote ${shown} (${count})`
+      : `${shown} is up to date (${count})`,
   );
   return { file };
 }
@@ -82,8 +84,8 @@ function runInit(argv: string[]): void {
 
   const options = manifestOptions(argv);
   if (fs.existsSync(options.dir)) {
-    const { file } = runGenerate(argv);
-    for (const changed of markGenerated(cwd, file)) {
+    const { file } = runGenerate(options);
+    for (const changed of markGenerated(cwd)) {
       console.log(
         `Marked it as generated in ${path.relative(cwd, changed)}`,
       );
@@ -119,7 +121,7 @@ function main(): void {
       runInit(rest);
       break;
     case 'generate':
-      runGenerate(rest);
+      runGenerate(manifestOptions(rest));
       break;
     case 'help':
     case '--help':

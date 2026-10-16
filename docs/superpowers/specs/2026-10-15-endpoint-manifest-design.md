@@ -117,13 +117,19 @@ Mode is chosen from the environment:
   it is the source. When it is compiled `.js` (e.g. `nest start --watch` runs
   `dist/`), the source is found through its source map (external
   `.js.map` or inline). If none is found, sync is skipped with one warning.
-- **Writes** go to a temp file and are renamed into place (parallel test
-  workers may write at once), and a failed write only warns.
+- **Writes** are skipped when the file already holds the same text (a compiled
+  app's `dist/` copy can lag a source manifest that is already current, and a
+  needless write restarts watchers); otherwise they go to a temp file renamed
+  into place (parallel test workers may write at once). A failed write only
+  warns.
 - **In the current process**, after detecting staleness: only keys present in
   the fresh *source* scan are loadable — not merely files that exist where the
   app runs, since `tsc` leaves a deleted endpoint's `.js` in `dist/` — so deleting an endpoint never crashes boot; new
   files are served after the restart the manifest write triggers under
-  `--watch` (the warning says so). Without a watcher, restart manually.
+  `--watch` (the log says so). Without a watcher, restart manually. Under
+  `NODE_ENV=test`, added files make that run fail after the rewrite, asking to
+  re-run: later test files in the same run would load the new manifest, so
+  serving 404s in the first would look like flakiness.
 - **Live watching**: `fs.watch(sourceDir, { recursive: true })`, debounced,
   `unref()`ed so it never holds the process open, one per manifest. On any
   change (outside dot-directories, `node_modules` and the manifest itself) it
