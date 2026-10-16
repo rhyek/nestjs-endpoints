@@ -41,9 +41,10 @@ surrounding code:
 - Peer deps: `@nestjs/common`, `@nestjs/core`, `@nestjs/swagger`, `zod`.
   `@scalar/api-reference` is optional (docs viewer).
 - **Bundled builds (Webpack, esbuild bundling, `nest build --webpack`) are not
-  supported** for file-based routing: the router scans the filesystem at
-  runtime, so the emitted `.js` files must exist on disk in their original
-  layout.
+  supported** for file-based routing: each endpoint's URL is derived from its
+  file's location on disk, which a bundle collapses into one file.
+- **File-based routing needs the endpoint manifest** `src/endpoints.gen.ts`,
+  imported once by the app (§5.6). `npx nestjs-endpoints init` creates it.
 - Output schemas must not be `null` or `.nullable()` at the top level (NestJS
   will not send a bare `null` body). Wrap it: `z.object({ user: userSchema.nullable() })`.
 
@@ -301,6 +302,7 @@ from its location.
 import { Module } from '@nestjs/common';
 import { EndpointRouterModule } from 'nestjs-endpoints';
 import { HealthService } from './health.service';
+import './endpoints.gen.js'; // the endpoint manifest (§5.6)
 
 @Module({
   imports: [
@@ -359,9 +361,9 @@ document and the generated SDK.
 
 ## 5. The endpoint router
 
-`EndpointRouterModule.create()` walks its root directories, auto-registers every
-endpoint file it finds, imports every nested router it finds, and gives each
-endpoint its HTTP path.
+`EndpointRouterModule.create()` walks its root directories — as listed in the
+endpoint manifest (§5.6) — auto-registers every endpoint file it finds, imports
+every nested router it finds, and gives each endpoint its HTTP path.
 
 ### 5.1 Discovery rules
 
@@ -374,8 +376,9 @@ endpoint its HTTP path.
   not scan inside it** — that subtree belongs to the child.
 - Directories whose name starts with `_` contribute nothing to the URL. Use
   `_endpoints/`, `_mutations/` etc. to group files without changing routes.
-- Scanning happens at runtime against the emitted files. Keep the compiled
-  layout identical to the source layout.
+- Files are found through the endpoint manifest, not by reading directories, and
+  each URL is derived from the file's own location. Keep the compiled layout
+  identical to the source layout.
 
 ### 5.2 How a path is built
 
@@ -495,6 +498,32 @@ export default EndpointRouterModule.create({
   (`'list'` under `/recipes` excludes `/recipes/list`).
 - Guards/interceptors passed as classes must be resolvable — add them to
   `providers` on the same router (or an imported module).
+
+### 5.6 The endpoint manifest
+
+`src/endpoints.gen.ts` lists every endpoint and router-module file under `src/`
+as a lazy `() => import('./…')`. Routers find and load files through it, so the
+loads happen in app code: Vitest transforms them (no `server.deps.inline`
+needed) and `node --watch` / `tsx watch` restart when it changes.
+
+- **Never edit it by hand, and commit it.** It is generated.
+- **Import it once**, anywhere in the app's import graph — the app module is the
+  natural place. Order does not matter, and importing it loads no endpoints.
+- **It keeps itself current.** In development (`NODE_ENV` unset or
+  `development`) the app rewrites it at startup and on every add / delete /
+  rename of an endpoint or router-module file while running; a watcher then
+  restarts the app with the new route set. Test runs rewrite it at startup
+  only. With `CI` set, an out-of-date manifest fails startup. With
+  `NODE_ENV=production` it is used as is.
+- **A new endpoint is served after a restart.** Under a watcher that is
+  automatic; without one, restart the app.
+- **Deleted endpoints never fail startup** — entries whose file is gone are
+  skipped.
+- Regenerate on demand: `npx nestjs-endpoints generate` (`--dir <dir>` for a
+  source directory other than `src/`; `--import-extension ts` once for Node's
+  native type stripping, which needs `.ts` specifiers).
+- Compiled apps (`nest start --watch` runs `dist/`) find the source manifest
+  through the emitted source map; keep `sourceMap` on.
 
 ---
 
@@ -871,6 +900,20 @@ Validation failures throw `ZodValidationException`; `.getZodError()` gives you
 the `ZodError`. `invoke` returns the **validated body** for a single-status
 endpoint, and an `EndpointResponse { status, body }` for a multi-status one.
 
+### 10.4 One router without the app module
+
+Import the manifest alongside the router (or list it in Vitest's
+`setupFiles`). It loads nothing by itself, so only that router's subtree loads:
+
+```ts
+import '../src/endpoints.gen';
+import ShopRouterModule from '../src/shop/router.module';
+
+const moduleFixture = await Test.createTestingModule({
+  imports: [ShopRouterModule],
+}).compile();
+```
+
 ---
 
 ## 11. Exports
@@ -888,6 +931,7 @@ import {
   ZodSerializationException, // 500 — output failed
   ApiQueries,          // helper decorators, rarely needed directly
   ApiParams,
+  registerEndpointManifest, // called by the generated endpoints.gen.ts only
   z,                   // re-export of zod
 } from 'nestjs-endpoints';
 ```
@@ -899,8 +943,10 @@ import {
 **Add an endpoint to an existing file-based router.** Create
 `<router-root>/<segments>/<name>.endpoint.ts`, `export default endpoint({...})`,
 declare `input`/`output`, add any provider it needs to the nearest
-`router.module.ts`'s `providers`. Nothing else to register. Regenerate the client
-if one exists.
+`router.module.ts`'s `providers`. Nothing else to register: the endpoint
+manifest picks the file up the next time the app runs in development (or run
+`npx nestjs-endpoints generate`); commit the updated `src/endpoints.gen.ts`.
+Regenerate the client if one exists.
 
 **Add a path parameter.** Rename the file/folder to use `$name`
 (`edit/$recipeId.endpoint.ts`), add `params: z.object({ recipeId: z.coerce.number() })`,
@@ -941,3 +987,7 @@ whose folders should become buckets. URLs are unaffected.
 | `useApiClient must be used within an <ApiClientProvider>` | Missing provider above the component. |
 | Nothing regenerates after an endpoint change | The OpenAPI doc didn't change, or codegen isn't running — use `forceGenerate: true`. |
 | Routes disappear in production | The build bundles the app; file-based routing needs real files on disk. |
+| `no endpoint manifest covers "<dir>"` | `src/endpoints.gen.ts` is missing or not imported. Run `npx nestjs-endpoints init`, then import it from the app module — or, in a test that imports a router module directly, from the test or Vitest `setupFiles` (§10.4). |
+| `endpoints.gen.ts is out of date` (CI) | Endpoint files were added/removed without the manifest being regenerated. Run `npx nestjs-endpoints generate` and commit it. |
+| A new endpoint 404s until restart | Expected without a watcher: the manifest was updated, the running process predates the file. Restart, or run under `node --watch` / `tsx watch`. |
+| `Cannot find the source of …endpoints.gen.js (no source map?)` | A compiled app without source maps can't locate the manifest to keep it in sync. Enable `sourceMap`, or run `npx nestjs-endpoints generate` after changing endpoint files. |

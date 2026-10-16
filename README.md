@@ -68,19 +68,23 @@ This package is **ESM-only**. CommonJS projects are not supported.
 npm install nestjs-endpoints @nestjs/swagger zod
 ```
 
+Then set the project up:
+
+```bash
+npx nestjs-endpoints init
+```
+
+This writes the [endpoint manifest](#the-endpoint-manifest) that file-based
+routing loads endpoints through, and installs the agent skill below.
+
 ### Coding agents
 
 The package ships an agent guide — the complete reference for `endpoint()`,
 file-based routing, routers, namespaces, codegen, and the generated client — at
 `node_modules/nestjs-endpoints/docs/agents.md`.
 
-To install a skill that points your coding agent at it:
-
-```bash
-npx nestjs-endpoints init
-```
-
-This writes `.claude/skills/nestjs-endpoints/SKILL.md` (mirroring into
+`npx nestjs-endpoints init` installs a skill that points your coding agent at
+it: it writes `.claude/skills/nestjs-endpoints/SKILL.md` (mirroring into
 `.agents/` and `.cursor/` when those already exist), and rewrites it from the
 current template every time — the file is managed, as its banner says. Re-run it
 after upgrading, or wire `npx nestjs-endpoints init --refresh` into a
@@ -110,6 +114,7 @@ export default endpoint({
 
 ```typescript
 import { EndpointRouterModule } from 'nestjs-endpoints';
+import './endpoints.gen.js';
 
 @Module({
   imports: [
@@ -123,6 +128,8 @@ export class AppModule {}
 ```
 
 Endpoint available at `/status/health`.
+
+`src/endpoints.gen.ts` is the [endpoint manifest](#the-endpoint-manifest), written by `npx nestjs-endpoints init` and kept up to date by the app itself. Commit it.
 
 ### Option 2. Traditional
 
@@ -260,7 +267,7 @@ Call it with:
 
 ## Endpoint router
 
-`EndpointRouterModule.create({...})` walks its subtree looking for `*.endpoint.ts` and `router.module.ts` files, auto-registers them, and derives each endpoint's HTTP path using file-based routing.
+`EndpointRouterModule.create({...})` finds the `*.endpoint.ts` and `router.module.ts` files in its subtree, auto-registers them, and derives each endpoint's HTTP path using file-based routing.
 
 Each router owns its own URL prefix, providers, middleware, interceptors, guards, and SDK namespace; nested routers compose with their parent's.
 
@@ -309,6 +316,25 @@ export default endpoint({
 The generated SDK drops `:param` segments from the method name — the typed positional argument already conveys it: `client.recipesEdit(recipeId, { name })`.
 
 > _**Note:**_ Bundled projects via Webpack or similar are not supported.
+
+### The endpoint manifest
+
+Routers find and load endpoint files through `src/endpoints.gen.ts`, a generated list with one `() => import('./…')` per endpoint and router-module file. Because those imports are in your source rather than inside `node_modules`, every tool treats endpoint files like the rest of your code: Vitest transforms them with no extra config, and `node --watch` / `tsx watch` restart when the list changes.
+
+Import it once, anywhere in the app's import graph (the app module is the natural place). Importing it loads nothing; it only tells routers where their files are.
+
+You don't maintain it by hand:
+
+| Where the app runs                              | What happens to the manifest                                                                                                                                                                                           |
+| ----------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Development (`NODE_ENV` unset or `development`) | Checked at startup and rewritten if endpoint files were added, removed, or renamed. While the app runs, it is rewritten on every such change, so a new endpoint is served after the restart your watcher already does. |
+| Tests                                           | Checked and rewritten at startup, without watching.                                                                                                                                                                    |
+| CI (`CI` set)                                   | Checked at startup; out of date is an error listing the files to add and remove.                                                                                                                                       |
+| Production (`NODE_ENV=production`)              | Used as is.                                                                                                                                                                                                            |
+
+A deleted endpoint never breaks startup: the router skips manifest entries whose file is gone. Apps that run compiled output (e.g. `nest start --watch`) find the source manifest through the emitted source map.
+
+To rewrite it yourself: `npx nestjs-endpoints generate` (`--dir <dir>` when your sources are not in `src/`). If you run TypeScript with Node's native type stripping, which needs `.ts` import specifiers, pass `--import-extension ts` once; the setting is kept from then on.
 
 ### Nested router modules
 
@@ -706,6 +732,22 @@ test('supertest', async () => {
         email: 'john@hotmail.com',
       });
     });
+});
+```
+
+### Testing one router
+
+Import a router module without the rest of the app. Import the manifest too (or list it in Vitest's `setupFiles`); it loads nothing by itself, so only that router's subtree is loaded:
+
+```ts
+import '../src/endpoints.gen';
+import ShopRouterModule from '../src/shop/router.module';
+
+test('shop router', async () => {
+  const moduleFixture = await Test.createTestingModule({
+    imports: [ShopRouterModule],
+  }).compile();
+  // ...
 });
 ```
 
