@@ -32,6 +32,9 @@ import {
 import SecuredRouterModule from './secured/router.module';
 import ShopRouterModule from './shop/router.module';
 import { VanillaController } from './vanilla.controller';
+// Deliberately last: routers do their discovery when Nest awaits them, so
+// the manifest only has to be imported somewhere in the app, in any order.
+import './endpoints.gen';
 
 @Injectable()
 export class ZodErrorInterceptor implements NestInterceptor {

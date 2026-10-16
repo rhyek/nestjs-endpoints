@@ -1,6 +1,4 @@
-import fs from 'node:fs';
 import path from 'node:path';
-import { pathToFileURL } from 'node:url';
 import {
   CanActivate,
   DynamicModule,
@@ -20,6 +18,13 @@ import {
   settings,
 } from './consts.js';
 import { getCallsiteFile, moduleAls } from './helpers.js';
+import { LazyPromise } from './lazy-promise.js';
+import {
+  findManifestCovering,
+  RegisteredManifest,
+} from './manifest/registry.js';
+import { MANIFEST_FILE_NAME } from './manifest/render.js';
+import { stripExtension } from './manifest/scan.js';
 
 /**
  * Express 5 / path-to-regexp v8, used by every NestJS version this library
@@ -28,18 +33,6 @@ import { getCallsiteFile, moduleAls } from './helpers.js';
  * deprecation warning per `forRoutes` call.
  */
 const MIDDLEWARE_WILDCARD_SEGMENT = '{*path}';
-
-/**
- * Import a discovered endpoint / router module file and return its default
- * export. Absolute paths must be converted to `file://` URLs first: Windows
- * paths like `C:\src\x.js` are otherwise parsed as a URL with a `c:` scheme.
- */
-async function importDefault(file: string): Promise<any> {
-  const module = (await import(pathToFileURL(file).href)) as {
-    default?: unknown;
-  };
-  return module.default;
-}
 
 type RouterMiddlewareEntry =
   // eslint-disable-next-line @typescript-eslint/no-unsafe-function-type
@@ -63,22 +56,39 @@ type EndpointRouterModuleParams = NonNullable<
   Parameters<typeof EndpointRouterModule._register>[1]
 >;
 
+/**
+ * Captures what must be read at the call itself — the calling file and the
+ * parent router's context — and defers the rest until the module is awaited.
+ * NestJS awaits it while scanning modules, after the app's whole import graph
+ * has been evaluated, so the endpoint manifest is registered by then no
+ * matter where the app imports it.
+ */
+function createLazily(
+  callsiteFile: string,
+  params: EndpointRouterModuleParams | undefined,
+): Promise<DynamicModule> {
+  const parentStore = moduleAls.getStore();
+  return new LazyPromise(() =>
+    EndpointRouterModule._register(callsiteFile, params, parentStore),
+  );
+}
+
 @Module({})
 export class EndpointRouterModule {
-  static async create(
+  static create(
     params?: EndpointRouterModuleParams,
   ): Promise<DynamicModule> {
-    return EndpointRouterModule._register(getCallsiteFile(), params);
+    return createLazily(getCallsiteFile(), params);
   }
 
   /**
    * @deprecated Use `EndpointRouterModule.create()` instead. This alias
    * is kept for backwards compatibility and forwards to `create()`.
    */
-  static async register(
+  static register(
     params?: EndpointRouterModuleParams,
   ): Promise<DynamicModule> {
-    return EndpointRouterModule._register(getCallsiteFile(), params);
+    return createLazily(getCallsiteFile(), params);
   }
 
   static async _register(
@@ -175,6 +185,7 @@ export class EndpointRouterModule {
        */
       guards?: RouterGuard[];
     },
+    parentStore = moduleAls.getStore(),
   ): Promise<DynamicModule> {
     const definedAtDir = path.dirname(callsiteFile);
     const resolveDir = (dir: string) => {
@@ -192,7 +203,6 @@ export class EndpointRouterModule {
         : [params.rootDirectory];
       return raw.map(resolveDir);
     })();
-    const parentStore = moduleAls.getStore();
     const effectiveBasePath = ((): string => {
       if (params?.basePath !== undefined) {
         return params.basePath;
@@ -258,17 +268,24 @@ export class EndpointRouterModule {
       : parentNamespaceChain;
     let endpoints: Type[] = [];
     const nestedRouterModuleFiles: string[] = [];
-    const endopointFiles: string[] = [];
+    const endpointFiles: string[] = [];
     for (const root of rootDirectories) {
+      const manifest = findManifestCovering(root);
+      if (!manifest) {
+        // A router that lists its endpoints has nothing to discover.
+        if (params?.endpoints) continue;
+        throw new Error(missingManifestMessage(root));
+      }
       findEndpoints(
+        manifest,
         root,
         nestedRouterModuleFiles,
-        endopointFiles,
+        endpointFiles,
         callsiteFile,
       );
     }
-    const endpointFilesNotImported = endopointFiles.filter((f) =>
-      settings.endpoints.every((e) => e.file !== f),
+    const endpointFilesNotImported = endpointFiles.filter((f) =>
+      settings.endpoints.every((e) => !isSameModule(e.file, f)),
     );
     const nestedModules: (DynamicModule | Promise<DynamicModule>)[] = [];
 
@@ -307,13 +324,13 @@ export class EndpointRouterModule {
       },
       async () => {
         for (const f of endpointFilesNotImported) {
-          const endpoint = await importDefault(f);
+          const endpoint = await loadDefault(f);
           if (endpoint) {
             endpoints.push(endpoint);
           }
         }
         for (const f of nestedRouterModuleFiles) {
-          const nestedModule = await importDefault(f);
+          const nestedModule = await loadDefault(f);
           if (nestedModule) {
             nestedModules.push(nestedModule);
           }
@@ -321,7 +338,7 @@ export class EndpointRouterModule {
       },
     );
     for (const { setupFn } of settings.endpoints.filter((e) =>
-      endpointFilesNotImported.some((f) => f === e.file),
+      endpointFilesNotImported.some((f) => isSameModule(f, e.file)),
     )) {
       setupFn({
         rootDirectories,
@@ -456,43 +473,71 @@ export const EndpointsRouterModule = EndpointRouterModule;
  */
 export type EndpointsRouterModule = EndpointRouterModule;
 
+/**
+ * Walks `dir` in the manifest's view of the source tree. The manifest keys
+ * carry source extensions while a compiled app runs `.js` files, so files
+ * are compared without their extension.
+ */
 function findEndpoints(
+  manifest: RegisteredManifest,
   dir: string,
   nestedRouterModuleFiles: string[],
-  endopointFiles: string[],
+  endpointFiles: string[],
   callerRouterModuleFile: string,
 ) {
-  let files: string[];
-  try {
-    files = fs.readdirSync(dir);
-  } catch {
-    return endopointFiles;
+  const entries = manifest.tree.get(dir);
+  if (!entries) {
+    return;
   }
   // A directory that contains a `router.module.*` file is treated as a
   // nested router — regardless of depth. The only exception is the
   // caller's own router module file (avoids self-registration when a
   // `rootDirectory` entry happens to resolve to the caller's own folder).
-  const routerFile = files.find((f) => f.match(routerModuleFileRegex));
+  const routerFile = [...entries.keys()].find((f) =>
+    routerModuleFileRegex.test(f),
+  );
   if (routerFile) {
     const routerFilePath = path.join(dir, routerFile);
-    if (routerFilePath !== callerRouterModuleFile) {
+    if (!isSameModule(routerFilePath, callerRouterModuleFile)) {
       nestedRouterModuleFiles.push(routerFilePath);
-      return endopointFiles;
+      return;
     }
   }
-  for (const f of files) {
+  for (const [f, isDirectory] of entries) {
     const file = path.join(dir, f);
-    if (fs.statSync(file).isDirectory()) {
+    if (isDirectory) {
       findEndpoints(
+        manifest,
         file,
         nestedRouterModuleFiles,
-        endopointFiles,
+        endpointFiles,
         callerRouterModuleFile,
       );
-    }
-    if (f.match(endpointFileRegex)) {
-      endopointFiles.push(file);
+    } else if (endpointFileRegex.test(f)) {
+      endpointFiles.push(file);
     }
   }
-  return endopointFiles;
+}
+
+function isSameModule(a: string, b: string): boolean {
+  return stripExtension(a) === stripExtension(b);
+}
+
+/** Loads a discovered file through its manifest and returns its default export. */
+async function loadDefault(file: string): Promise<any> {
+  const load = findManifestCovering(path.dirname(file))?.loaders.get(file);
+  if (!load) {
+    throw new Error(`nestjs-endpoints: no manifest loader for ${file}`);
+  }
+  const module = (await load()) as { default?: unknown };
+  return module.default;
+}
+
+function missingManifestMessage(rootDirectory: string): string {
+  const shown = path.relative(process.cwd(), rootDirectory) || '.';
+  return [
+    `nestjs-endpoints: no endpoint manifest covers "${shown}".`,
+    `File-based routing loads endpoint files through a generated ${MANIFEST_FILE_NAME} that the app imports once.`,
+    `Create it with \`npx nestjs-endpoints init\` (or \`npx nestjs-endpoints generate\`), then import it from your app module: import './endpoints.gen.js';`,
+  ].join('\n');
 }

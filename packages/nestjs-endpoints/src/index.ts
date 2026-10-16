@@ -16,3 +16,7 @@ export {
   EndpointRouterModule,
   EndpointsRouterModule,
 } from './endpoint-router.module.js';
+export {
+  registerEndpointManifest,
+  type EndpointManifestDefinition,
+} from './manifest/registry.js';
