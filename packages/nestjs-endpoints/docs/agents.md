@@ -122,6 +122,24 @@ Assume `rootDirectory: './endpoints'` and no `basePath`.
 Every axios method takes a trailing optional axios `config`; every hook takes a
 trailing optional `{ query?, mutation?, client? }` options object.
 
+### 2.5 CLI
+
+Run with `npx nestjs-endpoints <command>` from the project root.
+
+| Command | What it does |
+| --- | --- |
+| `init` | One-time setup: writes the endpoint manifest `src/endpoints.gen.ts` (§5.6), marks `**/endpoints.gen.ts` as generated in `.gitattributes` (and `.prettierignore` if the project has one), installs the agent skill into `.claude/skills/` (mirrored into `.agents/` / `.cursor/` when present), and prints the import line to add to the app module. Safe to re-run. |
+| `init --refresh` | Only rewrites an installed, unedited, out-of-date skill; no-op otherwise. Never touches the manifest. For `postinstall` hooks. |
+| `generate` | Rewrites the endpoint manifest from the files on disk. Rarely needed by hand: the app keeps it current in development. Use it when endpoint files changed without the app running, or when CI reports the manifest out of date. |
+| `help`, `--version` | Usage, and the installed version. |
+
+`init` and `generate` take:
+
+- `--dir <dir>` — the source directory the manifest covers (default `src`).
+- `--import-extension js|ts` — how the manifest's `import()` specifiers end:
+  `js` (default; tsc, tsx, swc, Vite) or `ts` (Node's native type stripping).
+  Without the flag, an existing manifest's setting is kept.
+
 ---
 
 ## 3. Writing an endpoint
