@@ -19,7 +19,7 @@ export function Catering() {
           if (!email || !date) {
             return;
           }
-          book.mutate({ data: { email, date } });
+          book.mutate({ body: { email, date } });
         }}
       >
         <input

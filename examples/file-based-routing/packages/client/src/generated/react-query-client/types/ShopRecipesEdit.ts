@@ -3,25 +3,29 @@
 * Do not edit manually.
 */
 
-import type { ShopRecipesEditInput } from "./ShopRecipesEditInput";
-import type { ShopRecipesEditOutput } from "./ShopRecipesEditOutput";
+import type { ShopRecipesEditInput } from './ShopRecipesEditInput'
+import type { ShopRecipesEditOutput } from './ShopRecipesEditOutput'
 
-export type ShopRecipesEditPathParams = {
-    /**
-     * @type number
-    */
+export type ShopRecipesEditPath = {
     recipeId: number;
 };
 
-export type ShopRecipesEdit200 = ShopRecipesEditOutput;
+export type ShopRecipesEditStatus200 = ShopRecipesEditOutput;
 
-export type ShopRecipesEditMutationRequest = ShopRecipesEditInput;
+export type ShopRecipesEditBody = ShopRecipesEditInput;
 
-export type ShopRecipesEditMutationResponse = ShopRecipesEdit200;
-
-export type ShopRecipesEditMutation = {
-    Response: ShopRecipesEdit200;
-    Request: ShopRecipesEditMutationRequest;
-    PathParams: ShopRecipesEditPathParams;
-    Errors: any;
+export type ShopRecipesEditOptions = {
+    body: ShopRecipesEditBody;
+    path: ShopRecipesEditPath;
+    query?: never;
+    headers?: never;
 };
+
+export type ShopRecipesEditResponses = {
+    "200": ShopRecipesEditStatus200;
+};
+
+/**
+ * @description Union of all possible responses
+*/
+export type ShopRecipesEditResponse = ShopRecipesEditStatus200;

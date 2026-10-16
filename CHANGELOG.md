@@ -15,6 +15,7 @@
 - **File-based routing now works when the project path contains a space**, and on Windows.
 - **A `.nullish().default(...)` field wrapped in `z.preprocess(...)` is no longer marked `required`** in the generated OpenAPI document, matching the same field declared without `preprocess`.
 - **`ApiQueries` / `ApiParams` accept `z.preprocess(...)` schemas under zod 4.6.**
+- **Generated clients no longer include an unused `.kubb/` directory.**
 
 ### Breaking changes
 
@@ -23,6 +24,9 @@
 - **Node.js >= 24 is required.**
 - **TypeScript >= 6 is required.**
 - **File-based routing needs the endpoint manifest.** Run `npx nestjs-endpoints init`, then add `import './endpoints.gen.js';` to your app module, and commit `src/endpoints.gen.ts`.
+- **Generated client methods and hooks take one object that groups the request into `path`, `query`, `body` and `headers`**, as in `client.recipesEdit({ path: { recipeId }, body: { name } })`. See [Codegen](README.md#codegen-optional).
+- **Generated per-operation type names changed** (`ShopRecipesEditMutationResponse` is now `ShopRecipesEditStatus200`, for example); schema types keep their names.
+- **The react-query client requires `@tanstack/react-query` >= 5.82.**
 
 ## 3.0.0 (2026-04-19)
 

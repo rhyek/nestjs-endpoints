@@ -4,9 +4,7 @@ import { useApiClient } from '../../test-app-express/generated/react-query-clien
 export function UserPage() {
   const apiClient = useApiClient();
   const { data, error, status, refetch } = apiClient.useUserGet(
-    {
-      id: 1,
-    },
+    { query: { id: 1 } },
     {
       query: {
         retry: false,
@@ -48,7 +46,7 @@ export function UserPage() {
         <button
           onClick={async () => {
             await createUser({
-              data: {
+              body: {
                 name: 'John Doe',
                 email: 'john.doe@example.com',
               },

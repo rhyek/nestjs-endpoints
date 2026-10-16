@@ -3,49 +3,40 @@
 * Do not edit manually.
 */
 
-import type { Client, RequestConfig, ResponseErrorConfig } from "../client-runtime";
-import type { ShopRecipesCreateMutationRequest, ShopRecipesCreateMutationResponse } from "../types/ShopRecipesCreate";
-import type { UseMutationOptions, UseMutationResult, QueryClient } from "@tanstack/react-query";
-import { shopRecipesCreate } from "../clients/shopRecipesCreate";
-import { mutationOptions, useMutation } from "@tanstack/react-query";
+import type { RequestConfig, ResponseErrorConfig } from '../client-runtime'
+import type { ShopRecipesCreateOptions, ShopRecipesCreateStatus200 } from '../types/ShopRecipesCreate'
+import type { UseMutationOptions, UseMutationResult, QueryClient } from '@tanstack/react-query'
+import { shopRecipesCreate } from '../clients/shopRecipesCreate'
+import { mutationOptions, useMutation } from '@tanstack/react-query'
 
 export const shopRecipesCreateMutationKey = () => [{ url: '/shop/recipes/create' }] as const
 
-export type ShopRecipesCreateMutationKey = ReturnType<typeof shopRecipesCreateMutationKey>
-
-export function shopRecipesCreateMutationOptions<TContext = unknown>(config: Partial<RequestConfig<ShopRecipesCreateMutationRequest>> & { client?: Client } = {}) {
-
-        const mutationKey = shopRecipesCreateMutationKey()
-        return mutationOptions<ShopRecipesCreateMutationResponse, ResponseErrorConfig<Error>, {data: ShopRecipesCreateMutationRequest}, TContext>({
-          mutationKey,
-          mutationFn: async({ data }) => {
-            return shopRecipesCreate(data, config)
-          },
-        })
-
+export function shopRecipesCreateMutationOptions<TContext = unknown>(config: Partial<Omit<RequestConfig, 'path' | 'query' | 'body' | 'headers' | 'url'>> = {}) {
+  const mutationKey = shopRecipesCreateMutationKey()
+  return mutationOptions<ShopRecipesCreateStatus200, ResponseErrorConfig<Error>, ShopRecipesCreateOptions, TContext>({
+    mutationKey,
+    mutationFn: async({ body }) => {
+      return (await shopRecipesCreate({ ...config, body, throwOnError: true })).data
+    },
+  })
 }
 
 /**
  * {@link /shop/recipes/create}
  */
-export function useShopRecipesCreate<TContext>(options: 
-{
-  mutation?: UseMutationOptions<ShopRecipesCreateMutationResponse, ResponseErrorConfig<Error>, {data: ShopRecipesCreateMutationRequest}, TContext> & { client?: QueryClient },
-  client?: Partial<RequestConfig<ShopRecipesCreateMutationRequest>> & { client?: Client },
-}
- = {}) {
+export function useShopRecipesCreate<TContext>(options: {
+  mutation?: UseMutationOptions<ShopRecipesCreateStatus200, ResponseErrorConfig<Error>, ShopRecipesCreateOptions, TContext> & { client?: QueryClient },
+  client?: Partial<Omit<RequestConfig, 'path' | 'query' | 'body' | 'headers' | 'url'>>,
+} = {}) {
+  const { mutation = {}, client: config = {} } = options ?? {}
+  const { client: queryClient, ...mutationOptions } = mutation;
+  const mutationKey = mutationOptions.mutationKey ?? shopRecipesCreateMutationKey()
 
-          const { mutation = {}, client: config = {} } = options ?? {}
-          const { client: queryClient, ...mutationOptions } = mutation;
-          const mutationKey = mutationOptions.mutationKey ?? shopRecipesCreateMutationKey()
+  const baseOptions = shopRecipesCreateMutationOptions(config) as UseMutationOptions<ShopRecipesCreateStatus200, ResponseErrorConfig<Error>, ShopRecipesCreateOptions, TContext>
 
-          const baseOptions = shopRecipesCreateMutationOptions(config) as UseMutationOptions<ShopRecipesCreateMutationResponse, ResponseErrorConfig<Error>, {data: ShopRecipesCreateMutationRequest}, TContext>
-          
-
-          return useMutation<ShopRecipesCreateMutationResponse, ResponseErrorConfig<Error>, {data: ShopRecipesCreateMutationRequest}, TContext>({
-            ...baseOptions,
-            mutationKey,
-            ...mutationOptions,
-          }, queryClient) as UseMutationResult<ShopRecipesCreateMutationResponse, ResponseErrorConfig<Error>, {data: ShopRecipesCreateMutationRequest}, TContext>
-      
+  return useMutation<ShopRecipesCreateStatus200, ResponseErrorConfig<Error>, ShopRecipesCreateOptions, TContext>({
+    ...baseOptions,
+    mutationKey,
+    ...mutationOptions,
+  }, queryClient) as UseMutationResult<ShopRecipesCreateStatus200, ResponseErrorConfig<Error>, ShopRecipesCreateOptions, TContext>
 }

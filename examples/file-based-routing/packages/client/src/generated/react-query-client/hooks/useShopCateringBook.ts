@@ -3,49 +3,40 @@
 * Do not edit manually.
 */
 
-import type { Client, RequestConfig, ResponseErrorConfig } from "../client-runtime";
-import type { ShopCateringBookMutationRequest, ShopCateringBookMutationResponse } from "../types/ShopCateringBook";
-import type { UseMutationOptions, UseMutationResult, QueryClient } from "@tanstack/react-query";
-import { shopCateringBook } from "../clients/shopCateringBook";
-import { mutationOptions, useMutation } from "@tanstack/react-query";
+import type { RequestConfig, ResponseErrorConfig } from '../client-runtime'
+import type { ShopCateringBookOptions, ShopCateringBookStatus200 } from '../types/ShopCateringBook'
+import type { UseMutationOptions, UseMutationResult, QueryClient } from '@tanstack/react-query'
+import { shopCateringBook } from '../clients/shopCateringBook'
+import { mutationOptions, useMutation } from '@tanstack/react-query'
 
 export const shopCateringBookMutationKey = () => [{ url: '/shop/catering/book' }] as const
 
-export type ShopCateringBookMutationKey = ReturnType<typeof shopCateringBookMutationKey>
-
-export function shopCateringBookMutationOptions<TContext = unknown>(config: Partial<RequestConfig<ShopCateringBookMutationRequest>> & { client?: Client } = {}) {
-
-        const mutationKey = shopCateringBookMutationKey()
-        return mutationOptions<ShopCateringBookMutationResponse, ResponseErrorConfig<Error>, {data: ShopCateringBookMutationRequest}, TContext>({
-          mutationKey,
-          mutationFn: async({ data }) => {
-            return shopCateringBook(data, config)
-          },
-        })
-
+export function shopCateringBookMutationOptions<TContext = unknown>(config: Partial<Omit<RequestConfig, 'path' | 'query' | 'body' | 'headers' | 'url'>> = {}) {
+  const mutationKey = shopCateringBookMutationKey()
+  return mutationOptions<ShopCateringBookStatus200, ResponseErrorConfig<Error>, ShopCateringBookOptions, TContext>({
+    mutationKey,
+    mutationFn: async({ body }) => {
+      return (await shopCateringBook({ ...config, body, throwOnError: true })).data
+    },
+  })
 }
 
 /**
  * {@link /shop/catering/book}
  */
-export function useShopCateringBook<TContext>(options: 
-{
-  mutation?: UseMutationOptions<ShopCateringBookMutationResponse, ResponseErrorConfig<Error>, {data: ShopCateringBookMutationRequest}, TContext> & { client?: QueryClient },
-  client?: Partial<RequestConfig<ShopCateringBookMutationRequest>> & { client?: Client },
-}
- = {}) {
+export function useShopCateringBook<TContext>(options: {
+  mutation?: UseMutationOptions<ShopCateringBookStatus200, ResponseErrorConfig<Error>, ShopCateringBookOptions, TContext> & { client?: QueryClient },
+  client?: Partial<Omit<RequestConfig, 'path' | 'query' | 'body' | 'headers' | 'url'>>,
+} = {}) {
+  const { mutation = {}, client: config = {} } = options ?? {}
+  const { client: queryClient, ...mutationOptions } = mutation;
+  const mutationKey = mutationOptions.mutationKey ?? shopCateringBookMutationKey()
 
-          const { mutation = {}, client: config = {} } = options ?? {}
-          const { client: queryClient, ...mutationOptions } = mutation;
-          const mutationKey = mutationOptions.mutationKey ?? shopCateringBookMutationKey()
+  const baseOptions = shopCateringBookMutationOptions(config) as UseMutationOptions<ShopCateringBookStatus200, ResponseErrorConfig<Error>, ShopCateringBookOptions, TContext>
 
-          const baseOptions = shopCateringBookMutationOptions(config) as UseMutationOptions<ShopCateringBookMutationResponse, ResponseErrorConfig<Error>, {data: ShopCateringBookMutationRequest}, TContext>
-          
-
-          return useMutation<ShopCateringBookMutationResponse, ResponseErrorConfig<Error>, {data: ShopCateringBookMutationRequest}, TContext>({
-            ...baseOptions,
-            mutationKey,
-            ...mutationOptions,
-          }, queryClient) as UseMutationResult<ShopCateringBookMutationResponse, ResponseErrorConfig<Error>, {data: ShopCateringBookMutationRequest}, TContext>
-      
+  return useMutation<ShopCateringBookStatus200, ResponseErrorConfig<Error>, ShopCateringBookOptions, TContext>({
+    ...baseOptions,
+    mutationKey,
+    ...mutationOptions,
+  }, queryClient) as UseMutationResult<ShopCateringBookStatus200, ResponseErrorConfig<Error>, ShopCateringBookOptions, TContext>
 }

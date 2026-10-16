@@ -15,7 +15,7 @@ import { UserPage } from '../src/UserPage';
 function SpreadGreet() {
   const api = useApiClient();
   const { data } = api.useGreet(
-    { name: 'Spread' },
+    { query: { name: 'Spread' } },
     { query: { retry: false } },
   );
   return <div data-testid="spread-greeting">{data ?? ''}</div>;

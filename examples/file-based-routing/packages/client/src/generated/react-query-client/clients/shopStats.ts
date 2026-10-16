@@ -3,23 +3,15 @@
 * Do not edit manually.
 */
 
-import fetch from "../client-runtime";
-import type { Client, RequestConfig, ResponseErrorConfig } from "../client-runtime";
-import type { ShopStatsQueryResponse } from "../types/ShopStats";
-
-function getShopStatsUrl() {
-  const res = { method: 'GET', url: `/shop/stats` as const }
-  return res
-}
+import type { Options, RequestResult } from '../client-runtime'
+import type { ShopStatsOptions, ShopStatsResponses } from '../types/ShopStats'
+import { client } from '../client-runtime'
 
 /**
  * {@link /shop/stats}
  */
-export async function shopStats(config: Partial<RequestConfig> & { client?: Client } = {}) {
-  const { client: request = fetch, ...requestConfig } = config
+export function shopStats<ThrowOnError extends boolean = true>(options: Options<ShopStatsOptions, ThrowOnError> = {}): Promise<RequestResult<ShopStatsResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options
 
-
-
-  const res = await request<ShopStatsQueryResponse, ResponseErrorConfig<Error>, unknown>({ method : "GET", url : getShopStatsUrl().url.toString(), ... requestConfig })
-  return res.data
+  return request({ method: 'GET', url: '/shop/stats', ...config, throwOnError: config.throwOnError ?? true }) as Promise<RequestResult<ShopStatsResponses, ThrowOnError>>
 }

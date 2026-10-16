@@ -50,12 +50,12 @@
     "tscheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@kubb/core": "4.39.3",
-    "@kubb/plugin-client": "4.39.3",
-    "@kubb/plugin-oas": "4.39.3",
-    "@kubb/plugin-react-query": "4.39.3",
-    "@kubb/plugin-ts": "4.39.3",
+    "@kubb/adapter-oas": "5.11.0",
+    "@kubb/plugin-client": "5.5.15",
+    "@kubb/plugin-react-query": "5.5.3",
+    "@kubb/plugin-ts": "5.0.14",
     "callsites": "^4.2.0",
+    "kubb": "5.11.0",
     "openapi-types": "^12.1.3",
     "zod-openapi": "^6.0.2"
   },

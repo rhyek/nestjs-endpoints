@@ -1,17 +1,16 @@
 import path from 'node:path';
 
-type DefinePlugin = typeof import('@kubb/core').definePlugin;
+type Kit = typeof import('kubb/kit');
 
 /**
  * Inline Kubb plugin that emits our two hand-written artifacts as part of the
- * same `build()` pass: the runtime module (into the output dir) and the
- * namespaced wrapper (at `outputFile`). Nothing is written, post-processed, or
- * deleted by us outside the pipeline — `output.clean` prunes only Kubb's own
- * output directory, and the wrapper at `outputFile` is rewritten in full each
- * run.
+ * same build: the runtime module (into the output dir) and the namespaced
+ * wrapper (at `outputFile`). Nothing is written, post-processed, or deleted by
+ * us outside the pipeline — `output.clean` prunes only Kubb's own output
+ * directory, and the wrapper at `outputFile` is rewritten in full each run.
  */
 export function emitPlugin(
-  definePlugin: DefinePlugin,
+  kit: Kit,
   params: {
     name: string;
     outDir: string;
@@ -22,38 +21,31 @@ export function emitPlugin(
 ) {
   const { name, outDir, outputFile, runtimeSource, wrapperSource } =
     params;
-  return definePlugin(() => ({
-    name,
-    options: {},
-    async install() {
-      await this.addFile({
-        baseName: 'client-runtime.ts',
-        path: path.join(outDir, 'client-runtime.ts'),
-        sources: [
-          {
-            name: 'client-runtime',
-            value: runtimeSource,
-            isExportable: true,
-            isIndexable: false,
-          },
-        ],
-        imports: [],
-        exports: [],
-      });
-      await this.addFile({
-        baseName: path.basename(outputFile) as `${string}.${string}`,
-        path: outputFile,
-        sources: [
-          {
-            name: 'createApiClient',
-            value: wrapperSource,
-            isExportable: true,
-            isIndexable: false,
-          },
-        ],
-        imports: [],
-        exports: [],
-      });
+  const { createSource, createText } = kit.ast.factory;
+  const raw = (baseName: string, filePath: string, value: string) =>
+    kit.injectFile({
+      baseName: baseName as `${string}.${string}`,
+      path: filePath,
+      sources: [
+        createSource({
+          name: path.parse(baseName).name,
+          nodes: [createText(value)],
+          isExportable: true,
+          isIndexable: false,
+        }),
+      ],
+    });
+  return kit.defineExtension({
+    kind: 'plugin',
+    meta: { name },
+    setup(options) {
+      raw(
+        'client-runtime.ts',
+        path.join(outDir, 'client-runtime.ts'),
+        runtimeSource,
+      );
+      raw(path.basename(outputFile), outputFile, wrapperSource);
+      return options;
     },
-  }))();
+  })({});
 }

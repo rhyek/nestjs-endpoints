@@ -3,10 +3,6 @@
 * Do not edit manually.
 */
 
-
 export type ShopStatsOutput = {
-    /**
-     * @type number
-    */
     visitors: number;
 };

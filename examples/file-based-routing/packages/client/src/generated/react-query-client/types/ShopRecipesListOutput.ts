@@ -3,14 +3,7 @@
 * Do not edit manually.
 */
 
-
 export type ShopRecipesListOutput = {
-    /**
-     * @type number
-    */
     id: number;
-    /**
-     * @type string
-    */
     name: string;
 }[];

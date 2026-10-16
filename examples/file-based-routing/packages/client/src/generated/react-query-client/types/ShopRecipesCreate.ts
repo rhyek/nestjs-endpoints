@@ -3,17 +3,25 @@
 * Do not edit manually.
 */
 
-import type { ShopRecipesCreateInput } from "./ShopRecipesCreateInput";
-import type { ShopRecipesCreateOutput } from "./ShopRecipesCreateOutput";
+import type { ShopRecipesCreateInput } from './ShopRecipesCreateInput'
+import type { ShopRecipesCreateOutput } from './ShopRecipesCreateOutput'
 
-export type ShopRecipesCreate200 = ShopRecipesCreateOutput;
+export type ShopRecipesCreateStatus200 = ShopRecipesCreateOutput;
 
-export type ShopRecipesCreateMutationRequest = ShopRecipesCreateInput;
+export type ShopRecipesCreateBody = ShopRecipesCreateInput;
 
-export type ShopRecipesCreateMutationResponse = ShopRecipesCreate200;
-
-export type ShopRecipesCreateMutation = {
-    Response: ShopRecipesCreate200;
-    Request: ShopRecipesCreateMutationRequest;
-    Errors: any;
+export type ShopRecipesCreateOptions = {
+    body: ShopRecipesCreateBody;
+    path?: never;
+    query?: never;
+    headers?: never;
 };
+
+export type ShopRecipesCreateResponses = {
+    "200": ShopRecipesCreateStatus200;
+};
+
+/**
+ * @description Union of all possible responses
+*/
+export type ShopRecipesCreateResponse = ShopRecipesCreateStatus200;

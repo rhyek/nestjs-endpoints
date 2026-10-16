@@ -3,23 +3,15 @@
 * Do not edit manually.
 */
 
-import fetch from "../client-runtime";
-import type { Client, RequestConfig, ResponseErrorConfig } from "../client-runtime";
-import type { ShopRecipesListQueryResponse } from "../types/ShopRecipesList";
-
-function getShopRecipesListUrl() {
-  const res = { method: 'GET', url: `/shop/recipes/list` as const }
-  return res
-}
+import type { Options, RequestResult } from '../client-runtime'
+import type { ShopRecipesListOptions, ShopRecipesListResponses } from '../types/ShopRecipesList'
+import { client } from '../client-runtime'
 
 /**
  * {@link /shop/recipes/list}
  */
-export async function shopRecipesList(config: Partial<RequestConfig> & { client?: Client } = {}) {
-  const { client: request = fetch, ...requestConfig } = config
+export function shopRecipesList<ThrowOnError extends boolean = true>(options: Options<ShopRecipesListOptions, ThrowOnError> = {}): Promise<RequestResult<ShopRecipesListResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options
 
-
-
-  const res = await request<ShopRecipesListQueryResponse, ResponseErrorConfig<Error>, unknown>({ method : "GET", url : getShopRecipesListUrl().url.toString(), ... requestConfig })
-  return res.data
+  return request({ method: 'GET', url: '/shop/recipes/list', ...config, throwOnError: config.throwOnError ?? true }) as Promise<RequestResult<ShopRecipesListResponses, ThrowOnError>>
 }

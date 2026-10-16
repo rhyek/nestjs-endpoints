@@ -7,7 +7,7 @@
  * plus `ApiClient`, `useApiClient`, and `ApiClientProvider`.
  */
 import * as React from 'react';
-import * as _ops from './react-query-client/axios-clients';
+import * as _ops from './react-query-client/clients';
 import * as _hooks from './react-query-client/hooks';
 import {
   ApiClientContext,
@@ -19,38 +19,34 @@ import {
 
 export type * from './react-query-client/types';
 
-const _CTX = Symbol.for('nestjs-endpoints:client-ctx');
+const _CTX = Symbol('nestjs-endpoints:client-ctx');
 
 const _build = (_ctx: ApiClientContextValue) => {
   const { request: _request, axios: _axios } = _ctx;
-  const client = {
+  return {
       axios: _axios,
+      [_CTX]: _ctx,
       /** Shop surface. Groups the storefront homepage, catering bookings, and the recipes sub-module. */
       shop: {
         cateringBook: bindClient(_ops.shopCateringBook, _request),
         homepage: bindClient(_ops.shopHomepage, _request),
         stats: bindClient(_ops.shopStats, _request),
-        useCateringBook: bindHook(_hooks.useShopCateringBook),
-        useHomepage: bindHook(_hooks.useShopHomepage),
-        useStats: bindHook(_hooks.useShopStats),
+        useCateringBook: bindHook(_hooks.useShopCateringBook, 0),
+        useHomepage: bindHook(_hooks.useShopHomepage, 0),
+        useStats: bindHook(_hooks.useShopStats, 0),
         /** Recipe catalog and authoring. */
         recipes: {
           view: bindClient(_ops.shopRecipesView, _request),
           create: bindClient(_ops.shopRecipesCreate, _request),
           edit: bindClient(_ops.shopRecipesEdit, _request),
           list: bindClient(_ops.shopRecipesList, _request),
-          useView: bindHook(_hooks.useShopRecipesView),
-          useCreate: bindHook(_hooks.useShopRecipesCreate),
-          useEdit: bindHook(_hooks.useShopRecipesEdit),
-          useList: bindHook(_hooks.useShopRecipesList),
+          useView: bindHook(_hooks.useShopRecipesView, 1),
+          useCreate: bindHook(_hooks.useShopRecipesCreate, 0),
+          useEdit: bindHook(_hooks.useShopRecipesEdit, 0),
+          useList: bindHook(_hooks.useShopRecipesList, 0),
         },
       },
     };
-  Object.defineProperty(client, _CTX, {
-    value: _ctx,
-    enumerable: false,
-  });
-  return client;
 };
 
 export const createApiClient = (
@@ -66,7 +62,7 @@ export const useApiClient = (): ApiClient => {
       'useApiClient must be used within an <ApiClientProvider>.',
     );
   }
-  return React.useMemo(() => _build(_ctx), [_ctx]) as ApiClient;
+  return React.useMemo(() => _build(_ctx), [_ctx]);
 };
 
 export const ApiClientProvider = ({
@@ -76,12 +72,4 @@ export const ApiClientProvider = ({
   client: ApiClient;
   children: React.ReactNode;
 }) =>
-  React.createElement(
-    ApiClientContext.Provider,
-    {
-      value: (client as unknown as Record<symbol, ApiClientContextValue>)[
-        _CTX
-      ],
-    },
-    children,
-  );
+  React.createElement(ApiClientContext.Provider, { value: client[_CTX] }, children);

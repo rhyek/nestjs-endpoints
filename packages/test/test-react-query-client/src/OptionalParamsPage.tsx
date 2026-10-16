@@ -3,10 +3,10 @@ import { useApiClient } from '../../test-app-express/generated/react-query-clien
 
 export function OptionalParamsPage() {
   const apiClient = useApiClient();
-  // Intentionally called with NO arguments. The generated method's `params`
+  // Intentionally called with NO arguments. The generated hook's request
   // argument is optional, so this exercises `bindHook`'s handling of an omitted
-  // leading positional — the bound client must still be injected into the
-  // (omitted) trailing options rather than sliding into the `params` slot.
+  // leading argument — the bound client must still be injected into the
+  // (omitted) trailing options rather than sliding into the request slot.
   const { data, status, error } = apiClient.useOptionalParams();
 
   return (

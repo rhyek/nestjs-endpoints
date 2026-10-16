@@ -3,23 +3,15 @@
 * Do not edit manually.
 */
 
-import fetch from "../client-runtime";
-import type { Client, RequestConfig, ResponseErrorConfig } from "../client-runtime";
-import type { ShopRecipesCreateMutationRequest, ShopRecipesCreateMutationResponse } from "../types/ShopRecipesCreate";
-
-function getShopRecipesCreateUrl() {
-  const res = { method: 'POST', url: `/shop/recipes/create` as const }
-  return res
-}
+import type { Options, RequestResult } from '../client-runtime'
+import type { ShopRecipesCreateOptions, ShopRecipesCreateResponses } from '../types/ShopRecipesCreate'
+import { client } from '../client-runtime'
 
 /**
  * {@link /shop/recipes/create}
  */
-export async function shopRecipesCreate(data: ShopRecipesCreateMutationRequest, config: Partial<RequestConfig<ShopRecipesCreateMutationRequest>> & { client?: Client } = {}) {
-  const { client: request = fetch, ...requestConfig } = config
+export function shopRecipesCreate<ThrowOnError extends boolean = true>(options: Options<ShopRecipesCreateOptions, ThrowOnError>): Promise<RequestResult<ShopRecipesCreateResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options
 
-  const requestData = data
-
-  const res = await request<ShopRecipesCreateMutationResponse, ResponseErrorConfig<Error>, ShopRecipesCreateMutationRequest>({ method : "POST", url : getShopRecipesCreateUrl().url.toString(), data : requestData, ... requestConfig })
-  return res.data
+  return request({ method: 'POST', url: '/shop/recipes/create', ...config, throwOnError: config.throwOnError ?? true }) as Promise<RequestResult<ShopRecipesCreateResponses, ThrowOnError>>
 }

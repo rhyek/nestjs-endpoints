@@ -109,18 +109,22 @@ Assume `rootDirectory: './endpoints'` and no `basePath`.
 `fn` = axios method (returns a full `AxiosResponse`, so read `.data`).
 `useFn` = the paired React Query hook.
 
+Each operation takes one object grouping its request: `path` (path `params`),
+`query` (a GET's `input`), `body` (a mutation's `input`) and `headers`.
+
 | Endpoint shape | axios | react-query |
 | --- | --- | --- |
 | GET, no `input` | `fn()` | `useFn(options?)` |
-| GET, `input` | `fn(params)` | `useFn(params, options?)` |
-| GET, all-`optional` `input` | `fn()` or `fn(params)` | `useFn()` or `useFn(params)` |
-| GET, `params` (path) | `fn(id)` | `useFn(id, options?)` |
-| POST/PUT/PATCH/DELETE, `input` | `fn(data)` | `useFn().mutateAsync({ data })` |
-| …plus path `params` | `fn(id, data)` | `useFn().mutateAsync({ id, data })` |
-| …path `params`, no `input` | `fn(id)` | `useFn().mutateAsync({ id })` |
+| GET, `input` | `fn({ query })` | `useFn({ query }, options?)` |
+| GET, all-`optional` `input` | `fn()` or `fn({ query })` | `useFn()` or `useFn({ query })` |
+| GET, `params` (path) | `fn({ path })` | `useFn({ path }, options?)` |
+| POST/PUT/PATCH/DELETE, `input` | `fn({ body })` | `useFn().mutateAsync({ body })` |
+| …plus path `params` | `fn({ path, body })` | `useFn().mutateAsync({ path, body })` |
+| …path `params`, no `input` | `fn({ path })` | `useFn().mutateAsync({ path })` |
 
-Every axios method takes a trailing optional axios `config`; every hook takes a
-trailing optional `{ query?, mutation?, client? }` options object.
+The axios method's object also takes axios request config (`signal`,
+`timeout`, …); every hook takes a trailing optional
+`{ query?, mutation?, client? }` options object.
 
 ### 2.5 CLI
 
@@ -625,8 +629,8 @@ export default EndpointRouterModule.create({ namespace: true });
 ```
 
 ```ts
-await client.shop.recipes.create({ name: 'Pizza' });   // axios
-const create = client.shop.recipes.useCreate();        // react-query
+await client.shop.recipes.create({ body: { name: 'Pizza' } }); // axios
+const create = client.shop.recipes.useCreate();                // react-query
 ```
 
 `namespace` accepts:
@@ -652,8 +656,8 @@ router serves `/shop/catering/book` and lands at `client.shop.useCateringBook()`
 
 Consequences worth knowing:
 
-- **Path params vanish from the name** — the typed positional argument conveys
-  them: `client.recipesEdit(recipeId, { name })`.
+- **Path params vanish from the name** — the typed `path` group conveys them:
+  `client.recipesEdit({ path: { recipeId }, body: { name } })`.
 - **Stripping is lenient.** If the flat name doesn't start with the full chain,
   or stripping would leave nothing, the full flat name is kept. A bare
   `endpoint.ts` inside `shop/recipes/` produces operation `ShopRecipes`, whose
@@ -694,7 +698,7 @@ await app.listen(3000);
 ```
 
 `openapi` takes the same options as `setupOpenAPI`. Kubb is the engine; the
-react-query client needs `@tanstack/react-query` >= 5.80 in the consuming app,
+react-query client needs `@tanstack/react-query` >= 5.82 in the consuming app,
 plus `axios` and `react`.
 
 Per-client options:
@@ -704,7 +708,7 @@ Per-client options:
 | `type` | `'axios'` or `'react-query'`. |
 | `outputFile` | **Must include an extension** (`.ts` / `.tsx`) — the generated tree goes in a sibling directory named after it, so an extensionless path would collide. |
 | `namespaces` | `string[]` restricting the client to those top-level namespaces. Omit for full access; `[]` is rejected. |
-| `options` | react-query only: forwarded to `@kubb/plugin-react-query` (query keys, suspense/infinite generation, …). The `client` field is managed for you. |
+| `options` | react-query only: forwarded to `@kubb/plugin-react-query` (query keys, suspense/infinite generation, …). The `client` and `hooks` fields are managed for you. |
 
 `forceGenerate: true` (top level) wipes and regenerates everything this call
 owns. Otherwise a client regenerates when the OpenAPI document changed, or when
@@ -721,7 +725,7 @@ generated/
     └── types/…
 ```
 
-For react-query, the sibling directory also holds `axios-clients/` and `hooks/`.
+For react-query, the sibling directory also holds `hooks/`.
 **Import only from the top-level wrapper file.** The sibling tree is internal,
 is wiped and rewritten on every regeneration, and its per-operation hooks are
 unbound (they have no client).
@@ -786,11 +790,15 @@ const client = createApiClient({ baseURL: process.env.API_BASE_URL });
 // The underlying instance is always reachable:
 client.axios.defaults.headers.common['x-tenant'] = 't1';
 
-const { data: user } = await client.user.create({ name: 'Tom', email: 'tom@x.com' });
+const { data: user } = await client.user.create({
+  body: { name: 'Tom', email: 'tom@x.com' },
+});
 ```
 
 Methods resolve to the full `AxiosResponse` and **reject on non-2xx**, exactly
-like axios — so error handling is `try/catch` + `err.response.status`.
+like axios — so error handling is `try/catch` + `err.response.status`. Pass
+`throwOnError: false` to get the error response back instead. `headers` carries
+only the endpoint's declared headers; set any others on `client.axios`.
 
 ### 9.2 react-query
 
@@ -825,7 +833,7 @@ function Recipes() {
   const edit = client.shop.recipes.useEdit();
 
   const rename = async (recipeId: number, name: string) => {
-    await edit.mutateAsync({ recipeId, data: { name } });
+    await edit.mutateAsync({ path: { recipeId }, body: { name } });
     await list.refetch();
   };
 
@@ -841,13 +849,14 @@ Notes:
 - Hooks return **unwrapped data** (`list.data` is the payload). The axios methods
   on the same bucket return the full `AxiosResponse`.
 - Pass React Query options through the trailing argument:
-  `client.useGreet({ name }, { query: { enabled: !!name, retry: false } })`.
+  `client.useGreet({ query: { name } }, { query: { enabled: !!name, retry: false } })`.
 - Errors are typed as `ResponseErrorConfig<Error>` — read
   `error.response?.data`.
 - `useApiClient()` must be called under `<ApiClientProvider>`; it throws
   otherwise. The object it returns is memoized per context value.
-- Suspense variants are generated into the internal tree but are **not** exposed
-  on the client object. Don't import them directly.
+- Suspense and infinite variants (opt in through `options`) are generated into
+  the internal tree but are **not** exposed on the client object. Don't import
+  them directly.
 
 ---
 
@@ -876,7 +885,7 @@ await app.init();
 await app.listen(0);
 const client = createApiClient({ baseURL: await app.getUrl() });
 
-await expect(client.userFind({ id: 1 })).resolves.toMatchObject({
+await expect(client.userFind({ query: { id: 1 } })).resolves.toMatchObject({
   data: { id: 1, email: 'john@hotmail.com' },
 });
 ```

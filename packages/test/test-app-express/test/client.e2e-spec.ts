@@ -14,7 +14,9 @@ describe('generated client', () => {
       const client = createApiClient({
         baseURL: await app.getUrl(),
       });
-      await expect(client.userGet({ id: 1 })).rejects.toMatchObject({
+      await expect(
+        client.userGet({ query: { id: 1 } }),
+      ).rejects.toMatchObject({
         response: {
           status: 404,
           data: {
@@ -26,10 +28,9 @@ describe('generated client', () => {
       const {
         data: { id },
       } = await client.userCreate({
-        name: 'Jake',
-        email: 'jake@gmail.com',
+        body: { name: 'Jake', email: 'jake@gmail.com' },
       });
-      const { data: user } = await client.userFind({ id });
+      const { data: user } = await client.userFind({ query: { id } });
       expect(user).toEqual({
         id,
         name: 'Jake',
@@ -52,7 +53,9 @@ describe('generated client', () => {
         baseURL: await app.getUrl(),
       });
       const client = createApiClient(axios);
-      await expect(client.userGet({ id: 1 })).rejects.toMatchObject({
+      await expect(
+        client.userGet({ query: { id: 1 } }),
+      ).rejects.toMatchObject({
         response: {
           status: 404,
           data: {
@@ -64,10 +67,9 @@ describe('generated client', () => {
       const {
         data: { id },
       } = await client.userCreate({
-        name: 'Jake',
-        email: 'jake@gmail.com',
+        body: { name: 'Jake', email: 'jake@gmail.com' },
       });
-      const { data: user } = await client.userFind({ id });
+      const { data: user } = await client.userFind({ query: { id } });
       expect(user).toEqual({
         id,
         name: 'Jake',
@@ -87,7 +89,7 @@ describe('generated client', () => {
       const client = createApiClient({
         baseURL: await app.getUrl(),
       });
-      const { data } = await client.greet({ name: 'Alice' });
+      const { data } = await client.greet({ query: { name: 'Alice' } });
       expect(data).toBe('Hello, Alice!');
     } finally {
       await app.close();
@@ -107,14 +109,16 @@ describe('generated client', () => {
         });
         // Un-namespaced operation (no router namespace) sits at the root
         // of the client using its flat camelCase name.
-        const greet = await client.greet({ name: 'Clara' });
+        const greet = await client.greet({ query: { name: 'Clara' } });
         expect(greet.data).toBe('Hello, Clara!');
         // One-level namespace bucket (from `namespace: 'articles'`).
         const latest = await client.articles.latest();
         expect(latest.data).toMatchObject({ title: expect.any(String) });
         // Two-level nested namespace bucket (shop → cart, from two routers
         // both declaring `namespace: true`).
-        const cart = await client.shop.cart.add({ item: 'apple' });
+        const cart = await client.shop.cart.add({
+          query: { item: 'apple' },
+        });
         expect(cart.data).toMatchObject({ added: 'apple' });
       } finally {
         await app.close();
@@ -135,27 +139,34 @@ describe('generated client', () => {
         });
         // Seed a recipe so we have something to address by id.
         const { data: created } = await client.recipesCreate({
-          name: 'Pizza',
+          query: { name: 'Pizza' },
         });
         expect(created).toEqual({ id: 1, name: 'Pizza' });
 
         // PATCH /recipes/edit/:recipeId — :param drops out of the
-        // method name; the path param is still the first positional arg.
-        const { data: edited } = await client.recipesEdit(created.id, {
-          name: 'Margherita',
+        // method name; the path param moves to the `path` group.
+        const { data: edited } = await client.recipesEdit({
+          path: { recipeId: created.id },
+          body: { name: 'Margherita' },
         });
         expect(edited).toEqual({ id: 1, name: 'Margherita' });
 
         // GET /recipes/:recipeId/view
-        const { data: viewed } = await client.recipesView(created.id);
+        const { data: viewed } = await client.recipesView({
+          path: { recipeId: created.id },
+        });
         expect(viewed).toMatchObject({ id: 1, name: 'Margherita' });
 
         // DELETE /recipes/:recipeId/delete
-        const { data: removed } = await client.recipesDelete(created.id);
+        const { data: removed } = await client.recipesDelete({
+          path: { recipeId: created.id },
+        });
         expect(removed).toEqual({ id: 1, name: 'Margherita' });
 
         // Multi-param: GET /restaurant/:restaurantId/recipes/:recipeId/view
-        const { data: multi } = await client.restaurantRecipesView(7, 42);
+        const { data: multi } = await client.restaurantRecipesView({
+          path: { restaurantId: 7, recipeId: 42 },
+        });
         expect(multi).toEqual({ restaurantId: 7, recipeId: 42 });
       } finally {
         await app.close();
@@ -186,9 +197,32 @@ describe('generated client', () => {
           return config;
         });
 
-        const cart = await client.shop.cart.add({ item: 'apple' });
+        const cart = await client.shop.cart.add({
+          query: { item: 'apple' },
+        });
         expect(cart.data).toMatchObject({ added: 'apple' });
         expect(seenUrls).toContain('/shop/cart/add');
+      } finally {
+        await app.close();
+      }
+    },
+  );
+
+  test.concurrent(
+    'throwOnError: false resolves with the error response',
+    async () => {
+      const moduleFixture: TestingModule = await Test.createTestingModule({
+        imports: [AppModule],
+      }).compile();
+      const { app } = await createApp(moduleFixture);
+      try {
+        const client = createApiClient({ baseURL: await app.getUrl() });
+        await expect(
+          client.userGet({ query: { id: 1 }, throwOnError: false }),
+        ).resolves.toMatchObject({
+          status: 404,
+          data: { message: 'User not found' },
+        });
       } finally {
         await app.close();
       }
@@ -205,14 +239,13 @@ describe('generated client', () => {
       try {
         const client = createApiClient({ baseURL: await app.getUrl() });
         // Called with NO arguments — the bound client must still be injected
-        // into the (omitted) trailing config, not slid into the optional
-        // `params` slot.
+        // into the omitted options object.
         await expect(client.optionalParams()).resolves.toMatchObject({
           data: { ok: true, q: null },
         });
         // And still works when the optional params are provided.
         await expect(
-          client.optionalParams({ q: 'hi' }),
+          client.optionalParams({ query: { q: 'hi' } }),
         ).resolves.toMatchObject({ data: { ok: true, q: 'hi' } });
       } finally {
         await app.close();

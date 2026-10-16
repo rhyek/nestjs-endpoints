@@ -3,13 +3,22 @@
 * Do not edit manually.
 */
 
-import type { ShopHomepageOutput } from "./ShopHomepageOutput";
+import type { ShopHomepageOutput } from './ShopHomepageOutput'
 
-export type ShopHomepage200 = ShopHomepageOutput;
+export type ShopHomepageStatus200 = ShopHomepageOutput;
 
-export type ShopHomepageQueryResponse = ShopHomepage200;
-
-export type ShopHomepageQuery = {
-    Response: ShopHomepage200;
-    Errors: any;
+export type ShopHomepageOptions = {
+    body?: never;
+    path?: never;
+    query?: never;
+    headers?: never;
 };
+
+export type ShopHomepageResponses = {
+    "200": ShopHomepageStatus200;
+};
+
+/**
+ * @description Union of all possible responses
+*/
+export type ShopHomepageResponse = ShopHomepageStatus200;

@@ -3,23 +3,15 @@
 * Do not edit manually.
 */
 
-import fetch from "../client-runtime";
-import type { Client, RequestConfig, ResponseErrorConfig } from "../client-runtime";
-import type { ShopHomepageQueryResponse } from "../types/ShopHomepage";
-
-function getShopHomepageUrl() {
-  const res = { method: 'GET', url: `/shop/homepage` as const }
-  return res
-}
+import type { Options, RequestResult } from '../client-runtime'
+import type { ShopHomepageOptions, ShopHomepageResponses } from '../types/ShopHomepage'
+import { client } from '../client-runtime'
 
 /**
  * {@link /shop/homepage}
  */
-export async function shopHomepage(config: Partial<RequestConfig> & { client?: Client } = {}) {
-  const { client: request = fetch, ...requestConfig } = config
+export function shopHomepage<ThrowOnError extends boolean = true>(options: Options<ShopHomepageOptions, ThrowOnError> = {}): Promise<RequestResult<ShopHomepageResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options
 
-
-
-  const res = await request<ShopHomepageQueryResponse, ResponseErrorConfig<Error>, unknown>({ method : "GET", url : getShopHomepageUrl().url.toString(), ... requestConfig })
-  return res.data
+  return request({ method: 'GET', url: '/shop/homepage', ...config, throwOnError: config.throwOnError ?? true }) as Promise<RequestResult<ShopHomepageResponses, ThrowOnError>>
 }

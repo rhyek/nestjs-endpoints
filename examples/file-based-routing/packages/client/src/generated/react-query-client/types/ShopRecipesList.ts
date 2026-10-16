@@ -3,13 +3,22 @@
 * Do not edit manually.
 */
 
-import type { ShopRecipesListOutput } from "./ShopRecipesListOutput";
+import type { ShopRecipesListOutput } from './ShopRecipesListOutput'
 
-export type ShopRecipesList200 = ShopRecipesListOutput;
+export type ShopRecipesListStatus200 = ShopRecipesListOutput;
 
-export type ShopRecipesListQueryResponse = ShopRecipesList200;
-
-export type ShopRecipesListQuery = {
-    Response: ShopRecipesList200;
-    Errors: any;
+export type ShopRecipesListOptions = {
+    body?: never;
+    path?: never;
+    query?: never;
+    headers?: never;
 };
+
+export type ShopRecipesListResponses = {
+    "200": ShopRecipesListStatus200;
+};
+
+/**
+ * @description Union of all possible responses
+*/
+export type ShopRecipesListResponse = ShopRecipesListStatus200;

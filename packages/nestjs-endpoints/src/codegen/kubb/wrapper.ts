@@ -53,13 +53,14 @@ export function buildAxiosWrapperSource(params: {
  * carries the imperative axios method (full `AxiosResponse`, bound to the
  * instance via `bindClient`) and its paired React Query hook (`bindHook`, which
  * reads the bound client from `ApiClientContext`). It also exports
- * `useApiClient` + `ApiClientProvider`. The axios methods come from the `full`
- * generated client (`opsImport`) so they match the standalone axios client; the
- * hooks come from the generated `hooks` barrel and return unwrapped data.
+ * `useApiClient` + `ApiClientProvider`. The axios methods come from the
+ * generated `clients` barrel, the same request functions the standalone axios
+ * client exposes; the hooks come from the generated `hooks` barrel and return
+ * unwrapped data.
  */
 export function buildReactQueryWrapperSource(params: {
   document: OpenAPIObject;
-  /** Import for the `full` generated client barrel (axios methods). */
+  /** Import for the generated `clients` barrel (axios methods). */
   opsImport: string;
   /** Import for the generated `hooks` barrel. */
   hooksImport: string;
@@ -67,14 +68,27 @@ export function buildReactQueryWrapperSource(params: {
   runtimeImport: string;
   /** Import for the generated barrel whose types are re-exported. */
   typesImport: string;
+  /** HTTP methods Kubb turns into query hooks (`query.methods`). */
+  queryMethods: readonly string[];
 }): string {
-  const { document, opsImport, hooksImport, runtimeImport, typesImport } =
-    params;
+  const {
+    document,
+    opsImport,
+    hooksImport,
+    runtimeImport,
+    typesImport,
+    queryMethods,
+  } = params;
+  const isQuery = (method: string) =>
+    queryMethods.some((m) => m.toLowerCase() === method);
 
   const buildExpr = buildClientObjectExpression({
     document,
     plainAccess: (src) => `bindClient(_ops.${src}, _request)`,
-    hookAccess: (src) => `bindHook(_hooks.${src})`,
+    // A query hook takes its request data first when the operation has any;
+    // mutation hooks get theirs through `mutate()`.
+    hookAccess: (src, { method, hasRequest }) =>
+      `bindHook(_hooks.${src}, ${isQuery(method) && hasRequest ? 1 : 0})`,
     // `[_CTX]` carries the bound client/axios pair so `ApiClientProvider` can
     // put it into React context. It's a module-private `unique symbol`, so it's
     // hidden from consumers and absent from `Object.keys`, but — being an

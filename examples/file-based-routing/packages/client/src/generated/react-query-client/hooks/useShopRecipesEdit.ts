@@ -3,49 +3,40 @@
 * Do not edit manually.
 */
 
-import type { Client, RequestConfig, ResponseErrorConfig } from "../client-runtime";
-import type { ShopRecipesEditMutationRequest, ShopRecipesEditMutationResponse, ShopRecipesEditPathParams } from "../types/ShopRecipesEdit";
-import type { UseMutationOptions, UseMutationResult, QueryClient } from "@tanstack/react-query";
-import { shopRecipesEdit } from "../clients/shopRecipesEdit";
-import { mutationOptions, useMutation } from "@tanstack/react-query";
+import type { RequestConfig, ResponseErrorConfig } from '../client-runtime'
+import type { ShopRecipesEditOptions, ShopRecipesEditStatus200 } from '../types/ShopRecipesEdit'
+import type { UseMutationOptions, UseMutationResult, QueryClient } from '@tanstack/react-query'
+import { shopRecipesEdit } from '../clients/shopRecipesEdit'
+import { mutationOptions, useMutation } from '@tanstack/react-query'
 
 export const shopRecipesEditMutationKey = () => [{ url: '/shop/recipes/edit/:recipeId' }] as const
 
-export type ShopRecipesEditMutationKey = ReturnType<typeof shopRecipesEditMutationKey>
-
-export function shopRecipesEditMutationOptions<TContext = unknown>(config: Partial<RequestConfig<ShopRecipesEditMutationRequest>> & { client?: Client } = {}) {
-
-        const mutationKey = shopRecipesEditMutationKey()
-        return mutationOptions<ShopRecipesEditMutationResponse, ResponseErrorConfig<Error>, {recipeId: ShopRecipesEditPathParams["recipeId"], data: ShopRecipesEditMutationRequest}, TContext>({
-          mutationKey,
-          mutationFn: async({ recipeId, data }) => {
-            return shopRecipesEdit(recipeId, data, config)
-          },
-        })
-
+export function shopRecipesEditMutationOptions<TContext = unknown>(config: Partial<Omit<RequestConfig, 'path' | 'query' | 'body' | 'headers' | 'url'>> = {}) {
+  const mutationKey = shopRecipesEditMutationKey()
+  return mutationOptions<ShopRecipesEditStatus200, ResponseErrorConfig<Error>, ShopRecipesEditOptions, TContext>({
+    mutationKey,
+    mutationFn: async({ path, body }) => {
+      return (await shopRecipesEdit({ ...config, path, body, throwOnError: true })).data
+    },
+  })
 }
 
 /**
  * {@link /shop/recipes/edit/:recipeId}
  */
-export function useShopRecipesEdit<TContext>(options: 
-{
-  mutation?: UseMutationOptions<ShopRecipesEditMutationResponse, ResponseErrorConfig<Error>, {recipeId: ShopRecipesEditPathParams["recipeId"], data: ShopRecipesEditMutationRequest}, TContext> & { client?: QueryClient },
-  client?: Partial<RequestConfig<ShopRecipesEditMutationRequest>> & { client?: Client },
-}
- = {}) {
+export function useShopRecipesEdit<TContext>(options: {
+  mutation?: UseMutationOptions<ShopRecipesEditStatus200, ResponseErrorConfig<Error>, ShopRecipesEditOptions, TContext> & { client?: QueryClient },
+  client?: Partial<Omit<RequestConfig, 'path' | 'query' | 'body' | 'headers' | 'url'>>,
+} = {}) {
+  const { mutation = {}, client: config = {} } = options ?? {}
+  const { client: queryClient, ...mutationOptions } = mutation;
+  const mutationKey = mutationOptions.mutationKey ?? shopRecipesEditMutationKey()
 
-          const { mutation = {}, client: config = {} } = options ?? {}
-          const { client: queryClient, ...mutationOptions } = mutation;
-          const mutationKey = mutationOptions.mutationKey ?? shopRecipesEditMutationKey()
+  const baseOptions = shopRecipesEditMutationOptions(config) as UseMutationOptions<ShopRecipesEditStatus200, ResponseErrorConfig<Error>, ShopRecipesEditOptions, TContext>
 
-          const baseOptions = shopRecipesEditMutationOptions(config) as UseMutationOptions<ShopRecipesEditMutationResponse, ResponseErrorConfig<Error>, {recipeId: ShopRecipesEditPathParams["recipeId"], data: ShopRecipesEditMutationRequest}, TContext>
-          
-
-          return useMutation<ShopRecipesEditMutationResponse, ResponseErrorConfig<Error>, {recipeId: ShopRecipesEditPathParams["recipeId"], data: ShopRecipesEditMutationRequest}, TContext>({
-            ...baseOptions,
-            mutationKey,
-            ...mutationOptions,
-          }, queryClient) as UseMutationResult<ShopRecipesEditMutationResponse, ResponseErrorConfig<Error>, {recipeId: ShopRecipesEditPathParams["recipeId"], data: ShopRecipesEditMutationRequest}, TContext>
-      
+  return useMutation<ShopRecipesEditStatus200, ResponseErrorConfig<Error>, ShopRecipesEditOptions, TContext>({
+    ...baseOptions,
+    mutationKey,
+    ...mutationOptions,
+  }, queryClient) as UseMutationResult<ShopRecipesEditStatus200, ResponseErrorConfig<Error>, ShopRecipesEditOptions, TContext>
 }

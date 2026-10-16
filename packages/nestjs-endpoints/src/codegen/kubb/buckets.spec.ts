@@ -84,6 +84,74 @@ describe('buildClientObjectExpression', () => {
     ).toThrow(/resolve to the same wrapper property/);
   });
 
+  test('tells each operation whether it carries request data', () => {
+    const target = (
+      src: string,
+      t: { method: string; hasRequest: boolean },
+    ) => `${src}:${t.method}:${t.hasRequest}`;
+    const expr = buildClientObjectExpression({
+      document: {
+        ...doc({
+          '/none': { get: { operationId: 'None' } },
+          '/query': {
+            get: {
+              operationId: 'Query',
+              parameters: [{ in: 'query', name: 'q' }],
+            },
+          },
+          '/cookie': {
+            get: {
+              operationId: 'Cookie',
+              parameters: [{ in: 'cookie', name: 'c' }],
+            },
+          },
+          '/item/{id}': {
+            parameters: [{ in: 'path', name: 'id', required: true }],
+            get: { operationId: 'Item' },
+          },
+          '/ref': {
+            get: {
+              operationId: 'Ref',
+              parameters: [{ $ref: '#/components/parameters/Auth' }],
+            },
+          },
+          '/body': {
+            post: {
+              operationId: 'Body',
+              requestBody: {
+                content: { 'application/json': { schema: {} } },
+              },
+            },
+          },
+          '/body-ref': {
+            post: {
+              operationId: 'BodyRef',
+              requestBody: { $ref: '#/components/requestBodies/Thing' },
+            },
+          },
+        }),
+        components: {
+          parameters: { Auth: { in: 'header', name: 'x-auth' } },
+          requestBodies: {
+            Thing: { content: { 'application/json': { schema: {} } } },
+          },
+        },
+      } as unknown as OpenAPIObject,
+      plainAccess: target,
+      hookAccess: null,
+      rootExtras: [],
+    });
+    expect(expr).toContain('none: none:get:false');
+    expect(expr).toContain('query: query:get:true');
+    // Kubb gives cookies no request group.
+    expect(expr).toContain('cookie: cookie:get:false');
+    // Path-item level parameters count.
+    expect(expr).toContain('item: item:get:true');
+    expect(expr).toContain('ref: ref:get:true');
+    expect(expr).toContain('body: body:post:true');
+    expect(expr).toContain('bodyRef: bodyRef:post:true');
+  });
+
   test('throws when a namespace segment collides with a reserved root key', () => {
     expect(() =>
       buildClientObjectExpression({

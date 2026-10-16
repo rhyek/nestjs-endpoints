@@ -3,18 +3,8 @@
 * Do not edit manually.
 */
 
-
 export type ShopCateringBookOutput = {
-    /**
-     * @type boolean
-    */
     confirmed: boolean;
-    /**
-     * @type string
-    */
     for: string;
-    /**
-     * @type string
-    */
     on: string;
 };

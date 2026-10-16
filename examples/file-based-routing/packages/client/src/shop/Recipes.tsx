@@ -8,14 +8,14 @@ export function Recipes() {
   const list = client.shop.recipes.useList();
   const create = client.shop.recipes.useCreate();
   // Path-param mutation — `useEdit` was generated from
-  // shop/recipes/edit/$recipeId.endpoint.ts. Mutate with { recipeId, data }.
+  // shop/recipes/edit/$recipeId.endpoint.ts. Mutate with { path, body }.
   const edit = client.shop.recipes.useEdit();
   const [name, setName] = useState('');
 
   const renameRecipe = async (recipeId: number) => {
     const next = window.prompt('New name?');
     if (!next) return;
-    await edit.mutateAsync({ recipeId, data: { name: next } });
+    await edit.mutateAsync({ path: { recipeId }, body: { name: next } });
     await list.refetch();
   };
 
@@ -37,7 +37,7 @@ export function Recipes() {
             return;
           }
           void (async () => {
-            await create.mutateAsync({ data: { name } });
+            await create.mutateAsync({ body: { name } });
             setName('');
             await list.refetch();
           })();

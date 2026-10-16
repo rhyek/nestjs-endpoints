@@ -3,17 +3,25 @@
 * Do not edit manually.
 */
 
-import type { ShopCateringBookInput } from "./ShopCateringBookInput";
-import type { ShopCateringBookOutput } from "./ShopCateringBookOutput";
+import type { ShopCateringBookInput } from './ShopCateringBookInput'
+import type { ShopCateringBookOutput } from './ShopCateringBookOutput'
 
-export type ShopCateringBook200 = ShopCateringBookOutput;
+export type ShopCateringBookStatus200 = ShopCateringBookOutput;
 
-export type ShopCateringBookMutationRequest = ShopCateringBookInput;
+export type ShopCateringBookBody = ShopCateringBookInput;
 
-export type ShopCateringBookMutationResponse = ShopCateringBook200;
-
-export type ShopCateringBookMutation = {
-    Response: ShopCateringBook200;
-    Request: ShopCateringBookMutationRequest;
-    Errors: any;
+export type ShopCateringBookOptions = {
+    body: ShopCateringBookBody;
+    path?: never;
+    query?: never;
+    headers?: never;
 };
+
+export type ShopCateringBookResponses = {
+    "200": ShopCateringBookStatus200;
+};
+
+/**
+ * @description Union of all possible responses
+*/
+export type ShopCateringBookResponse = ShopCateringBookStatus200;

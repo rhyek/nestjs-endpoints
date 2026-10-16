@@ -3,52 +3,44 @@
 * Do not edit manually.
 */
 
-import type { Client, RequestConfig, ResponseErrorConfig } from "../client-runtime";
-import type { ShopHomepageQueryResponse } from "../types/ShopHomepage";
-import type { QueryKey, QueryClient, QueryObserverOptions, UseQueryResult } from "@tanstack/react-query";
-import { shopHomepage } from "../clients/shopHomepage";
-import { queryOptions, useQuery } from "@tanstack/react-query";
+import type { RequestConfig, ResponseErrorConfig } from '../client-runtime'
+import type { ShopHomepageStatus200 } from '../types/ShopHomepage'
+import type { QueryKey, QueryClient, QueryObserverOptions, UseQueryResult } from '@tanstack/react-query'
+import { shopHomepage } from '../clients/shopHomepage'
+import { queryOptions, useQuery } from '@tanstack/react-query'
 
 export const shopHomepageQueryKey = () => [{ url: '/shop/homepage' }] as const
 
-export type ShopHomepageQueryKey = ReturnType<typeof shopHomepageQueryKey>
+type ShopHomepageQueryKey = ReturnType<typeof shopHomepageQueryKey>
 
-export function shopHomepageQueryOptions(config: Partial<RequestConfig> & { client?: Client } = {}) {
-
-        const queryKey = shopHomepageQueryKey()
-        return queryOptions<ShopHomepageQueryResponse, ResponseErrorConfig<Error>, ShopHomepageQueryResponse, typeof queryKey>({
-         
-         queryKey,
-         queryFn: async ({ signal }) => {
-            return shopHomepage({ ...config, signal: config.signal ?? signal })
-         },
-        })
-
+export function shopHomepageQueryOptions(config: Partial<Omit<RequestConfig, 'path' | 'query' | 'body' | 'headers' | 'url'>> = {}) {
+  const queryKey = shopHomepageQueryKey()
+  return queryOptions<ShopHomepageStatus200, ResponseErrorConfig<Error>, ShopHomepageStatus200, typeof queryKey>({
+   queryKey,
+   queryFn: async ({ signal }) => {
+      return (await shopHomepage({ ...config, signal: config.signal ?? signal, throwOnError: true })).data
+   },
+  })
 }
 
 /**
  * {@link /shop/homepage}
  */
-export function useShopHomepage<TData = ShopHomepageQueryResponse, TQueryData = ShopHomepageQueryResponse, TQueryKey extends QueryKey = ShopHomepageQueryKey>(options: 
-{
-  query?: Partial<QueryObserverOptions<ShopHomepageQueryResponse, ResponseErrorConfig<Error>, TData, TQueryData, TQueryKey>> & { client?: QueryClient },
-  client?: Partial<RequestConfig> & { client?: Client }
-}
- = {}) {
+export function useShopHomepage<TData = ShopHomepageStatus200, TQueryData = ShopHomepageStatus200, TQueryKey extends QueryKey = ShopHomepageQueryKey>(options: {
+  query?: Partial<QueryObserverOptions<ShopHomepageStatus200, ResponseErrorConfig<Error>, TData, TQueryData, TQueryKey>> & { client?: QueryClient },
+  client?: Partial<Omit<RequestConfig, 'path' | 'query' | 'body' | 'headers' | 'url'>>
+} = {}) {
+  const { query: queryConfig = {}, client: config = {} } = options ?? {}
+  const { client: queryClient, ...resolvedOptions } = queryConfig
+  const queryKey = resolvedOptions?.queryKey ?? shopHomepageQueryKey()
 
-         const { query: queryConfig = {}, client: config = {} } = options ?? {}
-         const { client: queryClient, ...resolvedOptions } = queryConfig
-         const queryKey = resolvedOptions?.queryKey ?? shopHomepageQueryKey()
-         
+  const queryResult = useQuery({
+   ...shopHomepageQueryOptions(config),
+   ...resolvedOptions,
+   queryKey,
+  } as unknown as QueryObserverOptions, queryClient) as UseQueryResult<TData, ResponseErrorConfig<Error>> & { queryKey: TQueryKey }
 
-         const query = useQuery({
-          ...shopHomepageQueryOptions(config),
-          ...resolvedOptions,
-          queryKey,
-         } as unknown as QueryObserverOptions, queryClient) as UseQueryResult<TData, ResponseErrorConfig<Error>> & { queryKey: TQueryKey }
+  queryResult.queryKey = queryKey as TQueryKey
 
-         query.queryKey = queryKey as TQueryKey
-
-         return query
-         
+  return queryResult
 }

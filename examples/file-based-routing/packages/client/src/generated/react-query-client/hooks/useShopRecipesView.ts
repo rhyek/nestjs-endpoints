@@ -3,52 +3,45 @@
 * Do not edit manually.
 */
 
-import type { Client, RequestConfig, ResponseErrorConfig } from "../client-runtime";
-import type { ShopRecipesViewQueryResponse, ShopRecipesViewPathParams } from "../types/ShopRecipesView";
-import type { QueryKey, QueryClient, QueryObserverOptions, UseQueryResult } from "@tanstack/react-query";
-import { shopRecipesView } from "../clients/shopRecipesView";
-import { queryOptions, useQuery } from "@tanstack/react-query";
+import type { RequestConfig, ResponseErrorConfig } from '../client-runtime'
+import type { ShopRecipesViewOptions, ShopRecipesViewStatus200 } from '../types/ShopRecipesView'
+import type { QueryKey, QueryClient, QueryObserverOptions, UseQueryResult } from '@tanstack/react-query'
+import { shopRecipesView } from '../clients/shopRecipesView'
+import { queryOptions, useQuery } from '@tanstack/react-query'
 
-export const shopRecipesViewQueryKey = (recipeId: ShopRecipesViewPathParams["recipeId"] | undefined) => [{ url: '/shop/recipes/:recipeId/view', params: {recipeId:recipeId} }] as const
+export const shopRecipesViewQueryKey = ({ path }: Omit<ShopRecipesViewOptions, 'headers'>) => [{ url: '/shop/recipes/:recipeId/view', params: path }] as const
 
-export type ShopRecipesViewQueryKey = ReturnType<typeof shopRecipesViewQueryKey>
+type ShopRecipesViewQueryKey = ReturnType<typeof shopRecipesViewQueryKey>
 
-export function shopRecipesViewQueryOptions(recipeId: ShopRecipesViewPathParams["recipeId"] | undefined, config: Partial<RequestConfig> & { client?: Client } = {}) {
-
-        const queryKey = shopRecipesViewQueryKey(recipeId)
-        return queryOptions<ShopRecipesViewQueryResponse, ResponseErrorConfig<Error>, ShopRecipesViewQueryResponse, typeof queryKey>({
-         enabled: !!(recipeId),
-         queryKey,
-         queryFn: async ({ signal }) => {
-            return shopRecipesView(recipeId!, { ...config, signal: config.signal ?? signal })
-         },
-        })
-
+export function shopRecipesViewQueryOptions({ path }: ShopRecipesViewOptions, config: Partial<Omit<RequestConfig, 'path' | 'query' | 'body' | 'headers' | 'url'>> = {}) {
+  const queryKey = shopRecipesViewQueryKey({ path })
+  return queryOptions<ShopRecipesViewStatus200, ResponseErrorConfig<Error>, ShopRecipesViewStatus200, typeof queryKey>({
+   queryKey,
+   queryFn: async ({ signal }) => {
+      return (await shopRecipesView({ ...config, path, signal: config.signal ?? signal, throwOnError: true })).data
+   },
+  })
 }
 
 /**
  * {@link /shop/recipes/:recipeId/view}
  */
-export function useShopRecipesView<TData = ShopRecipesViewQueryResponse, TQueryData = ShopRecipesViewQueryResponse, TQueryKey extends QueryKey = ShopRecipesViewQueryKey>(recipeId: ShopRecipesViewPathParams["recipeId"] | undefined, options: 
-{
-  query?: Partial<QueryObserverOptions<ShopRecipesViewQueryResponse, ResponseErrorConfig<Error>, TData, TQueryData, TQueryKey>> & { client?: QueryClient },
-  client?: Partial<RequestConfig> & { client?: Client }
-}
- = {}) {
+export function useShopRecipesView<TData = ShopRecipesViewStatus200, TQueryData = ShopRecipesViewStatus200, TQueryKey extends QueryKey = ShopRecipesViewQueryKey>({ path }: { path: ShopRecipesViewOptions['path'] | (() => ShopRecipesViewOptions['path']) }, options: {
+  query?: Partial<QueryObserverOptions<ShopRecipesViewStatus200, ResponseErrorConfig<Error>, TData, TQueryData, TQueryKey>> & { client?: QueryClient },
+  client?: Partial<Omit<RequestConfig, 'path' | 'query' | 'body' | 'headers' | 'url'>>
+} = {}) {
+  const { query: queryConfig = {}, client: config = {} } = options ?? {}
+  const { client: queryClient, ...resolvedOptions } = queryConfig
+  const resolvedParams = { path: typeof path === 'function' ? path() : path }
+  const queryKey = resolvedOptions?.queryKey ?? shopRecipesViewQueryKey(resolvedParams)
 
-         const { query: queryConfig = {}, client: config = {} } = options ?? {}
-         const { client: queryClient, ...resolvedOptions } = queryConfig
-         const queryKey = resolvedOptions?.queryKey ?? shopRecipesViewQueryKey(recipeId)
-         
+  const queryResult = useQuery({
+   ...shopRecipesViewQueryOptions(resolvedParams, config),
+   ...resolvedOptions,
+   queryKey,
+  } as unknown as QueryObserverOptions, queryClient) as UseQueryResult<TData, ResponseErrorConfig<Error>> & { queryKey: TQueryKey }
 
-         const query = useQuery({
-          ...shopRecipesViewQueryOptions(recipeId, config),
-          ...resolvedOptions,
-          queryKey,
-         } as unknown as QueryObserverOptions, queryClient) as UseQueryResult<TData, ResponseErrorConfig<Error>> & { queryKey: TQueryKey }
+  queryResult.queryKey = queryKey as TQueryKey
 
-         query.queryKey = queryKey as TQueryKey
-
-         return query
-         
+  return queryResult
 }

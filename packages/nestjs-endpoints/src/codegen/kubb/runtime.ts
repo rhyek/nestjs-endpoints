@@ -2,12 +2,13 @@
  * Source for the runtime module emitted next to each generated client
  * (`<output-dir>/client-runtime.ts`).
  *
- * The Kubb-generated request functions import the default `fetch` plus the
- * `Client` / `RequestConfig` / `ResponseErrorConfig` types from it; the
- * namespaced wrapper imports `createBoundClient` + `bindClient` (and, for
- * react-query, `ApiClientContext` + `bindHook`). It is self-contained — it
- * depends only on `axios` (and, for react-query, `react`), which consumers
- * already have, so the generated output never reaches back into
+ * It is the client module `@kubb/plugin-client` generates against: every
+ * request function imports `client` plus the `Options` / `RequestResult` types
+ * from it, and the react-query hooks import `RequestConfig` /
+ * `ResponseErrorConfig`. The namespaced wrapper imports `createBoundClient` +
+ * `bindClient` (and, for react-query, `ApiClientContext` + `bindHook`). It is
+ * self-contained — it depends only on `axios` (and, for react-query, `react`),
+ * which consumers already have, so the generated output never reaches back into
  * `nestjs-endpoints` at runtime.
  *
  * Kept as strings because they ship verbatim into the consumer's generated
@@ -22,9 +23,9 @@ const HEADER = `/**
 `;
 
 /**
- * The axios-only core: types, the default `fetch`, the per-instance binder
- * (`createBoundClient`), and `bindClient`. Shared verbatim by both runtimes so
- * the two can never drift.
+ * The axios-only core: the request contract, the default `client`, the
+ * per-instance binder (`createBoundClient`), and `bindClient`. Shared verbatim
+ * by both runtimes so the two can never drift.
  */
 const AXIOS_RUNTIME_BODY = `import Axios from 'axios';
 import type {
@@ -35,19 +36,66 @@ import type {
   CreateAxiosDefaults,
 } from 'axios';
 
-export type RequestConfig<TData = unknown> = AxiosRequestConfig<TData>;
-export type ResponseConfig<TData = unknown> = AxiosResponse<TData>;
-export type ResponseErrorConfig<TError = unknown> = AxiosError<TError>;
+/** The grouped request data a generated function takes, typed from the spec. */
+type DataShape = {
+  path?: unknown;
+  query?: unknown;
+  body?: unknown;
+  headers?: unknown;
+};
 
 /**
- * The shape the generated request functions call. Mirrors Kubb's client
- * contract but resolves to a full \`AxiosResponse\` (so callers can read
- * \`.data\`, \`.status\`, …) and rejects on non-2xx, exactly like axios does by
- * default.
+ * What a generated request function hands to \`client\`: the method, the url
+ * template (\`/recipes/{recipeId}\`), the grouped request data, and any axios
+ * request config the caller passed along.
  */
-export type Client = <TResponseData, _TError = unknown, TRequestData = unknown>(
-  config: RequestConfig<TRequestData>,
-) => Promise<AxiosResponse<TResponseData>>;
+export type RequestConfig = Omit<
+  AxiosRequestConfig,
+  'url' | 'method' | 'params' | 'data' | 'headers'
+> & {
+  method?: string;
+  url?: string;
+  path?: object;
+  query?: object;
+  body?: unknown;
+  headers?: object;
+  /** Reject on a non-2xx status, as axios does. Defaults to \`true\`. */
+  throwOnError?: boolean;
+  /** The operation's security requirements; set credentials on the axios instance instead. */
+  security?: ReadonlyArray<unknown>;
+  /** Send this call through another client. */
+  client?: Client;
+};
+
+/** The options object a generated request function accepts. */
+export type Options<
+  TData extends DataShape,
+  ThrowOnError extends boolean = true,
+> = Omit<RequestConfig, keyof DataShape | 'url' | 'method' | 'throwOnError'> &
+  TData & { throwOnError?: ThrowOnError };
+
+type SuccessOf<TResponses> = [
+  Extract<keyof TResponses, \`2\${string}\`>,
+] extends [never]
+  ? TResponses[keyof TResponses]
+  : TResponses[Extract<keyof TResponses, \`2\${string}\`>];
+
+/**
+ * What a generated request function resolves to: the full \`AxiosResponse\`, so
+ * callers can read \`.data\`, \`.status\`, \`.headers\`, …
+ */
+export type RequestResult<
+  TResponses,
+  ThrowOnError extends boolean = true,
+> = AxiosResponse<
+  ThrowOnError extends true ? SuccessOf<TResponses> : TResponses[keyof TResponses]
+>;
+
+export type ResponseErrorConfig<TError = unknown> = AxiosError<TError>;
+
+export type Client = <TData = unknown>(
+  config: RequestConfig,
+) => Promise<AxiosResponse<TData>>;
 
 const isAxiosInstance = (value: unknown): value is AxiosInstance =>
   // An axios instance is a callable function carrying these instance members
@@ -57,24 +105,34 @@ const isAxiosInstance = (value: unknown): value is AxiosInstance =>
   'interceptors' in value &&
   typeof (value as AxiosInstance).request === 'function';
 
-const defaultAxios = Axios.create();
-const defaultClient = ((config) => defaultAxios(config)) as Client;
-export default defaultClient;
-
-// Split a call's arguments into the leading positionals (padded to arity) and
-// the trailing config/options object. The generated request functions and hooks
-// always default that trailing object, so it sits at index arity (the
-// function's .length) no matter how many optional positionals the caller
-// omitted — which keeps the injected client out of a positional slot.
-function splitBoundArgs(
-  args: unknown[],
-  arity: number,
-): [unknown[], Record<string, unknown>] {
-  return [
-    Array.from({ length: arity }, (_, i) => args[i]),
-    (args[arity] ?? {}) as Record<string, unknown>,
-  ];
+function clientFor(axios: AxiosInstance): Client {
+  return ((config) => {
+    const {
+      url = '',
+      path,
+      query,
+      body,
+      headers,
+      throwOnError = true,
+      security: _security,
+      client: _client,
+      ...rest
+    } = config;
+    const values = (path ?? {}) as Record<string, unknown>;
+    return axios.request({
+      ...rest,
+      url: url.replace(/\\{([^}]+)\\}/g, (_, name: string) =>
+        encodeURIComponent(String(values[name])),
+      ),
+      params: query,
+      data: body,
+      headers: headers as AxiosRequestConfig['headers'],
+      ...(throwOnError ? {} : { validateStatus: () => true }),
+    });
+  }) as Client;
 }
+
+export const client = clientFor(Axios.create());
 
 /**
  * Build a request function bound to a specific axios instance. \`config\` may be
@@ -87,27 +145,22 @@ export function createBoundClient(
   const axios = isAxiosInstance(config)
     ? config
     : Axios.create(config as CreateAxiosDefaults);
-  const request = ((cfg) => axios(cfg)) as Client;
-  return { request, axios };
+  return { request: clientFor(axios), axios };
 }
 
 /**
  * Wrap a generated request function so every call carries the bound client.
- * The trailing \`config\` argument (always optional, defaulted by the generated
- * code) sits at index \`fn.length\`, so we forward the positional arguments and
- * merge the client into the config — no per-operation knowledge needed.
+ * Each function takes a single options object, so the client is merged into it.
  */
 export function bindClient<F extends (...args: never[]) => unknown>(
   fn: F,
   request: Client,
 ): F {
-  return ((...args: unknown[]) => {
-    const [head, config] = splitBoundArgs(args, fn.length);
-    return (fn as unknown as (...rest: unknown[]) => unknown)(...head, {
-      ...config,
+  return ((options?: object) =>
+    (fn as unknown as (options: object) => unknown)({
+      ...options,
       client: request,
-    });
-  }) as unknown as F;
+    })) as unknown as F;
 }
 `;
 
@@ -124,12 +177,15 @@ export const ApiClientContext =
 
 /**
  * Wrap a generated react-query hook so it reads the bound client from
- * \`ApiClientContext\` and forwards it through the hook's supported per-call
- * \`client\` option. The trailing options object sits at index \`hook.length\`,
- * mirroring \`bindClient\`.
+ * \`ApiClientContext\` and forwards it through the hook's per-call \`client\`
+ * option. \`optionsIndex\` is where the hook takes that options object: 1 for a
+ * query hook with a leading request argument, otherwise 0. (\`hook.length\`
+ * can't tell: a defaulted request argument doesn't count towards it.)
  */
-export function bindHook<F extends (...args: never[]) => unknown>(hook: F): F {
-  // eslint-disable-next-line react-hooks/rules-of-hooks
+export function bindHook<F extends (...args: never[]) => unknown>(
+  hook: F,
+  optionsIndex: number,
+): F {
   return ((...args: unknown[]) => {
     // eslint-disable-next-line react-hooks/rules-of-hooks
     const ctx = React.useContext(ApiClientContext);
@@ -138,12 +194,12 @@ export function bindHook<F extends (...args: never[]) => unknown>(hook: F): F {
         'nestjs-endpoints react-query hooks must be used within an <ApiClientProvider>.',
       );
     }
-    const [head, opts] = splitBoundArgs(args, hook.length);
-    const clientOption = (opts.client ?? {}) as Record<string, unknown>;
-    return (hook as unknown as (...rest: unknown[]) => unknown)(...head, {
-      ...opts,
-      client: { ...clientOption, client: ctx.request },
-    });
+    const options = (args[optionsIndex] ?? {}) as Record<string, unknown>;
+    const clientOption = (options.client ?? {}) as Record<string, unknown>;
+    return (hook as unknown as (...rest: unknown[]) => unknown)(
+      ...Array.from({ length: optionsIndex }, (_, i) => args[i]),
+      { ...options, client: { ...clientOption, client: ctx.request } },
+    );
   }) as unknown as F;
 }
 `;

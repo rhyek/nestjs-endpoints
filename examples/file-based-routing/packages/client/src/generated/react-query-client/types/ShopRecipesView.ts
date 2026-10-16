@@ -3,21 +3,26 @@
 * Do not edit manually.
 */
 
-import type { ShopRecipesViewOutput } from "./ShopRecipesViewOutput";
+import type { ShopRecipesViewOutput } from './ShopRecipesViewOutput'
 
-export type ShopRecipesViewPathParams = {
-    /**
-     * @type number
-    */
+export type ShopRecipesViewPath = {
     recipeId: number;
 };
 
-export type ShopRecipesView200 = ShopRecipesViewOutput;
+export type ShopRecipesViewStatus200 = ShopRecipesViewOutput;
 
-export type ShopRecipesViewQueryResponse = ShopRecipesView200;
-
-export type ShopRecipesViewQuery = {
-    Response: ShopRecipesView200;
-    PathParams: ShopRecipesViewPathParams;
-    Errors: any;
+export type ShopRecipesViewOptions = {
+    body?: never;
+    path: ShopRecipesViewPath;
+    query?: never;
+    headers?: never;
 };
+
+export type ShopRecipesViewResponses = {
+    "200": ShopRecipesViewStatus200;
+};
+
+/**
+ * @description Union of all possible responses
+*/
+export type ShopRecipesViewResponse = ShopRecipesViewStatus200;

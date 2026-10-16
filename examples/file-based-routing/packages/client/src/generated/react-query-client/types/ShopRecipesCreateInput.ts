@@ -3,7 +3,6 @@
 * Do not edit manually.
 */
 
-
 export type ShopRecipesCreateInput = {
     /**
      * @minLength 1

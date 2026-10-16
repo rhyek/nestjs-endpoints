@@ -7,7 +7,7 @@
  * expressions.
  */
 import type { OpenAPIObject } from '@nestjs/swagger';
-import { HTTP_METHODS } from '../http-methods.js';
+import { HTTP_METHODS, type HttpMethod } from '../http-methods.js';
 import { stripNamespaceFromFlatName } from './name-transform.js';
 
 /**
@@ -25,7 +25,15 @@ import { stripNamespaceFromFlatName } from './name-transform.js';
  */
 type Shape = 'plain' | 'hook';
 
-type NamespacedOp = {
+/**
+ * What the wrapper needs to know about an operation's generated function to
+ * bind it: the HTTP method, and whether the operation carries request data
+ * (path, query or header parameters, or a body), which decides whether a query
+ * hook takes a leading request argument.
+ */
+export type OperationTarget = { method: HttpMethod; hasRequest: boolean };
+
+type NamespacedOp = OperationTarget & {
   namespaceChain: string[];
   /** Identifier on the generated flat module / hooks barrel. */
   sourceName: string;
@@ -34,7 +42,12 @@ type NamespacedOp = {
 };
 
 /** One entry in a bucket: the emitted source name and which form it is. */
-type BucketEntry = { sourceName: string; variant: Shape };
+type BucketEntry = OperationTarget & {
+  sourceName: string;
+  variant: Shape;
+};
+
+type Access = (sourceName: string, target: OperationTarget) => string;
 
 type BucketNode = {
   /** keyed by propertyName; exactly one op per key */
@@ -66,6 +79,53 @@ function normalizeOperationIdToPascal(operationId: string): string {
   return normalized.charAt(0).toUpperCase() + normalized.slice(1);
 }
 
+type ParameterLike = { in?: string; $ref?: string };
+type RequestBodyLike = {
+  $ref?: string;
+  content?: Record<string, { schema?: unknown }>;
+};
+
+/** Follows a local `#/components/<section>/<name>` reference. */
+function deref<T extends { $ref?: string }>(
+  document: OpenAPIObject,
+  value: T | undefined,
+): T | undefined {
+  const ref = value?.$ref;
+  if (!ref?.startsWith('#/')) return value;
+  let target: unknown = document;
+  for (const segment of ref.slice(2).split('/')) {
+    target = (target as Record<string, unknown> | undefined)?.[
+      segment.replace(/~1/g, '/').replace(/~0/g, '~')
+    ];
+  }
+  return target as T | undefined;
+}
+
+/**
+ * Whether Kubb gives the operation's generated functions a request argument:
+ * any path, query or header parameter (path-item level included), or a request
+ * body with a schema.
+ */
+function hasRequestData(
+  document: OpenAPIObject,
+  pathItem: { parameters?: ParameterLike[] },
+  op: { parameters?: ParameterLike[]; requestBody?: RequestBodyLike },
+): boolean {
+  const parameters = [
+    ...(pathItem.parameters ?? []),
+    ...(op.parameters ?? []),
+  ].map((parameter) => deref(document, parameter));
+  if (
+    parameters.some((parameter) =>
+      ['path', 'query', 'header'].includes(parameter?.in ?? ''),
+    )
+  ) {
+    return true;
+  }
+  const content = deref(document, op.requestBody)?.content;
+  return Boolean(content && Object.values(content)[0]?.schema);
+}
+
 function collectOperations(
   document: OpenAPIObject,
   shape: Shape,
@@ -79,6 +139,8 @@ function collectOperations(
         | {
             operationId?: string;
             ['x-namespace']?: unknown;
+            parameters?: ParameterLike[];
+            requestBody?: RequestBodyLike;
           };
       if (!op || typeof op !== 'object') continue;
       if (!op.operationId) continue;
@@ -93,7 +155,13 @@ function collectOperations(
         sourceName,
         namespaceChain,
       );
-      out.push({ namespaceChain, sourceName, propertyName });
+      out.push({
+        namespaceChain,
+        sourceName,
+        propertyName,
+        method,
+        hasRequest: hasRequestData(document, pathItem, op),
+      });
     }
   }
   return out;
@@ -128,7 +196,7 @@ function placeOp(
     }
     bucket = next;
   }
-  const { propertyName, sourceName } = op;
+  const { propertyName, sourceName, method, hasRequest } = op;
   if (isRoot && reservedRootNames.has(propertyName)) {
     throw new Error(
       `Operation "${sourceName}" collides with a reserved client-object ` +
@@ -151,7 +219,12 @@ function placeOp(
         `Rename one of the endpoints or adjust their namespaces.`,
     );
   }
-  bucket.methods.set(propertyName, { sourceName, variant });
+  bucket.methods.set(propertyName, {
+    sourceName,
+    variant,
+    method,
+    hasRequest,
+  });
 }
 
 function buildBucketRoot(
@@ -182,8 +255,8 @@ function safeKey(name: string): string {
 function serializeBucket(
   bucket: BucketNode,
   indent: string,
-  plainAccess: (sourceName: string) => string,
-  hookAccess: ((sourceName: string) => string) | null,
+  plainAccess: Access,
+  hookAccess: Access | null,
   chain: string[],
   tagDescriptions: Map<string, string>,
   rootExtras: string[] = [],
@@ -196,7 +269,9 @@ function serializeBucket(
   for (const [name, entry] of bucket.methods) {
     const access = entry.variant === 'hook' ? hookAccess : plainAccess;
     if (access) {
-      lines.push(`${inner}${safeKey(name)}: ${access(entry.sourceName)},`);
+      lines.push(
+        `${inner}${safeKey(name)}: ${access(entry.sourceName, entry)},`,
+      );
     }
   }
   for (const [name, child] of bucket.buckets) {
@@ -249,13 +324,14 @@ function tagDescriptionsFrom(
  * literal — the single orchestration shared by the axios and react-query
  * wrapper builders. `plainAccess` maps an operation's flat (axios) source name
  * to the expression placed in the object; `hookAccess` does the same for the
- * paired React Query hook (pass `null` for an axios-only client). `rootExtras`
- * are extra root-level entries (e.g. the `.axios` passthrough).
+ * paired React Query hook (pass `null` for an axios-only client). Both also get
+ * the operation's {@link OperationTarget}. `rootExtras` are extra root-level
+ * entries (e.g. the `.axios` passthrough).
  */
 export function buildClientObjectExpression(params: {
   document: OpenAPIObject;
-  plainAccess: (sourceName: string) => string;
-  hookAccess: ((sourceName: string) => string) | null;
+  plainAccess: Access;
+  hookAccess: Access | null;
   rootExtras: string[];
   indent?: string;
 }): string {

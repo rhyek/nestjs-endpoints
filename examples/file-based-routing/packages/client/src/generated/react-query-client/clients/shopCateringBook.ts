@@ -3,23 +3,15 @@
 * Do not edit manually.
 */
 
-import fetch from "../client-runtime";
-import type { Client, RequestConfig, ResponseErrorConfig } from "../client-runtime";
-import type { ShopCateringBookMutationRequest, ShopCateringBookMutationResponse } from "../types/ShopCateringBook";
-
-function getShopCateringBookUrl() {
-  const res = { method: 'POST', url: `/shop/catering/book` as const }
-  return res
-}
+import type { Options, RequestResult } from '../client-runtime'
+import type { ShopCateringBookOptions, ShopCateringBookResponses } from '../types/ShopCateringBook'
+import { client } from '../client-runtime'
 
 /**
  * {@link /shop/catering/book}
  */
-export async function shopCateringBook(data: ShopCateringBookMutationRequest, config: Partial<RequestConfig<ShopCateringBookMutationRequest>> & { client?: Client } = {}) {
-  const { client: request = fetch, ...requestConfig } = config
+export function shopCateringBook<ThrowOnError extends boolean = true>(options: Options<ShopCateringBookOptions, ThrowOnError>): Promise<RequestResult<ShopCateringBookResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options
 
-  const requestData = data
-
-  const res = await request<ShopCateringBookMutationResponse, ResponseErrorConfig<Error>, ShopCateringBookMutationRequest>({ method : "POST", url : getShopCateringBookUrl().url.toString(), data : requestData, ... requestConfig })
-  return res.data
+  return request({ method: 'POST', url: '/shop/catering/book', ...config, throwOnError: config.throwOnError ?? true }) as Promise<RequestResult<ShopCateringBookResponses, ThrowOnError>>
 }

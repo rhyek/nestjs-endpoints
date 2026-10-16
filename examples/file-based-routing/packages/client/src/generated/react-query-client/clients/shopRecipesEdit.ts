@@ -3,23 +3,15 @@
 * Do not edit manually.
 */
 
-import fetch from "../client-runtime";
-import type { Client, RequestConfig, ResponseErrorConfig } from "../client-runtime";
-import type { ShopRecipesEditMutationRequest, ShopRecipesEditMutationResponse, ShopRecipesEditPathParams } from "../types/ShopRecipesEdit";
-
-function getShopRecipesEditUrl(recipeId: ShopRecipesEditPathParams["recipeId"]) {
-  const res = { method: 'PATCH', url: `/shop/recipes/edit/${recipeId}` as const }
-  return res
-}
+import type { Options, RequestResult } from '../client-runtime'
+import type { ShopRecipesEditOptions, ShopRecipesEditResponses } from '../types/ShopRecipesEdit'
+import { client } from '../client-runtime'
 
 /**
  * {@link /shop/recipes/edit/:recipeId}
  */
-export async function shopRecipesEdit(recipeId: ShopRecipesEditPathParams["recipeId"], data: ShopRecipesEditMutationRequest, config: Partial<RequestConfig<ShopRecipesEditMutationRequest>> & { client?: Client } = {}) {
-  const { client: request = fetch, ...requestConfig } = config
+export function shopRecipesEdit<ThrowOnError extends boolean = true>(options: Options<ShopRecipesEditOptions, ThrowOnError>): Promise<RequestResult<ShopRecipesEditResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options
 
-  const requestData = data
-
-  const res = await request<ShopRecipesEditMutationResponse, ResponseErrorConfig<Error>, ShopRecipesEditMutationRequest>({ method : "PATCH", url : getShopRecipesEditUrl(recipeId).url.toString(), data : requestData, ... requestConfig })
-  return res.data
+  return request({ method: 'PATCH', url: '/shop/recipes/edit/{recipeId}', ...config, throwOnError: config.throwOnError ?? true }) as Promise<RequestResult<ShopRecipesEditResponses, ThrowOnError>>
 }

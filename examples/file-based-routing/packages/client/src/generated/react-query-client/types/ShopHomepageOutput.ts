@@ -3,10 +3,6 @@
 * Do not edit manually.
 */
 
-
 export type ShopHomepageOutput = {
-    /**
-     * @type string
-    */
     tagline: string;
 };

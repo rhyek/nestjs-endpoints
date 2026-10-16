@@ -3,23 +3,15 @@
 * Do not edit manually.
 */
 
-import fetch from "../client-runtime";
-import type { Client, RequestConfig, ResponseErrorConfig } from "../client-runtime";
-import type { ShopRecipesViewQueryResponse, ShopRecipesViewPathParams } from "../types/ShopRecipesView";
-
-function getShopRecipesViewUrl(recipeId: ShopRecipesViewPathParams["recipeId"]) {
-  const res = { method: 'GET', url: `/shop/recipes/${recipeId}/view` as const }
-  return res
-}
+import type { Options, RequestResult } from '../client-runtime'
+import type { ShopRecipesViewOptions, ShopRecipesViewResponses } from '../types/ShopRecipesView'
+import { client } from '../client-runtime'
 
 /**
  * {@link /shop/recipes/:recipeId/view}
  */
-export async function shopRecipesView(recipeId: ShopRecipesViewPathParams["recipeId"], config: Partial<RequestConfig> & { client?: Client } = {}) {
-  const { client: request = fetch, ...requestConfig } = config
+export function shopRecipesView<ThrowOnError extends boolean = true>(options: Options<ShopRecipesViewOptions, ThrowOnError>): Promise<RequestResult<ShopRecipesViewResponses, ThrowOnError>> {
+  const { client: request = client, ...config } = options
 
-
-
-  const res = await request<ShopRecipesViewQueryResponse, ResponseErrorConfig<Error>, unknown>({ method : "GET", url : getShopRecipesViewUrl(recipeId).url.toString(), ... requestConfig })
-  return res.data
+  return request({ method: 'GET', url: '/shop/recipes/{recipeId}/view', ...config, throwOnError: config.throwOnError ?? true }) as Promise<RequestResult<ShopRecipesViewResponses, ThrowOnError>>
 }

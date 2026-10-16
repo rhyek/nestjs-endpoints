@@ -3,13 +3,22 @@
 * Do not edit manually.
 */
 
-import type { ShopStatsOutput } from "./ShopStatsOutput";
+import type { ShopStatsOutput } from './ShopStatsOutput'
 
-export type ShopStats200 = ShopStatsOutput;
+export type ShopStatsStatus200 = ShopStatsOutput;
 
-export type ShopStatsQueryResponse = ShopStats200;
-
-export type ShopStatsQuery = {
-    Response: ShopStats200;
-    Errors: any;
+export type ShopStatsOptions = {
+    body?: never;
+    path?: never;
+    query?: never;
+    headers?: never;
 };
+
+export type ShopStatsResponses = {
+    "200": ShopStatsStatus200;
+};
+
+/**
+ * @description Union of all possible responses
+*/
+export type ShopStatsResponse = ShopStatsStatus200;

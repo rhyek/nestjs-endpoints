@@ -32,10 +32,10 @@ Hello, Satie!%
 
 ```ts
 // axios call
-const greeting = await client.greet({ name: 'Satie' });
+const greeting = await client.greet({ query: { name: 'Satie' } });
 
 // react-query hook
-const { data: greeting, error, status } = client.useGreet({ name: 'Satie' });
+const { data: greeting } = client.useGreet({ query: { name: 'Satie' } });
 ```
 
 ## Features
@@ -313,7 +313,7 @@ export default endpoint({
 });
 ```
 
-The generated SDK drops `:param` segments from the method name — the typed positional argument already conveys it: `client.recipesEdit(recipeId, { name })`.
+The generated SDK drops `:param` segments from the method name — the typed `path` group already conveys them: `client.recipesEdit({ path: { recipeId }, body: { name } })`.
 
 > _**Note:**_ Bundled projects via Webpack or similar are not supported.
 
@@ -424,7 +424,7 @@ EndpointRouterModule.create({
 
 ```ts
 // axios method and react-query hook live on the same bucket
-await client.shop.recipes.create({ name: 'Pizza' });
+await client.shop.recipes.create({ body: { name: 'Pizza' } });
 const created = client.shop.recipes.useCreate();
 ```
 
@@ -436,7 +436,7 @@ const created = client.shop.recipes.useCreate();
 
 ## Codegen (optional)
 
-Generate a type-safe client SDK (axios and/or react-query) from your endpoints. Uses [Kubb](https://kubb.dev/) under the hood and works with both scanned and manually-imported endpoints. The react-query client requires `@tanstack/react-query` >= 5.80.
+Generate a type-safe client SDK (axios and/or react-query) from your endpoints. Uses [Kubb](https://kubb.dev/) under the hood and works with both scanned and manually-imported endpoints. The react-query client requires `@tanstack/react-query` >= 5.82.
 
 Optional: install `@scalar/api-reference` to get a [Scalar](https://scalar.com)-powered docs viewer (nicer UI, auto-generated `x-tagGroups`) when you use [`setupCodegen`'s `openapi.ui`](#using-setupcodegen) option. Without it, Swagger UI is used as the fallback.
 
@@ -477,6 +477,8 @@ async function bootstrap() {
 
 Each generated output file exports `createApiClient`, an `ApiClient` type, and (for react-query) `useApiClient` + `ApiClientProvider`. The client object is namespaced — operations live under buckets that mirror the router hierarchy. For react-query, every namespace bucket carries both axios methods and React Query hooks, so `client.shop.recipes.create(...)` and `client.shop.recipes.useCreate()` sit side by side.
 
+Each operation takes one object that groups its request by where it goes — `path`, `query`, `body` and `headers` — typed from the endpoint's schemas. axios methods resolve to the `AxiosResponse` and reject with an `AxiosError` on a non-2xx status.
+
 ### axios
 
 ```ts
@@ -490,8 +492,7 @@ const client = createApiClient({
 client.axios.defaults.headers.common['x-test'] = 'test-2';
 
 const { data: user } = await client.user.create({
-  name: 'Tom',
-  email: 'tom@gmail.com',
+  body: { name: 'Tom', email: 'tom@gmail.com' },
 });
 ```
 
@@ -527,7 +528,7 @@ export function UserPage() {
 
   // react-query mutation hook on the same bucket
   const userCreate = client.user.useCreate();
-  const onCreate = () => userCreate.mutateAsync({ ... });
+  const onCreate = () => userCreate.mutateAsync({ body: { ... } });
 
   // imperative axios call lives next to the hook
   const onPurge = () => client.user.purge();
@@ -710,7 +711,9 @@ test('client library', async () => {
   const client = createApiClient({
     baseURL: await app.getUrl(),
   });
-  await expect(client.userFind({ id: 1 })).resolves.toMatchObject({
+  await expect(
+    client.userFind({ query: { id: 1 } }),
+  ).resolves.toMatchObject({
     data: {
       id: 1,
       email: 'john@hotmail.com',

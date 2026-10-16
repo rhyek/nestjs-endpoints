@@ -3,14 +3,12 @@
 * Do not edit manually.
 */
 
-
 export type ShopCateringBookInput = {
     /**
-     * @type string, email
-    */
-    email: string;
-    /**
+     * @description
+     * Format: `email`
      * @type string
     */
+    email: string;
     date: string;
 };
