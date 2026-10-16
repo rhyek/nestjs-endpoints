@@ -26,6 +26,8 @@
 - **File-based routing needs the endpoint manifest.** Run `npx nestjs-endpoints init`, then add `import './endpoints.gen.js';` to your app module, and commit `src/endpoints.gen.ts`.
 - **Generated client methods and hooks take one object that groups the request into `path`, `query`, `body` and `headers`**, as in `client.recipesEdit({ path: { recipeId }, body: { name } })`. See [Codegen](README.md#codegen-optional).
 - **Generated per-operation type names changed** (`ShopRecipesEditMutationResponse` is now `ShopRecipesEditStatus200`, for example); schema types keep their names.
+- **Per-call `headers` accept only the headers an endpoint declares**; set any others on `client.axios`.
+- **A react-query client's `options` are now [`@kubb/plugin-react-query` 5's](https://kubb.dev/extensions/kubb-labs/plugin-react-query/options).**
 - **The react-query client requires `@tanstack/react-query` >= 5.82.**
 
 ## 3.0.0 (2026-04-19)

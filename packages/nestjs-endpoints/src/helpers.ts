@@ -98,10 +98,10 @@ export function getEndpointHttpPath(
 
 export function getHttpPathPascalName(httpPath: string) {
   // Drop entire `:param` segments from the name so the SDK method for
-  // `/recipes/edit/:recipeId` reads as `recipesEdit(recipeId, body)`
-  // instead of `recipesEditRecipeId(recipeId, body)`. The path param is
-  // already conveyed by the typed positional argument; repeating its
-  // name in the method is just noise.
+  // `/recipes/edit/:recipeId` reads as `recipesEdit({ path, body })`
+  // instead of `recipesEditRecipeId({ path, body })`. The path param is
+  // already conveyed by the typed `path` group; repeating its name in the
+  // method is just noise.
   return httpPath
     .replace(/\/:[^/]+/g, '')
     .replace(/^:[^/]+\/?/g, '')

@@ -80,7 +80,7 @@ async function runKubbBuild(
   plugins: NonNullable<UserConfig['plugins']>,
 ): Promise<void> {
   const { createKubb, adapterOas, pluginTs, pluginClient } = kubb;
-  await createKubb({
+  const build = createKubb({
     root: process.cwd(),
     // Kubb types a parsed spec as a plain record.
     input: document as unknown as Record<string, unknown>,
@@ -102,7 +102,13 @@ async function runKubbBuild(
       pluginClient({ importPath: '../client-runtime' }),
       ...plugins,
     ],
-  }).build();
+  });
+  try {
+    await build.build();
+  } finally {
+    // The app keeps running after codegen; release what the build holds.
+    build.dispose();
+  }
 }
 
 /** Generate the axios client for one `setupCodegen` entry using Kubb. */
