@@ -46,7 +46,8 @@
   },
   "scripts": {
     "dev": "tsc-watch --preserveWatchOutput --onSuccess \"../../scripts/build.sh\"",
-    "test": "vitest"
+    "test": "vitest",
+    "tscheck": "tsc --noEmit"
   },
   "dependencies": {
     "@kubb/core": "4.39.3",

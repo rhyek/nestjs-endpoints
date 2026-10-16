@@ -109,12 +109,17 @@ export function getHttpPathPascalName(httpPath: string) {
     .replace(/[/-]([a-z0-9])/g, (_, char: string) => char.toUpperCase());
 }
 
-export const ApiQueries = <
-  T extends
-    z.ZodObject | z.ZodPipe<z.ZodObject> | z.ZodPipe<any, z.ZodObject>,
->(
-  zodObject: T,
-) => {
+/** An object schema, bare or behind a transform or preprocess step. */
+type ObjectSchemaLike =
+  | z.ZodObject
+  | z.ZodPipe<z.ZodObject>
+  | z.ZodPipe<any, z.ZodObject>
+  // zod >= 4.6 types `z.preprocess()` as its own pipe, which the generic
+  // pipe above does not accept. Derived from `z.preprocess` rather than
+  // naming `z.ZodPreprocess`, which older zod 4 releases do not export.
+  | ReturnType<typeof z.preprocess<any, z.ZodObject, any>>;
+
+export const ApiQueries = <T extends ObjectSchemaLike>(zodObject: T) => {
   const source: z.ZodObject = (() => {
     if (zodObject instanceof ZodPipe) {
       if (zodObject.def.in instanceof ZodTransform) {
@@ -153,12 +158,7 @@ export const ApiQueries = <
   );
 };
 
-export const ApiParams = <
-  T extends
-    z.ZodObject | z.ZodPipe<z.ZodObject> | z.ZodPipe<any, z.ZodObject>,
->(
-  zodObject: T,
-) => {
+export const ApiParams = <T extends ObjectSchemaLike>(zodObject: T) => {
   const source: z.ZodObject = (() => {
     if (zodObject instanceof ZodPipe) {
       if (zodObject.def.in instanceof ZodTransform) {
