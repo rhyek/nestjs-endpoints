@@ -46,7 +46,7 @@ describe('generated client', () => {
     }).compile();
     const app = moduleFixture.createNestApplication();
     await app.init();
-    await app.listen(0);
+    await app.listen(0, '127.0.0.1');
     try {
       const axios = Axios.create({
         baseURL: await app.getUrl(),

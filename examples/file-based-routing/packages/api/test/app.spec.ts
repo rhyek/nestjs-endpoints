@@ -9,7 +9,7 @@ test('the app serves its file-based routes', async () => {
     imports: [AppModule],
   }).compile();
   const app = moduleRef.createNestApplication({ logger: false });
-  await app.listen(0);
+  await app.listen(0, '127.0.0.1');
   try {
     const res = await fetch(`${await app.getUrl()}/shop/recipes/list`);
     expect(res.status).toBe(200);
