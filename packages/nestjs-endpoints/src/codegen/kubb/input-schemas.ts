@@ -81,11 +81,12 @@ function operationInput(
   pathItem: { parameters?: Parameter[] },
   op: Operation,
 ): { kind: InputSchemaEntry['kind']; schema: unknown } | undefined {
-  const body = deref(document, op.requestBody)?.content?.[
-    'application/json'
-  ]?.schema;
-  if (body) {
-    return { kind: 'body', schema: body };
+  const content = deref(document, op.requestBody)?.content;
+  if (content) {
+    // A body in another format (a file upload, say) is the input, and JSON
+    // Schema cannot describe it, so the operation gets none.
+    const body = content['application/json']?.schema;
+    return body ? { kind: 'body', schema: body } : undefined;
   }
   // An operation-level parameter replaces a path-level one of the same name.
   const query = new Map<string, Parameter>();
@@ -132,7 +133,9 @@ function operationInput(
  * beside a `$ref` (OpenAPI 3.1 allows them) win over the referenced schema's.
  * `chain` holds the refs being resolved on the way here, so a schema that
  * refers back to itself is reported instead of followed forever; the same
- * schema reached twice side by side is fine.
+ * schema reached twice side by side is fine. A `discriminator`'s `mapping`
+ * points into the document by name, so it goes; the inlined members still say
+ * which value of `propertyName` selects them.
  */
 function resolveRefs(
   document: OpenAPIObject,
@@ -152,7 +155,9 @@ function resolveRefs(
   const siblings = Object.fromEntries(
     Object.entries(rest).map(([key, item]) => [
       key,
-      resolveRefs(document, item, operationId, chain),
+      key === 'discriminator'
+        ? withoutMapping(item)
+        : resolveRefs(document, item, operationId, chain),
     ]),
   );
   if (typeof ref !== 'string') {
@@ -178,6 +183,15 @@ function resolveRefs(
     ]) as object),
     ...siblings,
   };
+}
+
+function withoutMapping(discriminator: unknown): unknown {
+  if (!discriminator || typeof discriminator !== 'object') {
+    return discriminator;
+  }
+  const kept = { ...(discriminator as Record<string, unknown>) };
+  delete kept.mapping;
+  return kept;
 }
 
 /**

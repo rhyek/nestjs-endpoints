@@ -542,16 +542,17 @@ export function UserPage() {
 Each operation also carries `queryKey` and `queryOptions` (query operations) or `mutationKey` and `mutationOptions` (the rest), bound to the client instance, and `schemas.input`, its input as JSON Schema with every `$ref` resolved:
 
 ```typescript
-// A route loader, outside React, with the instance you gave <ApiClientProvider>:
+// A route loader, outside React, with a module-level instance
+// (`export const api = createApiClient(…)`, the one you also give <ApiClientProvider>):
 // it carries its base URL and interceptors.
 await queryClient.ensureQueryData(
-  apiClient.user.find.queryOptions({ query: { id: 1 } }),
+  api.user.find.queryOptions({ query: { id: 1 } }),
 );
 
 // In a component.
 const create = useMutation(client.user.create.mutationOptions());
 
-// The JSON body, or a GET's query parameters as one object.
+// The JSON body, or, without one (a GET), the query parameters as one object.
 const schema = client.user.create.schemas.input;
 ```
 

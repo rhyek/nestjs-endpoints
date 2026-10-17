@@ -96,7 +96,9 @@ describe('the operation tree', () => {
     expect(JSON.stringify(input.properties.nickname)).toContain(
       '{"type":"null"}',
     );
+    // Self-contained: nothing points back into the OpenAPI document.
     expect(JSON.stringify(input)).not.toContain('"$ref"');
+    expect(JSON.stringify(input)).not.toContain('#/components/');
   });
 
   test('an operation without input has no schemas', () => {

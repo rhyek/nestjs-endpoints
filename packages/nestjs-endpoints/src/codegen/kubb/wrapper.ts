@@ -95,28 +95,41 @@ export function buildReactQueryWrapperSource(params: {
   } = params;
   const isQuery = (method: string) =>
     queryMethods.some((m) => m.toLowerCase() === method);
+  // What the operations below use, so the wrapper imports nothing more: an
+  // unused import fails a consumer's `noUnusedLocals`.
+  const binders = new Set<string>();
+  let usesSchemas = false;
 
   const buildExpr = buildClientObjectExpression({
     document,
     plainAccess: (src, { method, hasRequest }) => {
-      const tree = isQuery(method)
-        ? [
-            `queryKey: _hooks.${src}QueryKey`,
-            `queryOptions: bindQueryOptions(_hooks.${src}QueryOptions, _request, ${hasRequest})`,
-          ]
-        : [
-            `mutationKey: _hooks.${src}MutationKey`,
-            `mutationOptions: bindMutationOptions(_hooks.${src}MutationOptions, _request)`,
-          ];
+      binders.add('bindOperation');
+      let tree: string[];
+      if (isQuery(method)) {
+        binders.add('bindQueryOptions');
+        tree = [
+          `queryKey: _hooks.${src}QueryKey`,
+          `queryOptions: bindQueryOptions(_hooks.${src}QueryOptions, _request, ${hasRequest})`,
+        ];
+      } else {
+        binders.add('bindMutationOptions');
+        tree = [
+          `mutationKey: _hooks.${src}MutationKey`,
+          `mutationOptions: bindMutationOptions(_hooks.${src}MutationOptions, _request)`,
+        ];
+      }
       if (inputSchemaNames.has(src)) {
+        usesSchemas = true;
         tree.push(`schemas: { input: _schemas.${src} }`);
       }
       return `bindOperation(_ops.${src}, _request, { ${tree.join(', ')} })`;
     },
     // A query hook takes its request data first when the operation has any;
     // mutation hooks get theirs through `mutate()`.
-    hookAccess: (src, { method, hasRequest }) =>
-      `bindHook(_hooks.${src}, ${isQuery(method) && hasRequest ? 1 : 0})`,
+    hookAccess: (src, { method, hasRequest }) => {
+      binders.add('bindHook');
+      return `bindHook(_hooks.${src}, ${isQuery(method) && hasRequest ? 1 : 0})`;
+    },
     // `[_CTX]` carries the bound client/axios pair so `ApiClientProvider` can
     // put it into React context. It's a module-private `unique symbol`, so it's
     // hidden from consumers and absent from `Object.keys`, but — being an
@@ -138,14 +151,13 @@ export function buildReactQueryWrapperSource(params: {
     `import * as React from 'react';\n` +
     `import * as _ops from '${opsImport}';\n` +
     `import * as _hooks from '${hooksImport}';\n` +
-    `import * as _schemas from '${schemasImport}';\n` +
+    (usesSchemas
+      ? `import * as _schemas from '${schemasImport}';\n`
+      : '') +
     `import {\n` +
-    `  ApiClientContext,\n` +
-    `  bindHook,\n` +
-    `  bindMutationOptions,\n` +
-    `  bindOperation,\n` +
-    `  bindQueryOptions,\n` +
-    `  createBoundClient,\n` +
+    ['ApiClientContext', ...[...binders].sort(), 'createBoundClient']
+      .map((name) => `  ${name},\n`)
+      .join('') +
     `  type ApiClientContextValue,\n` +
     `} from '${runtimeImport}';\n\n` +
     `export type * from '${typesImport}';\n` +

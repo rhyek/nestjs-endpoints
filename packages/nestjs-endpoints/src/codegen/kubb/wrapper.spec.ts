@@ -114,6 +114,34 @@ describe('buildReactQueryWrapperSource', () => {
     expect(source).toMatch(/"user-admin": \{/);
   });
 
+  test('it imports only the binders and schemas its operations use', () => {
+    const build = (paths: Record<string, unknown>) =>
+      buildReactQueryWrapperSource({
+        document: { ...document, paths } as unknown as OpenAPIObject,
+        opsImport: './c/clients',
+        hooksImport: './c/hooks',
+        runtimeImport: './c/client-runtime',
+        typesImport: './c/types',
+        schemasImport: './c/schemas',
+        queryMethods: ['GET'],
+        inputSchemaNames: new Set(),
+      });
+    const queriesOnly = build({
+      '/articles/latest': { get: { operationId: 'ArticlesLatest' } },
+    });
+    expect(queriesOnly).toContain('  bindQueryOptions,\n');
+    expect(queriesOnly).not.toContain('bindMutationOptions');
+    expect(queriesOnly).not.toContain('_schemas');
+    const mutationsOnly = build({
+      '/auth/logout': { post: { operationId: 'AuthLogout' } },
+    });
+    expect(mutationsOnly).toContain('  bindMutationOptions,\n');
+    expect(mutationsOnly).not.toContain('bindQueryOptions');
+    // The document's every kind of operation: all of them.
+    expect(source).toContain('  bindQueryOptions,\n');
+    expect(source).toContain('  bindMutationOptions,\n');
+  });
+
   test('InputSchema is exported for consumers to name', () => {
     expect(source).toContain(
       `export type { InputSchema } from './c/client-runtime';`,

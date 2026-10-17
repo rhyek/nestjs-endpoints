@@ -262,6 +262,55 @@ describe('collectInputSchemas', () => {
     expect(() => collectInputSchemas(document)).toThrow(/TreeSave/);
   });
 
+  test('a discriminator keeps its property name but not its mapping into the document', () => {
+    const cat = {
+      type: 'object',
+      properties: { kind: { type: 'string', const: 'cat' } },
+    };
+    const document = doc(
+      {
+        '/pets': {
+          post: {
+            operationId: 'PetsCreate',
+            requestBody: jsonBody({
+              oneOf: [ref('Cat')],
+              discriminator: {
+                propertyName: 'kind',
+                mapping: { cat: '#/components/schemas/Cat' },
+              },
+            }),
+          },
+        },
+      },
+      { Cat: cat },
+    );
+    const { schema } = collectInputSchemas(document).get('petsCreate')!;
+    expect(schema).toEqual({
+      oneOf: [cat],
+      discriminator: { propertyName: 'kind' },
+    });
+    expect(JSON.stringify(schema)).not.toContain('#/components/');
+  });
+
+  test('a body that is not JSON is not input, even beside query parameters', () => {
+    const document = doc({
+      '/upload': {
+        post: {
+          operationId: 'Upload',
+          parameters: [
+            { name: 'q', in: 'query', schema: { type: 'string' } },
+          ],
+          requestBody: {
+            content: {
+              'multipart/form-data': { schema: { type: 'object' } },
+            },
+          },
+        },
+      },
+    });
+    expect(collectInputSchemas(document).size).toBe(0);
+  });
+
   test('the document is not changed', () => {
     const document = doc(
       {
