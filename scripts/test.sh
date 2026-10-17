@@ -22,18 +22,15 @@ pnpm -r run tscheck
 
 pnpm --filter "test-app-*" run test:e2e --no-cache
 
-# Boot the built app the way a consumer would, to cover the real ESM runtime
-# path rather than the bundler-resolved one the e2e suites exercise.
-test_real_run() {
-  cd $__dirname/../packages/test/test-app-express
-  # enable job control so we get a new process group for the server
-  set -m
-  pnpm start &
-  SERVER_PID=$!
-  set +m
+# The built app, booted the way a consumer would, for the specs that call it
+# over HTTP. `pnpm start` runs in its own process group (job control), and
+# the EXIT trap kills that group however the script ends: a failing spec
+# exits through `set -e` before any explicit stop, and would leave the
+# server holding its port.
+SERVER_PID=
 
-  wget -qO- https://raw.githubusercontent.com/eficode/wait-for/v2.2.3/wait-for | sh -s -- http://localhost:3000/test/status --timeout=10 -- echo success
-
+stop_server() {
+  [[ -n "$SERVER_PID" ]] || return 0
   # Get the process group ID and ensure it's a valid number before using it
   PGID=$(ps -o pgid= -p $SERVER_PID | tr -d ' ')
   if [[ -n "$PGID" && "$PGID" =~ ^[0-9]+$ ]]; then
@@ -42,35 +39,28 @@ test_real_run() {
     # Fallback to killing just the server process if we can't get the group
     kill -9 $SERVER_PID 2>/dev/null || true
   fi
-
   wait $SERVER_PID 2>/dev/null || true
+  SERVER_PID=
 }
+trap stop_server EXIT
 
-test_real_run
-
-test_react_query_client() {
+start_server() {
   cd $__dirname/../packages/test/test-app-express
   # enable job control so we get a new process group for the server
-
   set -m
   pnpm start &
   SERVER_PID=$!
   set +m
 
   wget -qO- https://raw.githubusercontent.com/eficode/wait-for/v2.2.3/wait-for | sh -s -- http://localhost:3000/test/status --timeout=10 -- echo success
-
-  cd $__dirname/../packages/test/test-react-query-client
-  pnpm test run
-
-  # Get the process group ID and ensure it's a valid number before using it
-  PGID=$(ps -o pgid= -p $SERVER_PID | tr -d ' ')
-  if [[ -n "$PGID" && "$PGID" =~ ^[0-9]+$ ]]; then
-    kill -9 -- -$PGID
-  else
-    # Fallback to killing just the server process if we can't get the group
-    kill -9 $SERVER_PID 2>/dev/null || true
-  fi
-
-  wait $SERVER_PID 2>/dev/null || true
 }
-test_react_query_client
+
+# Cover the real ESM runtime path rather than the bundler-resolved one the
+# e2e suites exercise.
+start_server
+stop_server
+
+start_server
+cd $__dirname/../packages/test/test-react-query-client
+pnpm test run
+stop_server
