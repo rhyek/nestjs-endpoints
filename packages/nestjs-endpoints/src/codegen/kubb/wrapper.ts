@@ -1,5 +1,6 @@
 import type { OpenAPIObject } from '@nestjs/swagger';
 import { buildClientObjectExpression } from './buckets.js';
+import { operationKind, type OperationKinds } from './operation-kind.js';
 
 /**
  * Build the consumer-facing axios wrapper source. It imports the Kubb-generated
@@ -78,8 +79,8 @@ export function buildReactQueryWrapperSource(params: {
   typesImport: string;
   /** Import for the emitted `schemas.ts` module. */
   schemasImport: string;
-  /** HTTP methods Kubb turns into query hooks (`query.methods`). */
-  queryMethods: readonly string[];
+  /** Which operations Kubb gives query or mutation helpers. */
+  operationKinds: OperationKinds;
   /** Source names of the operations `schemas.ts` has an input schema for. */
   inputSchemaNames: ReadonlySet<string>;
 }): string {
@@ -90,11 +91,18 @@ export function buildReactQueryWrapperSource(params: {
     runtimeImport,
     typesImport,
     schemasImport,
-    queryMethods,
+    operationKinds,
     inputSchemaNames,
   } = params;
-  const isQuery = (method: string) =>
-    queryMethods.some((m) => m.toLowerCase() === method);
+  // A schema of the document's own that Kubb names `InputSchema` comes
+  // through `export type *`; re-exporting the runtime's would hide it. Kubb's
+  // casing rules are its own, so any name that reads `inputschema` counts.
+  const ownsInputSchema = Object.keys(
+    document.components?.schemas ?? {},
+  ).some(
+    (name) =>
+      name.replace(/[^A-Za-z0-9]/g, '').toLowerCase() === 'inputschema',
+  );
   // The binders the operations below use, so the wrapper imports nothing
   // more: an unused import fails a consumer's `noUnusedLocals`.
   const binders = new Set<string>();
@@ -102,31 +110,39 @@ export function buildReactQueryWrapperSource(params: {
   const buildExpr = buildClientObjectExpression({
     document,
     plainAccess: (src, { method, hasRequest }) => {
-      binders.add('bindOperation');
-      let tree: string[];
-      if (isQuery(method)) {
+      const tree: string[] = [];
+      const kind = operationKind(method, operationKinds);
+      if (kind === 'query') {
         binders.add('bindQueryOptions');
-        tree = [
+        tree.push(
           `queryKey: _hooks.${src}QueryKey`,
           `queryOptions: bindQueryOptions(_hooks.${src}QueryOptions, _request, ${hasRequest})`,
-        ];
-      } else {
+        );
+      } else if (kind === 'mutation') {
         binders.add('bindMutationOptions');
-        tree = [
+        tree.push(
           `mutationKey: _hooks.${src}MutationKey`,
           `mutationOptions: bindMutationOptions(_hooks.${src}MutationOptions, _request)`,
-        ];
+        );
       }
       if (inputSchemaNames.has(src)) {
         tree.push(`schemas: { input: _schemas.${src} }`);
       }
+      if (!tree.length) {
+        binders.add('bindClient');
+        return `bindClient(_ops.${src}, _request)`;
+      }
+      binders.add('bindOperation');
       return `bindOperation(_ops.${src}, _request, { ${tree.join(', ')} })`;
     },
-    // A query hook takes its request data first when the operation has any;
-    // mutation hooks get theirs through `mutate()`.
+    // Kubb generates no hook for an operation it makes neither a query nor a
+    // mutation. A query hook takes its request data first when the operation
+    // has any; mutation hooks get theirs through `mutate()`.
     hookAccess: (src, { method, hasRequest }) => {
+      const kind = operationKind(method, operationKinds);
+      if (!kind) return undefined;
       binders.add('bindHook');
-      return `bindHook(_hooks.${src}, ${isQuery(method) && hasRequest ? 1 : 0})`;
+      return `bindHook(_hooks.${src}, ${kind === 'query' && hasRequest ? 1 : 0})`;
     },
     // `[_CTX]` carries the bound client/axios pair so `ApiClientProvider` can
     // put it into React context. It's a module-private `unique symbol`, so it's
@@ -159,7 +175,9 @@ export function buildReactQueryWrapperSource(params: {
     `  type ApiClientContextValue,\n` +
     `} from '${runtimeImport}';\n\n` +
     `export type * from '${typesImport}';\n` +
-    `export type { InputSchema } from '${runtimeImport}';\n\n` +
+    (ownsInputSchema
+      ? '\n'
+      : `export type { InputSchema } from '${runtimeImport}';\n\n`) +
     `const _CTX = Symbol('nestjs-endpoints:client-ctx');\n\n` +
     `const _build = (_ctx: ApiClientContextValue) => {\n` +
     `  const { request: _request, axios: _axios } = _ctx;\n` +

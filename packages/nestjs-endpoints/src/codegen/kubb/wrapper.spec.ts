@@ -1,6 +1,7 @@
 import type { OpenAPIObject } from '@nestjs/swagger';
 import ts from 'typescript';
 import { describe, expect, test } from 'vitest';
+import { resolveOperationKinds } from './operation-kind.js';
 import { buildReactQueryWrapperSource } from './wrapper.js';
 
 const document = {
@@ -43,7 +44,7 @@ const source = buildReactQueryWrapperSource({
   runtimeImport: './c/client-runtime',
   typesImport: './c/types',
   schemasImport: './c/schemas',
-  queryMethods: ['GET'],
+  operationKinds: resolveOperationKinds(undefined),
   inputSchemaNames: new Set(['greet', 'authLogin']),
 });
 
@@ -123,7 +124,7 @@ describe('buildReactQueryWrapperSource', () => {
         runtimeImport: './c/client-runtime',
         typesImport: './c/types',
         schemasImport: './c/schemas',
-        queryMethods: ['GET'],
+        operationKinds: resolveOperationKinds(undefined),
         inputSchemaNames: new Set(),
       });
     const queriesOnly = build({
@@ -142,10 +143,69 @@ describe('buildReactQueryWrapperSource', () => {
     expect(source).toContain('  bindMutationOptions,\n');
   });
 
+  test('an operation Kubb gives neither query nor mutation helpers keeps only its call', () => {
+    const build = (kinds: Parameters<typeof resolveOperationKinds>[0]) =>
+      buildReactQueryWrapperSource({
+        document: {
+          ...document,
+          paths: {
+            '/greet': { get: { operationId: 'Greet' } },
+            '/ping': { head: { operationId: 'Ping' } },
+            '/item': { put: { operationId: 'ItemSave' } },
+          },
+        } as unknown as OpenAPIObject,
+        opsImport: './c/clients',
+        hooksImport: './c/hooks',
+        runtimeImport: './c/client-runtime',
+        typesImport: './c/types',
+        schemasImport: './c/schemas',
+        operationKinds: resolveOperationKinds(kinds),
+        inputSchemaNames: new Set(['itemSave']),
+      });
+    const defaults = build(undefined);
+    expect(defaults).toMatch(
+      /^\s*ping: bindClient\(_ops\.ping, _request\),$/m,
+    );
+    expect(defaults).not.toContain('usePing');
+    expect(defaults).not.toContain('_hooks.ping');
+
+    const noQueries = build({ query: false });
+    expect(noQueries).toMatch(
+      /^\s*greet: bindClient\(_ops\.greet, _request\),$/m,
+    );
+    expect(noQueries).not.toContain('useGreet');
+    expect(noQueries).not.toContain('bindQueryOptions');
+
+    // Still its input schema, without mutation helpers Kubb didn't generate.
+    const postOnly = build({ mutation: { methods: ['POST'] } });
+    expect(postOnly).toMatch(
+      /^\s*itemSave: bindOperation\(_ops\.itemSave, _request, \{ schemas: \{ input: _schemas\.itemSave \} \}\),$/m,
+    );
+    expect(postOnly).not.toContain('useItemSave');
+  });
+
   test('InputSchema is exported for consumers to name', () => {
     expect(source).toContain(
       `export type { InputSchema } from './c/client-runtime';`,
     );
+  });
+
+  test("a document's own InputSchema type is not hidden by the client's", () => {
+    const withOwn = buildReactQueryWrapperSource({
+      document: {
+        ...document,
+        components: { schemas: { InputSchema: { type: 'object' } } },
+      },
+      opsImport: './c/clients',
+      hooksImport: './c/hooks',
+      runtimeImport: './c/client-runtime',
+      typesImport: './c/types',
+      schemasImport: './c/schemas',
+      operationKinds: resolveOperationKinds(undefined),
+      inputSchemaNames: new Set(),
+    });
+    expect(withOwn).toContain(`export type * from './c/types';`);
+    expect(withOwn).not.toContain('export type { InputSchema }');
   });
 
   test('the emitted wrapper parses', () => {

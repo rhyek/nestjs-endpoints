@@ -6,6 +6,7 @@ import {
   buildSchemasModuleSource,
   collectInputSchemas,
 } from './input-schemas.js';
+import { resolveOperationKinds } from './operation-kind.js';
 import {
   AXIOS_CLIENT_RUNTIME_SOURCE,
   REACT_QUERY_CLIENT_RUNTIME_SOURCE,
@@ -175,7 +176,7 @@ export async function generateReactQueryClient(params: {
     runtimeImport: `./${dirName}/client-runtime`,
     typesImport: `./${dirName}/types`,
     schemasImport: `./${dirName}/schemas`,
-    queryMethods: (options?.query && options.query.methods) || ['GET'],
+    operationKinds: resolveOperationKinds(options),
     inputSchemaNames: new Set(inputSchemas.keys()),
   });
 

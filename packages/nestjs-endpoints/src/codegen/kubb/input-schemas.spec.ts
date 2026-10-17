@@ -332,6 +332,50 @@ describe('collectInputSchemas', () => {
     expect(collectInputSchemas(document).size).toBe(0);
   });
 
+  test('a property named like a keyword is a field, and its schema is resolved', () => {
+    const document = doc(
+      {
+        '/a': {
+          post: {
+            operationId: 'A',
+            requestBody: jsonBody({
+              type: 'object',
+              properties: {
+                $ref: { type: 'string' },
+                default: ref('B'),
+              },
+            }),
+          },
+        },
+      },
+      { B: { type: 'number' } },
+    );
+    expect(
+      collectInputSchemas(document).get('a')!.schema.properties,
+    ).toEqual({ $ref: { type: 'string' }, default: { type: 'number' } });
+  });
+
+  test('data keywords are copied as they are, $ref-shaped values included', () => {
+    const data = { $ref: '#/components/schemas/Missing' };
+    const schema = {
+      type: 'object',
+      default: data,
+      const: data,
+      enum: [data],
+      examples: [data],
+      example: data,
+    };
+    const { schema: input } = collectInputSchemas(
+      doc({
+        '/a': {
+          post: { operationId: 'A', requestBody: jsonBody(schema) },
+        },
+      }),
+    ).get('a')!;
+    expect(input).toEqual(schema);
+    expect(input.default).not.toBe(data);
+  });
+
   test('the document is not changed', () => {
     const document = doc(
       {

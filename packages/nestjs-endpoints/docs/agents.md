@@ -873,12 +873,14 @@ bound to the client instance it came from (its base URL and interceptors):
 | --- | --- | --- |
 | `queryKey(req)` | query operations (`query.methods`, `GET` by default) | The key the query is cached under. |
 | `queryOptions(req, config?)` | query operations | Options for `useQuery`, `queryClient.ensureQueryData`, `prefetchQuery`, … No React context needed. |
-| `mutationKey()` | the rest (`POST`, `PUT`, `PATCH`, `DELETE`) | The mutation's key. |
-| `mutationOptions(config?)` | the rest | Options for `useMutation`. |
+| `mutationKey()` | mutation operations (`mutation.methods`, `POST`, `PUT`, `PATCH`, `DELETE` by default) | The mutation's key. |
+| `mutationOptions(config?)` | mutation operations | Options for `useMutation`. |
 | `schemas.input` | operations that take input | The input as JSON Schema, every `$ref` resolved. |
 
 `req` is the same grouped `{ path, query, headers }` object the call takes; an
-operation without request data takes none, so `queryOptions(config?)`.
+operation without request data takes none, so `queryOptions(config?)`. An
+operation that is neither (a `HEAD`, or any with `query: false` /
+`mutation: false` in `options`) has no hook and no options, only its call.
 
 Use `queryOptions` where hooks can't run, such as a route loader. Give it the
 same instance you put in `<ApiClientProvider>`:
@@ -910,9 +912,10 @@ when it has no body (a `GET`), its query parameters as one object. Path
 parameters and headers are not input, and neither is a body that is not JSON (a
 file upload); an operation without input has no `schemas`. It is plain JSON data, so
 it is in your bundle, a few KB per operation. Its type, `InputSchema<T>`
-(exported by the client), carries the request body or query type in an optional
-`'~type'` property that is never there at runtime, so a form library can infer
-the form's values from the schema alone. That type is the input side of the
+(exported by the client, or, when your document has its own type of that
+name, from `<output-dir>/client-runtime`), carries the request body or query
+type in an optional `'~type'` property that is never there at runtime, so a
+form library can infer the form's values from the schema alone. That type is the input side of the
 zod schema: a field with a default, or a `.nullish()` one, may be left out.
 
 ---

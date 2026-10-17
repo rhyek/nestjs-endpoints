@@ -56,7 +56,11 @@ type BucketEntry = OperationTarget & {
   variant: Shape;
 };
 
-type Access = (sourceName: string, target: OperationTarget) => string;
+/** `undefined` leaves the operation's key out of that form. */
+type Access = (
+  sourceName: string,
+  target: OperationTarget,
+) => string | undefined;
 
 type BucketNode = {
   /** keyed by propertyName; exactly one op per key */
@@ -219,10 +223,9 @@ function serializeBucket(
   }
   for (const [name, entry] of bucket.methods) {
     const access = entry.variant === 'hook' ? hookAccess : plainAccess;
-    if (access) {
-      lines.push(
-        `${inner}${safeKey(name)}: ${access(entry.sourceName, entry)},`,
-      );
+    const expression = access?.(entry.sourceName, entry);
+    if (expression !== undefined) {
+      lines.push(`${inner}${safeKey(name)}: ${expression},`);
     }
   }
   for (const [name, child] of bucket.buckets) {

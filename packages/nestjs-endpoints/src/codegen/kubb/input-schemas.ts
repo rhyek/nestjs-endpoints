@@ -105,9 +105,7 @@ function operationInput(
  * beside a `$ref` (OpenAPI 3.1 allows them) win over the referenced schema's.
  * `chain` holds the refs being resolved on the way here, so a schema that
  * refers back to itself is reported instead of followed forever; the same
- * schema reached twice side by side is fine. A `discriminator`'s `mapping`
- * points into the document by name, so it goes; the inlined members still say
- * which value of `propertyName` selects them.
+ * schema reached twice side by side is fine.
  */
 function resolveRefs(
   document: OpenAPIObject,
@@ -127,9 +125,7 @@ function resolveRefs(
   const siblings = Object.fromEntries(
     Object.entries(rest).map(([key, item]) => [
       key,
-      key === 'discriminator'
-        ? withoutMapping(item)
-        : resolveRefs(document, item, operationId, chain),
+      resolveKeyword(document, key, item, operationId, chain),
     ]),
   );
   if (typeof ref !== 'string') {
@@ -157,13 +153,54 @@ function resolveRefs(
   };
 }
 
-function withoutMapping(discriminator: unknown): unknown {
-  if (!discriminator || typeof discriminator !== 'object') {
-    return discriminator;
+/** Keywords whose value is data, not a schema. */
+const DATA_KEYWORDS = new Set([
+  'const',
+  'default',
+  'enum',
+  'example',
+  'examples',
+]);
+
+/** Keywords whose value maps names to schemas: the names are not keywords. */
+const SCHEMA_MAPS = new Set([
+  '$defs',
+  'definitions',
+  'dependentSchemas',
+  'patternProperties',
+  'properties',
+]);
+
+/**
+ * One keyword of a schema, with its `$ref`s resolved where it holds schemas.
+ * Data is copied as it is, `$ref`-shaped values included. A `discriminator`'s
+ * `mapping` names schemas in the document, so it goes; the inlined members
+ * still say which value of `propertyName` selects them.
+ */
+function resolveKeyword(
+  document: OpenAPIObject,
+  key: string,
+  item: unknown,
+  operationId: string,
+  chain: readonly string[],
+): unknown {
+  if (DATA_KEYWORDS.has(key)) {
+    return structuredClone(item);
   }
-  const kept = { ...(discriminator as Record<string, unknown>) };
-  delete kept.mapping;
-  return kept;
+  if (key === 'discriminator' && item && typeof item === 'object') {
+    const kept = { ...(item as Record<string, unknown>) };
+    delete kept.mapping;
+    return kept;
+  }
+  if (SCHEMA_MAPS.has(key) && item && typeof item === 'object') {
+    return Object.fromEntries(
+      Object.entries(item).map(([name, schema]) => [
+        name,
+        resolveRefs(document, schema, operationId, chain),
+      ]),
+    );
+  }
+  return resolveRefs(document, item, operationId, chain);
 }
 
 /**
