@@ -1,19 +1,22 @@
 /**
  * Each operation's input as self-contained JSON Schema, for the react-query
  * client's `schemas.ts` (`api.<operation>.schemas.input`). "Input" is what an
- * endpoint declares as `input`: its JSON request body, or, without one, its
- * query parameters gathered into an object. Path parameters and headers are
- * not input.
+ * endpoint declares as `input`: its JSON request body, or, when it has no
+ * body, its query parameters gathered into an object. Path parameters,
+ * headers and a body that is not JSON are not input.
  */
 import type { OpenAPIObject } from '@nestjs/swagger';
-import { HTTP_METHODS } from '../http-methods.js';
 import {
   deref,
+  documentOperations,
   isLocalRef,
-  lowerFirst,
-  normalizeOperationIdToPascal,
+  operationParameters,
+  operationSourceName,
   resolveLocalRef,
-} from './buckets.js';
+  type Operation,
+  type Parameter,
+  type PathItem,
+} from './document.js';
 
 export type InputSchemaEntry = {
   /** The operation's name on the generated flat module (`authLogin`). */
@@ -21,24 +24,6 @@ export type InputSchemaEntry = {
   kind: 'body' | 'query';
   /** JSON Schema with every `$ref` resolved. */
   schema: Record<string, unknown>;
-};
-
-type Parameter = {
-  name?: string;
-  in?: string;
-  required?: boolean;
-  description?: string;
-  schema?: unknown;
-  $ref?: string;
-};
-
-type Operation = {
-  operationId?: string;
-  parameters?: Parameter[];
-  requestBody?: {
-    $ref?: string;
-    content?: Record<string, { schema?: unknown }>;
-  };
 };
 
 /**
@@ -50,35 +35,27 @@ export function collectInputSchemas(
   document: OpenAPIObject,
 ): Map<string, InputSchemaEntry> {
   const entries = new Map<string, InputSchemaEntry>();
-  for (const pathItem of Object.values(document.paths ?? {})) {
-    if (!pathItem || typeof pathItem !== 'object') continue;
-    for (const method of HTTP_METHODS) {
-      const op = (pathItem as Record<string, unknown>)[method] as
-        Operation | undefined;
-      if (!op?.operationId) continue;
-      const input = operationInput(document, pathItem, op);
-      if (!input) continue;
-      const sourceName = lowerFirst(
-        normalizeOperationIdToPascal(op.operationId),
-      );
-      entries.set(sourceName, {
-        sourceName,
-        kind: input.kind,
-        schema: resolveRefs(
-          document,
-          input.schema,
-          op.operationId,
-          [],
-        ) as Record<string, unknown>,
-      });
-    }
+  for (const { pathItem, op } of documentOperations(document)) {
+    const input = operationInput(document, pathItem, op);
+    if (!input) continue;
+    const sourceName = operationSourceName(op.operationId);
+    entries.set(sourceName, {
+      sourceName,
+      kind: input.kind,
+      schema: resolveRefs(
+        document,
+        input.schema,
+        op.operationId,
+        [],
+      ) as Record<string, unknown>,
+    });
   }
   return entries;
 }
 
 function operationInput(
   document: OpenAPIObject,
-  pathItem: { parameters?: Parameter[] },
+  pathItem: PathItem,
   op: Operation,
 ): { kind: InputSchemaEntry['kind']; schema: unknown } | undefined {
   const content = deref(document, op.requestBody)?.content;
@@ -88,26 +65,21 @@ function operationInput(
     const body = content['application/json']?.schema;
     return body ? { kind: 'body', schema: body } : undefined;
   }
-  // An operation-level parameter replaces a path-level one of the same name.
-  const query = new Map<string, Parameter>();
-  for (const parameter of [
-    ...(pathItem.parameters ?? []),
-    ...(op.parameters ?? []),
-  ]) {
-    const resolved = deref(document, parameter);
-    if (resolved?.in === 'query' && resolved.name) {
-      query.set(resolved.name, resolved);
-    }
-  }
-  if (!query.size) {
+  const query = operationParameters(document, pathItem, op).filter(
+    (parameter): parameter is Parameter & { name: string } =>
+      parameter.in === 'query' && Boolean(parameter.name),
+  );
+  if (!query.length) {
     return undefined;
   }
   const properties: Record<string, unknown> = {};
   const required: string[] = [];
-  for (const [
+  for (const {
     name,
-    { schema = {}, description, required: isRequired },
-  ] of query) {
+    schema = {},
+    description,
+    required: isRequired,
+  } of query) {
     // The parameter's description belongs to the field it becomes. Beside a
     // `$ref` it is a sibling keyword, which wins over the referenced one.
     properties[name] =

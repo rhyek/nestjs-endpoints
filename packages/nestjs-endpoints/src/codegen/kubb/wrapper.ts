@@ -95,10 +95,9 @@ export function buildReactQueryWrapperSource(params: {
   } = params;
   const isQuery = (method: string) =>
     queryMethods.some((m) => m.toLowerCase() === method);
-  // What the operations below use, so the wrapper imports nothing more: an
-  // unused import fails a consumer's `noUnusedLocals`.
+  // The binders the operations below use, so the wrapper imports nothing
+  // more: an unused import fails a consumer's `noUnusedLocals`.
   const binders = new Set<string>();
-  let usesSchemas = false;
 
   const buildExpr = buildClientObjectExpression({
     document,
@@ -119,7 +118,6 @@ export function buildReactQueryWrapperSource(params: {
         ];
       }
       if (inputSchemaNames.has(src)) {
-        usesSchemas = true;
         tree.push(`schemas: { input: _schemas.${src} }`);
       }
       return `bindOperation(_ops.${src}, _request, { ${tree.join(', ')} })`;
@@ -151,7 +149,7 @@ export function buildReactQueryWrapperSource(params: {
     `import * as React from 'react';\n` +
     `import * as _ops from '${opsImport}';\n` +
     `import * as _hooks from '${hooksImport}';\n` +
-    (usesSchemas
+    (inputSchemaNames.size
       ? `import * as _schemas from '${schemasImport}';\n`
       : '') +
     `import {\n` +

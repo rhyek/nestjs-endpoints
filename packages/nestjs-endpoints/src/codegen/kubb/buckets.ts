@@ -1,13 +1,22 @@
 /**
  * Shared logic for turning an OpenAPI document into the nested, namespaced
- * client shape — operation collection (with `x-namespace` chains and
- * name normalization), bucket-tree assembly with collision detection, and
- * serialization to an object literal. Consumed by the axios and react-query
- * wrapper builders in `./kubb`, which supply the per-operation access
- * expressions.
+ * client shape — operation collection (with `x-namespace` chains, over the
+ * operations and names of `./document`), bucket-tree assembly with collision
+ * detection, and serialization to an object literal. Consumed by the axios
+ * and react-query wrapper builders in `./kubb`, which supply the
+ * per-operation access expressions.
  */
 import type { OpenAPIObject } from '@nestjs/swagger';
-import { HTTP_METHODS, type HttpMethod } from '../http-methods.js';
+import type { HttpMethod } from '../http-methods.js';
+import {
+  deref,
+  documentOperations,
+  normalizeOperationIdToPascal,
+  operationParameters,
+  operationSourceName,
+  type Operation,
+  type PathItem,
+} from './document.js';
 import { stripNamespaceFromFlatName } from './name-transform.js';
 
 /**
@@ -59,64 +68,6 @@ function emptyBucket(): BucketNode {
   return { methods: new Map(), buckets: new Map() };
 }
 
-export function lowerFirst(s: string): string {
-  return s.charAt(0).toLowerCase() + s.slice(1);
-}
-
-/**
- * Normalize an operationId to an identifier: treat any non-alphanumeric
- * separator (underscore, hyphen, space) as a word boundary and PascalCase
- * the token on the right. Matches both the generated client's naming and
- * NestJS's default `ControllerClass_methodName` operationId (emitted as
- * `controllerClassMethodName`).
- */
-export function normalizeOperationIdToPascal(operationId: string): string {
-  let normalized = operationId.replace(
-    /[^A-Za-z0-9]+([A-Za-z0-9])/g,
-    (_, c: string) => c.toUpperCase(),
-  );
-  normalized = normalized.replace(/[^A-Za-z0-9]/g, '');
-  return normalized.charAt(0).toUpperCase() + normalized.slice(1);
-}
-
-type ParameterLike = { in?: string; $ref?: string };
-type RequestBodyLike = {
-  $ref?: string;
-  content?: Record<string, { schema?: unknown }>;
-};
-
-/**
- * The value a local JSON pointer (`#/components/schemas/Name`) points at in
- * the document, with `~1` and `~0` unescaped; `undefined` when nothing is
- * there.
- */
-export function resolveLocalRef(
-  document: OpenAPIObject,
-  ref: `#/${string}`,
-): unknown {
-  let target: unknown = document;
-  for (const segment of ref.slice(2).split('/')) {
-    target = (target as Record<string, unknown> | undefined)?.[
-      segment.replace(/~1/g, '/').replace(/~0/g, '~')
-    ];
-  }
-  return target;
-}
-
-/** Follows a local `#/components/<section>/<name>` reference. */
-export function deref<T extends { $ref?: string }>(
-  document: OpenAPIObject,
-  value: T | undefined,
-): T | undefined {
-  const ref = value?.$ref;
-  if (!isLocalRef(ref)) return value;
-  return resolveLocalRef(document, ref) as T | undefined;
-}
-
-export function isLocalRef(ref: unknown): ref is `#/${string}` {
-  return typeof ref === 'string' && ref.startsWith('#/');
-}
-
 /**
  * Whether Kubb gives the operation's generated functions a request argument:
  * any path, query or header parameter (path-item level included), or a request
@@ -124,16 +75,12 @@ export function isLocalRef(ref: unknown): ref is `#/${string}` {
  */
 function hasRequestData(
   document: OpenAPIObject,
-  pathItem: { parameters?: ParameterLike[] },
-  op: { parameters?: ParameterLike[]; requestBody?: RequestBodyLike },
+  pathItem: PathItem,
+  op: Operation,
 ): boolean {
-  const parameters = [
-    ...(pathItem.parameters ?? []),
-    ...(op.parameters ?? []),
-  ].map((parameter) => deref(document, parameter));
   if (
-    parameters.some((parameter) =>
-      ['path', 'query', 'header'].includes(parameter?.in ?? ''),
+    operationParameters(document, pathItem, op).some((parameter) =>
+      ['path', 'query', 'header'].includes(parameter.in ?? ''),
     )
   ) {
     return true;
@@ -147,38 +94,26 @@ function collectOperations(
   shape: Shape,
 ): NamespacedOp[] {
   const out: NamespacedOp[] = [];
-  for (const pathItem of Object.values(document.paths ?? {})) {
-    if (!pathItem || typeof pathItem !== 'object') continue;
-    for (const method of HTTP_METHODS) {
-      const op = (pathItem as Record<string, unknown>)[method] as
-        | undefined
-        | {
-            operationId?: string;
-            ['x-namespace']?: unknown;
-            parameters?: ParameterLike[];
-            requestBody?: RequestBodyLike;
-          };
-      if (!op || typeof op !== 'object') continue;
-      if (!op.operationId) continue;
-      const rawChain = op['x-namespace'];
-      const namespaceChain = Array.isArray(rawChain)
-        ? rawChain.filter((s): s is string => typeof s === 'string')
-        : [];
-      const pascal = normalizeOperationIdToPascal(op.operationId);
-      const sourceName =
-        shape === 'hook' ? 'use' + pascal : lowerFirst(pascal);
-      const propertyName = stripNamespaceFromFlatName(
-        sourceName,
-        namespaceChain,
-      );
-      out.push({
-        namespaceChain,
-        sourceName,
-        propertyName,
-        method,
-        hasRequest: hasRequestData(document, pathItem, op),
-      });
-    }
+  for (const { pathItem, method, op } of documentOperations(document)) {
+    const rawChain = op['x-namespace'];
+    const namespaceChain = Array.isArray(rawChain)
+      ? rawChain.filter((s): s is string => typeof s === 'string')
+      : [];
+    const sourceName =
+      shape === 'hook'
+        ? 'use' + normalizeOperationIdToPascal(op.operationId)
+        : operationSourceName(op.operationId);
+    const propertyName = stripNamespaceFromFlatName(
+      sourceName,
+      namespaceChain,
+    );
+    out.push({
+      namespaceChain,
+      sourceName,
+      propertyName,
+      method,
+      hasRequest: hasRequestData(document, pathItem, op),
+    });
   }
   return out;
 }

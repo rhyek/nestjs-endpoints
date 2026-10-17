@@ -222,6 +222,27 @@ describe('collectInputSchemas', () => {
     });
   });
 
+  test("an operation's query parameter replaces the path item's of the same name", () => {
+    const document = doc({
+      '/list': {
+        parameters: [
+          { name: 'page', in: 'query', schema: { type: 'string' } },
+          { name: 'size', in: 'query', schema: { type: 'number' } },
+        ],
+        get: {
+          operationId: 'List',
+          parameters: [
+            { name: 'page', in: 'query', schema: { type: 'number' } },
+          ],
+        },
+      },
+    });
+    expect(collectInputSchemas(document).get('list')!.schema).toEqual({
+      type: 'object',
+      properties: { page: { type: 'number' }, size: { type: 'number' } },
+    });
+  });
+
   test('an operation with neither body nor query parameters has no entry', () => {
     const document = doc({
       '/articles/latest': { get: { operationId: 'ArticlesLatest' } },

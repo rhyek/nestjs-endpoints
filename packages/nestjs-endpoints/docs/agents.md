@@ -875,10 +875,10 @@ bound to the client instance it came from (its base URL and interceptors):
 | `queryOptions(req, config?)` | query operations | Options for `useQuery`, `queryClient.ensureQueryData`, `prefetchQuery`, … No React context needed. |
 | `mutationKey()` | the rest (`POST`, `PUT`, `PATCH`, `DELETE`) | The mutation's key. |
 | `mutationOptions(config?)` | the rest | Options for `useMutation`. |
+| `schemas.input` | operations that take input | The input as JSON Schema, every `$ref` resolved. |
 
 `req` is the same grouped `{ path, query, headers }` object the call takes; an
 operation without request data takes none, so `queryOptions(config?)`.
-| `schemas.input` | operations that take input | The input as JSON Schema, every `$ref` resolved. |
 
 Use `queryOptions` where hooks can't run, such as a route loader. Give it the
 same instance you put in `<ApiClientProvider>`:

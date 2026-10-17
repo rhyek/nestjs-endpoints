@@ -136,7 +136,12 @@ export async function generateAxiosClient(params: {
       name: 'plugin-nestjs-endpoints-axios',
       outDir,
       outputFile,
-      runtimeSource: AXIOS_CLIENT_RUNTIME_SOURCE,
+      files: [
+        {
+          baseName: 'client-runtime.ts',
+          source: AXIOS_CLIENT_RUNTIME_SOURCE,
+        },
+      ],
       wrapperSource,
     }),
   ]);
@@ -180,9 +185,11 @@ export async function generateReactQueryClient(params: {
       name: 'plugin-nestjs-endpoints-react-query',
       outDir,
       outputFile,
-      runtimeSource: REACT_QUERY_CLIENT_RUNTIME_SOURCE,
-      wrapperSource,
-      extraFiles: [
+      files: [
+        {
+          baseName: 'client-runtime.ts',
+          source: REACT_QUERY_CLIENT_RUNTIME_SOURCE,
+        },
         {
           baseName: 'schemas.ts',
           source: buildSchemasModuleSource({
@@ -192,6 +199,7 @@ export async function generateReactQueryClient(params: {
           }),
         },
       ],
+      wrapperSource,
     }),
   ]);
 }
