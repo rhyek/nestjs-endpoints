@@ -21,7 +21,7 @@ Check, in order:
 
 If none of those appear, this library is not in play — don't apply this guide.
 
-**Everything below assumes the modern API.** These names still work but are
+**Everything below uses the current names.** These still work but are
 deprecated; never write new code with them, and prefer migrating when you touch
 surrounding code:
 
@@ -535,8 +535,8 @@ needed) and `node --watch` / `tsx watch` restart when it changes.
   its manifest listed when it started, so scripts that start the app run
   `nestjs-endpoints generate` first:
   `"test": "nestjs-endpoints generate && vitest run"`, and the same in front
-  of the dev server and codegen scripts. It writes only when the
-  contents change, so it never restarts a watcher for nothing.
+  of the dev server and codegen scripts. It writes only when the contents
+  change.
 - **The app checks it too.** In development (`NODE_ENV` unset or
   `development`) the app rewrites it at startup and on every add / delete /
   rename of an endpoint or router-module file while running; a watcher then
@@ -714,7 +714,7 @@ Per-client options:
 | `type` | `'axios'` or `'react-query'`. |
 | `outputFile` | **Must include an extension** (`.ts` / `.tsx`) — the generated tree goes in a sibling directory named after it, so an extensionless path would collide. |
 | `namespaces` | `string[]` restricting the client to those top-level namespaces. Omit for full access; `[]` is rejected. |
-| `options` | react-query only: forwarded to `@kubb/plugin-react-query` (query keys, suspense/infinite generation, …). The `client` and `hooks` fields are managed for you. |
+| `options` | react-query only: forwarded to `@kubb/plugin-react-query` (query keys, suspense/infinite generation, …). The `client` and `hooks` fields are managed for you. Its `query`, `mutation`, `include`, `exclude` and `override` also decide which operations get hooks and query or mutation options (§9.2). |
 
 `forceGenerate: true` (top level) wipes and regenerates everything this call
 owns. Otherwise a client regenerates when the OpenAPI document changed, or when

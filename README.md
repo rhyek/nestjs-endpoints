@@ -325,7 +325,7 @@ Import it once, anywhere in the app's import graph (the app module is the natura
 
 A process can only load the endpoint files its manifest listed when it started. Run `nestjs-endpoints generate` in front of every script that starts the app, so it never starts with an out-of-date list. For tests, `"test": "nestjs-endpoints generate && vitest run"`, and the same in front of your dev server and any codegen script.
 
-`generate` only writes the file when its contents change, so it never sets off a watcher for nothing.
+`generate` writes the file only when its contents change.
 
 The app also checks the manifest itself:
 
@@ -539,7 +539,7 @@ export function UserPage() {
 }
 ```
 
-Each operation also carries `queryKey` and `queryOptions` (query operations) or `mutationKey` and `mutationOptions` (the rest), bound to the client instance, and `schemas.input`, its input as JSON Schema with every `$ref` resolved:
+Each operation also carries `queryKey` and `queryOptions` (query operations) or `mutationKey` and `mutationOptions` (mutation operations), bound to the client instance, and `schemas.input`, its input as JSON Schema with every `$ref` resolved:
 
 ```typescript
 // A route loader, outside React, with a module-level instance
