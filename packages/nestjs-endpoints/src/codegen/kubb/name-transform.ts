@@ -19,13 +19,13 @@ function segmentToPascal(segment: string): string {
  * - If the name starts with `use` (React Query hook), the prefix is
  *   preserved and the strip happens on the remainder.
  * - The namespace chain is concatenated as a single PascalCase prefix
- *   (e.g., `['clinica', 'horarios', 'general']` → `ClinicaHorariosGeneral`)
+ *   (e.g., `['shop', 'catalog', 'featured']` → `ShopCatalogFeatured`)
  *   and that prefix is stripped if present. Partial matches are not
  *   stripped — the full prefix must match.
  * - After stripping, the remainder's first letter is lower-cased (so
- *   `AseguradoraListar` → `aseguradoraListar`), except when a `use`
+ *   `ProductList` → `productList`), except when a `use`
  *   prefix is re-attached, in which case the remainder stays
- *   PascalCase (so `use` + `SemanaActualizar` → `useSemanaActualizar`).
+ *   PascalCase (so `use` + `WeekUpdate` → `useWeekUpdate`).
  * - If stripping would leave an empty remainder, the original flat
  *   name is returned unchanged (same lenient fallback as a non-match).
  */

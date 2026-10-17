@@ -112,7 +112,7 @@ export class EndpointRouterModule {
        *
        * @example
        *   rootDirectory: './endpoints'             // single scan root
-       *   rootDirectory: ['endpoints', 'clinica']  // each entry scanned independently
+       *   rootDirectory: ['endpoints', 'admin']  // each entry scanned independently
        *
        * @default The directory of the calling file.
        */

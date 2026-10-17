@@ -12,35 +12,35 @@ describe('stripNamespaceFromFlatName', () => {
   });
 
   test('strips a single-segment chain from a plain function name', () => {
-    expect(
-      stripNamespaceFromFlatName('clinicaAseguradoraListar', ['clinica']),
-    ).toBe('aseguradoraListar');
+    expect(stripNamespaceFromFlatName('shopProductList', ['shop'])).toBe(
+      'productList',
+    );
   });
 
   test('strips a single-segment chain while preserving the use prefix', () => {
     expect(
-      stripNamespaceFromFlatName('useClinicaAseguradoraListar', [
-        'clinica',
-      ]),
-    ).toBe('useAseguradoraListar');
+      stripNamespaceFromFlatName('useShopProductList', ['shop']),
+    ).toBe('useProductList');
   });
 
   test('strips a multi-segment chain from a use-prefixed name', () => {
     expect(
-      stripNamespaceFromFlatName(
-        'useClinicaHorariosGeneralSemanaActualizar',
-        ['clinica', 'horarios', 'general'],
-      ),
-    ).toBe('useSemanaActualizar');
+      stripNamespaceFromFlatName('useShopCatalogFeaturedWeekUpdate', [
+        'shop',
+        'catalog',
+        'featured',
+      ]),
+    ).toBe('useWeekUpdate');
   });
 
   test('strips a multi-segment chain from a plain function name', () => {
     expect(
-      stripNamespaceFromFlatName(
-        'clinicaHorariosGeneralSemanaActualizar',
-        ['clinica', 'horarios', 'general'],
-      ),
-    ).toBe('semanaActualizar');
+      stripNamespaceFromFlatName('shopCatalogFeaturedWeekUpdate', [
+        'shop',
+        'catalog',
+        'featured',
+      ]),
+    ).toBe('weekUpdate');
   });
 
   test('handles hyphenated segments (kebab → pascal)', () => {
@@ -60,11 +60,11 @@ describe('stripNamespaceFromFlatName', () => {
   });
 
   test('leaves name unchanged when prefix does not match the chain', () => {
-    // chain expects 'Clinica...', body starts with 'Foo...'
-    expect(stripNamespaceFromFlatName('fooBarBaz', ['clinica'])).toBe(
+    // chain expects 'Shop...', body starts with 'Foo...'
+    expect(stripNamespaceFromFlatName('fooBarBaz', ['shop'])).toBe(
       'fooBarBaz',
     );
-    expect(stripNamespaceFromFlatName('useFooBarBaz', ['clinica'])).toBe(
+    expect(stripNamespaceFromFlatName('useFooBarBaz', ['shop'])).toBe(
       'useFooBarBaz',
     );
   });
@@ -79,24 +79,19 @@ describe('stripNamespaceFromFlatName', () => {
   });
 
   test('leaves name unchanged when only a prefix of the chain matches', () => {
-    // Body matches 'Clinica' but not 'ClinicaHorarios'.
+    // Body matches 'Shop' but not 'ShopCatalog'.
     expect(
-      stripNamespaceFromFlatName('clinicaAseguradoraListar', [
-        'clinica',
-        'horarios',
-      ]),
-    ).toBe('clinicaAseguradoraListar');
+      stripNamespaceFromFlatName('shopProductList', ['shop', 'catalog']),
+    ).toBe('shopProductList');
   });
 
   test('returns original when stripping would consume the whole name', () => {
     // Lenient: a full match leaves nothing to strip, so fall back to
     // the flat name unchanged (same rule as no-match). Consumers can
     // rename the endpoint if they want a cleaner leaf name.
-    expect(stripNamespaceFromFlatName('clinica', ['clinica'])).toBe(
-      'clinica',
-    );
-    expect(stripNamespaceFromFlatName('useClinica', ['clinica'])).toBe(
-      'useClinica',
+    expect(stripNamespaceFromFlatName('shop', ['shop'])).toBe('shop');
+    expect(stripNamespaceFromFlatName('useShop', ['shop'])).toBe(
+      'useShop',
     );
     expect(
       stripNamespaceFromFlatName('shopRecipes', ['shop', 'recipes']),
