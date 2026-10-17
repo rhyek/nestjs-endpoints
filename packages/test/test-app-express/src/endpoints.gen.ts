@@ -12,6 +12,7 @@ registerEndpointManifest(import.meta.url, {
     "endpoints/complex-get.endpoint.ts": () => import("./endpoints/complex-get.endpoint.js"),
     "endpoints/greet.endpoint.ts": () => import("./endpoints/greet.endpoint.js"),
     "endpoints/optional-params.endpoint.ts": () => import("./endpoints/optional-params.endpoint.js"),
+    "endpoints/profile/update.endpoint.ts": () => import("./endpoints/profile/update.endpoint.js"),
     "endpoints/recipes-manual/create.endpoint.ts": () => import("./endpoints/recipes-manual/create.endpoint.js"),
     "endpoints/recipes-manual/router.module.ts": () => import("./endpoints/recipes-manual/router.module.js"),
     "endpoints/recipes/$recipeId.delete.endpoint.ts": () => import("./endpoints/recipes/$recipeId.delete.endpoint.js"),

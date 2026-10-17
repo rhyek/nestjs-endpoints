@@ -7,6 +7,8 @@
 - **File-based routing works under Vitest with no extra config, and `node --watch` / `tsx watch` serve new endpoint files without a manual restart.** See [the endpoint manifest](README.md#the-endpoint-manifest).
 - **`npx nestjs-endpoints generate` rewrites the endpoint manifest; run it in front of the scripts that start your app**, and `init` now creates it. See [the endpoint manifest](README.md#the-endpoint-manifest).
 - **`npx nestjs-endpoints init` installs a coding-agent skill** pointing at the full library guide the package now ships at `docs/agents.md`.
+- **Each react-query client operation carries its `queryOptions` / `queryKey` or `mutationOptions` / `mutationKey`, bound to the client instance**, so route loaders can use `queryClient.ensureQueryData(...)` outside React. See [react-query](README.md#react-query).
+- **Each react-query client operation that takes input carries `schemas.input`, its input as self-contained JSON Schema**, for forms to read. See [react-query](README.md#react-query).
 
 ### Fixes
 

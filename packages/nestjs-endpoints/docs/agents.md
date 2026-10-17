@@ -864,6 +864,53 @@ Notes:
   the internal tree but are **not** exposed on the client object. Don't import
   them directly.
 
+#### Query options, mutation options and the input schema
+
+Each operation's axios method also carries what TanStack Query and a form need,
+bound to the client instance it came from (its base URL and interceptors):
+
+| Property | On | What it is |
+| --- | --- | --- |
+| `queryKey(req)` | query operations (`query.methods`, `GET` by default) | The key the query is cached under. |
+| `queryOptions(req, config?)` | query operations | Options for `useQuery`, `queryClient.ensureQueryData`, `prefetchQuery`, … No React context needed. |
+| `mutationKey()` | every other operation | The mutation's key. |
+| `mutationOptions(config?)` | every other operation | Options for `useMutation`. |
+| `schemas.input` | operations that take input | The input as JSON Schema, every `$ref` resolved. |
+
+Use `queryOptions` where hooks can't run, such as a route loader. Give it the
+same instance you put in `<ApiClientProvider>`:
+
+```ts
+import { api } from './api'; // export const api = createApiClient({ … })
+
+export const loader = ({ context }: { context: { queryClient: QueryClient } }) =>
+  context.queryClient.ensureQueryData(
+    api.user.find.queryOptions({ query: { id: 1 } }),
+  );
+```
+
+```tsx
+const client = useApiClient();
+const queryClient = useQueryClient();
+const create = useMutation({
+  ...client.user.create.mutationOptions(),
+  onSuccess: () =>
+    queryClient.invalidateQueries({
+      queryKey: client.user.find.queryKey({ query: { id: 1 } }),
+    }),
+});
+create.mutate({ body: { name: 'Tom', email: 'tom@x.com' } });
+```
+
+`schemas.input` is what the endpoint declares as `input`: its JSON body, or for
+a `GET` its query parameters as one object. Path parameters and headers are not
+input; an operation without input has no `schemas`. It is plain JSON data, so
+it is in your bundle, a few KB per operation. Its type, `InputSchema<T>`
+(exported by the client), carries the request body or query type in an optional
+`'~type'` property that is never there at runtime, so a form library can infer
+the form's values from the schema alone. That type is the input side of the
+zod schema: a field with a default, or a `.nullish()` one, may be left out.
+
 ---
 
 ## 10. Testing

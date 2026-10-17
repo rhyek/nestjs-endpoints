@@ -539,6 +539,24 @@ export function UserPage() {
 }
 ```
 
+Each operation also carries `queryKey` and `queryOptions` (query operations) or `mutationKey` and `mutationOptions` (the rest), bound to the client instance, and `schemas.input`, its input as JSON Schema with every `$ref` resolved:
+
+```typescript
+// A route loader, outside React, with the instance you gave <ApiClientProvider>:
+// it carries its base URL and interceptors.
+await queryClient.ensureQueryData(
+  apiClient.user.find.queryOptions({ query: { id: 1 } }),
+);
+
+// In a component.
+const create = useMutation(client.user.create.mutationOptions());
+
+// The JSON body, or a GET's query parameters as one object.
+const schema = client.user.create.schemas.input;
+```
+
+See [the agent guide](packages/nestjs-endpoints/docs/agents.md#query-options-mutation-options-and-the-input-schema) for what `schemas.input` covers and how a form library reads its type.
+
 More examples:
 
 - [axios](https://github.com/rhyek/nestjs-endpoints/blob/main/packages/test/test-app-express/test/client.e2e-spec.ts)
