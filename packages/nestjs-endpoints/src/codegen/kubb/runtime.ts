@@ -6,7 +6,9 @@
  * request function imports `client` plus the `Options` / `RequestResult` types
  * from it, and the react-query hooks import `RequestConfig` /
  * `ResponseErrorConfig`. The namespaced wrapper imports `createBoundClient` +
- * `bindClient` (and, for react-query, `ApiClientContext` + `bindHook`). It is
+ * `bindClient` (and, for react-query, `ApiClientContext`, `bindHook`,
+ * `bindOperation`, `bindQueryOptions`, `bindMutationOptions` and the
+ * `InputSchema` type that `schemas.ts` uses). It is
  * self-contained — it depends only on `axios` (and, for react-query, `react`),
  * which consumers already have, so the generated output never reaches back into
  * `nestjs-endpoints` at runtime.
@@ -165,9 +167,10 @@ export function bindClient<F extends (...args: never[]) => unknown>(
 `;
 
 /**
- * React-query additions: the context that carries the bound client/axios pair,
- * and `bindHook`, which lets a generated hook read that client from context and
- * forward it.
+ * React-query additions: the context that carries the bound client/axios pair;
+ * `bindHook`, which lets a generated hook read that client from context and
+ * forward it; the binders that hand it to the generated query and mutation
+ * options; and `InputSchema`.
  */
 const REACT_QUERY_ADDITIONS = `
 export type ApiClientContextValue = { request: Client; axios: AxiosInstance };
@@ -202,6 +205,66 @@ export function bindHook<F extends (...args: never[]) => unknown>(
     );
   }) as unknown as F;
 }
+
+/**
+ * \`bindClient\`, plus the operation's tree (its query or mutation options, and
+ * its input schema) as properties of the bound function. One call does both:
+ * nesting \`bindClient(...)\` inside \`Object.assign(...)\` would make
+ * TypeScript fix the request function's \`ThrowOnError\` type parameter.
+ */
+export function bindOperation<
+  F extends (...args: never[]) => unknown,
+  T extends object,
+>(fn: F, request: Client, tree: T): F & T {
+  return Object.assign(bindClient(fn, request), tree);
+}
+
+/**
+ * Wrap a generated \`xQueryOptions\` so the query it describes calls through
+ * the bound client, outside React too (\`queryClient.ensureQueryData(...)\` in
+ * a route loader). The request config it takes last gets \`client\`;
+ * \`hasRequest\` says whether the request data comes before it.
+ */
+export function bindQueryOptions<F extends (...args: never[]) => unknown>(
+  fn: F,
+  request: Client,
+  hasRequest: boolean,
+): F {
+  return withClient(fn, request, hasRequest ? 1 : 0);
+}
+
+/**
+ * Wrap a generated \`xMutationOptions\` so the mutation it describes calls
+ * through the bound client. Its one argument is the request config.
+ */
+export function bindMutationOptions<F extends (...args: never[]) => unknown>(
+  fn: F,
+  request: Client,
+): F {
+  return withClient(fn, request, 0);
+}
+
+function withClient<F extends (...args: never[]) => unknown>(
+  fn: F,
+  request: Client,
+  configIndex: number,
+): F {
+  return ((...args: unknown[]) =>
+    (fn as unknown as (...rest: unknown[]) => unknown)(
+      ...Array.from({ length: configIndex }, (_, i) => args[i]),
+      { ...(args[configIndex] as object | undefined), client: request },
+    )) as unknown as F;
+}
+
+/**
+ * An operation's input as JSON Schema (\`schemas.input\`). \`'~type'\` is never
+ * there at runtime: it carries the type of the value the schema describes, so
+ * code that is handed only the schema, a form library say, can infer it.
+ */
+export type InputSchema<T> = {
+  readonly [key: string]: unknown;
+  readonly '~type'?: T;
+};
 `;
 
 export const AXIOS_CLIENT_RUNTIME_SOURCE = HEADER + AXIOS_RUNTIME_BODY;

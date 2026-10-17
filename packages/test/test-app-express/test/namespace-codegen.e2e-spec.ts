@@ -22,11 +22,13 @@ void _shopCartAddPreservesShape;
 
 // The react-query wrapper's client must match the axios client's namespaced
 // shape (`.axios` passthrough + the same buckets), and additionally expose
-// per-namespace `useXxx` hooks alongside the axios methods.
+// per-namespace `useXxx` hooks alongside the axios methods. Its methods also
+// carry their query/mutation options, so one is usable wherever the axios
+// client's is, not the other way round.
 const _rqHasAxios: RqApiClient['axios'] =
   null as unknown as AxiosApiClient['axios'];
-const _rqHasNamespaced: RqApiClient['shop']['cart']['add'] =
-  null as unknown as AxiosApiClient['shop']['cart']['add'];
+const _rqHasNamespaced: AxiosApiClient['shop']['cart']['add'] =
+  null as unknown as RqApiClient['shop']['cart']['add'];
 const _rqHasHooksAlongsideAxiosMethods: RqApiClient['shop']['cart']['useAdd'] =
   null as unknown as RqApiClient['shop']['cart']['useAdd'];
 void _rqHasAxios;

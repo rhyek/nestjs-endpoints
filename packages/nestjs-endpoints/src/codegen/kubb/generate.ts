@@ -3,6 +3,10 @@ import type { OpenAPIObject } from '@nestjs/swagger';
 import type { UserConfig } from 'kubb';
 import { emitPlugin } from './emit-plugin.js';
 import {
+  buildSchemasModuleSource,
+  collectInputSchemas,
+} from './input-schemas.js';
+import {
   AXIOS_CLIENT_RUNTIME_SOURCE,
   REACT_QUERY_CLIENT_RUNTIME_SOURCE,
 } from './runtime.js';
@@ -143,7 +147,8 @@ export async function generateAxiosClient(params: {
  *
  * The hooks call the same request functions the axios methods expose, and
  * unwrap the response's data themselves. They read their bound client from
- * React context via `bindHook`.
+ * React context via `bindHook`. Each operation's input schema goes into
+ * `schemas.ts` beside the runtime.
  */
 export async function generateReactQueryClient(params: {
   document: OpenAPIObject;
@@ -157,13 +162,16 @@ export async function generateReactQueryClient(params: {
     import('@kubb/plugin-react-query'),
   ]);
 
+  const inputSchemas = collectInputSchemas(document);
   const wrapperSource = buildReactQueryWrapperSource({
     document,
     opsImport: `./${dirName}/clients`,
     hooksImport: `./${dirName}/hooks`,
     runtimeImport: `./${dirName}/client-runtime`,
     typesImport: `./${dirName}/types`,
+    schemasImport: `./${dirName}/schemas`,
     queryMethods: (options?.query && options.query.methods) || ['GET'],
+    inputSchemaNames: new Set(inputSchemas.keys()),
   });
 
   await runKubbBuild(kubb, document, outDir, [
@@ -174,6 +182,16 @@ export async function generateReactQueryClient(params: {
       outputFile,
       runtimeSource: REACT_QUERY_CLIENT_RUNTIME_SOURCE,
       wrapperSource,
+      extraFiles: [
+        {
+          baseName: 'schemas.ts',
+          source: buildSchemasModuleSource({
+            entries: inputSchemas.values(),
+            runtimeImport: './client-runtime',
+            typesImport: './types',
+          }),
+        },
+      ],
     }),
   ]);
 }

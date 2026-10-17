@@ -50,13 +50,21 @@ export function buildAxiosWrapperSource(params: {
 
 /**
  * Build the consumer-facing react-query wrapper source. Each namespace bucket
- * carries the imperative axios method (full `AxiosResponse`, bound to the
- * instance via `bindClient`) and its paired React Query hook (`bindHook`, which
- * reads the bound client from `ApiClientContext`). It also exports
- * `useApiClient` + `ApiClientProvider`. The axios methods come from the
- * generated `clients` barrel, the same request functions the standalone axios
- * client exposes; the hooks come from the generated `hooks` barrel and return
- * unwrapped data.
+ * carries, per operation:
+ *
+ * - the imperative axios method (full `AxiosResponse`, bound to the instance
+ *   via `bindOperation`), which also holds the operation's tree:
+ *   - a query: `queryKey` and `queryOptions` (bound via `bindQueryOptions`);
+ *   - anything else: `mutationKey` and `mutationOptions` (bound via
+ *     `bindMutationOptions`);
+ *   - with input: `schemas.input`, its JSON Schema from `schemas.ts`;
+ * - its paired React Query hook (`bindHook`, which reads the bound client from
+ *   `ApiClientContext`).
+ *
+ * It also exports `useApiClient` + `ApiClientProvider`. The axios methods come
+ * from the generated `clients` barrel, the same request functions the
+ * standalone axios client exposes; the hooks and the key/options helpers come
+ * from the generated `hooks` barrel and return unwrapped data.
  */
 export function buildReactQueryWrapperSource(params: {
   document: OpenAPIObject;
@@ -68,8 +76,12 @@ export function buildReactQueryWrapperSource(params: {
   runtimeImport: string;
   /** Import for the generated barrel whose types are re-exported. */
   typesImport: string;
+  /** Import for the emitted `schemas.ts` module. */
+  schemasImport: string;
   /** HTTP methods Kubb turns into query hooks (`query.methods`). */
   queryMethods: readonly string[];
+  /** Source names of the operations `schemas.ts` has an input schema for. */
+  inputSchemaNames: ReadonlySet<string>;
 }): string {
   const {
     document,
@@ -77,14 +89,30 @@ export function buildReactQueryWrapperSource(params: {
     hooksImport,
     runtimeImport,
     typesImport,
+    schemasImport,
     queryMethods,
+    inputSchemaNames,
   } = params;
   const isQuery = (method: string) =>
     queryMethods.some((m) => m.toLowerCase() === method);
 
   const buildExpr = buildClientObjectExpression({
     document,
-    plainAccess: (src) => `bindClient(_ops.${src}, _request)`,
+    plainAccess: (src, { method, hasRequest }) => {
+      const tree = isQuery(method)
+        ? [
+            `queryKey: _hooks.${src}QueryKey`,
+            `queryOptions: bindQueryOptions(_hooks.${src}QueryOptions, _request, ${hasRequest})`,
+          ]
+        : [
+            `mutationKey: _hooks.${src}MutationKey`,
+            `mutationOptions: bindMutationOptions(_hooks.${src}MutationOptions, _request)`,
+          ];
+      if (inputSchemaNames.has(src)) {
+        tree.push(`schemas: { input: _schemas.${src} }`);
+      }
+      return `bindOperation(_ops.${src}, _request, { ${tree.join(', ')} })`;
+    },
     // A query hook takes its request data first when the operation has any;
     // mutation hooks get theirs through `mutate()`.
     hookAccess: (src, { method, hasRequest }) =>
@@ -103,20 +131,25 @@ export function buildReactQueryWrapperSource(params: {
     ` *\n` +
     ` * The Kubb-generated request functions, hooks, and types live in the\n` +
     ` * sibling directory; this file is the consumer-facing entry point and\n` +
-    ` * exposes the namespaced client surface (axios methods + paired hooks)\n` +
-    ` * plus \`ApiClient\`, \`useApiClient\`, and \`ApiClientProvider\`.\n` +
+    ` * exposes the namespaced client surface (axios methods, each with its\n` +
+    ` * query or mutation options and input schema, + paired hooks) plus\n` +
+    ` * \`ApiClient\`, \`useApiClient\`, and \`ApiClientProvider\`.\n` +
     ` */\n` +
     `import * as React from 'react';\n` +
     `import * as _ops from '${opsImport}';\n` +
     `import * as _hooks from '${hooksImport}';\n` +
+    `import * as _schemas from '${schemasImport}';\n` +
     `import {\n` +
     `  ApiClientContext,\n` +
-    `  bindClient,\n` +
     `  bindHook,\n` +
+    `  bindMutationOptions,\n` +
+    `  bindOperation,\n` +
+    `  bindQueryOptions,\n` +
     `  createBoundClient,\n` +
     `  type ApiClientContextValue,\n` +
     `} from '${runtimeImport}';\n\n` +
-    `export type * from '${typesImport}';\n\n` +
+    `export type * from '${typesImport}';\n` +
+    `export type { InputSchema } from '${runtimeImport}';\n\n` +
     `const _CTX = Symbol('nestjs-endpoints:client-ctx');\n\n` +
     `const _build = (_ctx: ApiClientContextValue) => {\n` +
     `  const { request: _request, axios: _axios } = _ctx;\n` +
