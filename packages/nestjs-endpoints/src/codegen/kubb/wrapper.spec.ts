@@ -1,7 +1,6 @@
 import type { OpenAPIObject } from '@nestjs/swagger';
 import ts from 'typescript';
 import { describe, expect, test } from 'vitest';
-import { resolveOperationKinds } from './operation-kind.js';
 import { buildReactQueryWrapperSource } from './wrapper.js';
 
 const document = {
@@ -44,7 +43,7 @@ const source = buildReactQueryWrapperSource({
   runtimeImport: './c/client-runtime',
   typesImport: './c/types',
   schemasImport: './c/schemas',
-  operationKinds: resolveOperationKinds(undefined),
+  pluginOptions: undefined,
   inputSchemaNames: new Set(['greet', 'authLogin']),
 });
 
@@ -124,7 +123,7 @@ describe('buildReactQueryWrapperSource', () => {
         runtimeImport: './c/client-runtime',
         typesImport: './c/types',
         schemasImport: './c/schemas',
-        operationKinds: resolveOperationKinds(undefined),
+        pluginOptions: undefined,
         inputSchemaNames: new Set(),
       });
     const queriesOnly = build({
@@ -144,7 +143,11 @@ describe('buildReactQueryWrapperSource', () => {
   });
 
   test('an operation Kubb gives neither query nor mutation helpers keeps only its call', () => {
-    const build = (kinds: Parameters<typeof resolveOperationKinds>[0]) =>
+    const build = (
+      pluginOptions: Parameters<
+        typeof buildReactQueryWrapperSource
+      >[0]['pluginOptions'],
+    ) =>
       buildReactQueryWrapperSource({
         document: {
           ...document,
@@ -159,7 +162,7 @@ describe('buildReactQueryWrapperSource', () => {
         runtimeImport: './c/client-runtime',
         typesImport: './c/types',
         schemasImport: './c/schemas',
-        operationKinds: resolveOperationKinds(kinds),
+        pluginOptions,
         inputSchemaNames: new Set(['itemSave']),
       });
     const defaults = build(undefined);
@@ -182,6 +185,15 @@ describe('buildReactQueryWrapperSource', () => {
       /^\s*itemSave: bindOperation\(_ops\.itemSave, _request, \{ schemas: \{ input: _schemas\.itemSave \} \}\),$/m,
     );
     expect(postOnly).not.toContain('useItemSave');
+
+    // Left out by `exclude`: Kubb generated nothing for it.
+    const excluded = build({
+      exclude: [{ type: 'operationId', pattern: '^Greet$' }],
+    });
+    expect(excluded).toMatch(
+      /^\s*greet: bindClient\(_ops\.greet, _request\),$/m,
+    );
+    expect(excluded).not.toContain('useGreet');
   });
 
   test('InputSchema is exported for consumers to name', () => {
@@ -201,7 +213,7 @@ describe('buildReactQueryWrapperSource', () => {
       runtimeImport: './c/client-runtime',
       typesImport: './c/types',
       schemasImport: './c/schemas',
-      operationKinds: resolveOperationKinds(undefined),
+      pluginOptions: undefined,
       inputSchemaNames: new Set(),
     });
     expect(withOwn).toContain(`export type * from './c/types';`);

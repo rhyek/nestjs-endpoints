@@ -40,7 +40,11 @@ type Shape = 'plain' | 'hook';
  * (path, query or header parameters, or a body), which decides whether a query
  * hook takes a leading request argument.
  */
-export type OperationTarget = { method: HttpMethod; hasRequest: boolean };
+export type OperationTarget = {
+  operationId: string;
+  method: HttpMethod;
+  hasRequest: boolean;
+};
 
 type NamespacedOp = OperationTarget & {
   namespaceChain: string[];
@@ -115,6 +119,7 @@ function collectOperations(
       namespaceChain,
       sourceName,
       propertyName,
+      operationId: op.operationId,
       method,
       hasRequest: hasRequestData(document, pathItem, op),
     });
@@ -151,7 +156,7 @@ function placeOp(
     }
     bucket = next;
   }
-  const { propertyName, sourceName, method, hasRequest } = op;
+  const { propertyName, sourceName, operationId, method, hasRequest } = op;
   if (isRoot && reservedRootNames.has(propertyName)) {
     throw new Error(
       `Operation "${sourceName}" collides with a reserved client-object ` +
@@ -177,6 +182,7 @@ function placeOp(
   bucket.methods.set(propertyName, {
     sourceName,
     variant,
+    operationId,
     method,
     hasRequest,
   });

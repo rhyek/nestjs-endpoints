@@ -2,6 +2,7 @@ import {
   createApiClient as createAxiosApiClient,
   type ApiClient as AxiosApiClient,
 } from '../generated/axios-client';
+import { createApiClient as createFilteredRqApiClient } from '../generated/filtered-react-query-client';
 import {
   createApiClient as createRqApiClient,
   type ApiClient as RqApiClient,
@@ -80,6 +81,26 @@ describe('namespace codegen wrappers', () => {
     // when a filter is in effect.
     expect('greet' in client).toBe(false);
     expect('useGreet' in client).toBe(false);
+  });
+
+  test('operations Kubb filters out keep their call, without hooks or options', () => {
+    const client = createFilteredRqApiClient({
+      baseURL: 'http://localhost',
+    });
+    // `exclude`d, and `query: false` by `override`.
+    for (const [bucket, name, hook] of [
+      [client.shop, 'stats', 'useStats'],
+      [client.shop, 'promoToday', 'usePromoToday'],
+    ] as const) {
+      expect(typeof bucket[name as keyof typeof bucket]).toBe('function');
+      expect(hook in bucket).toBe(false);
+      expect('queryOptions' in bucket[name as keyof typeof bucket]).toBe(
+        false,
+      );
+    }
+    // Untouched by the filters.
+    expect(typeof client.shop.cart.useAdd).toBe('function');
+    expect(typeof client.shop.cart.add.queryOptions).toBe('function');
   });
 
   test('axios-only wrapper omits hooks but mirrors namespaced shape', () => {

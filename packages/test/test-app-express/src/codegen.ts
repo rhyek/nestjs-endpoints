@@ -24,6 +24,25 @@ async function bootstrap() {
           process.cwd() + '/generated/shop-react-query-client.tsx',
         namespaces: ['shop'],
       },
+      // Kubb's own operation filters leave some operations without hooks or
+      // query/mutation options; the client must not refer to what Kubb
+      // skipped (tscheck compiles it).
+      {
+        type: 'react-query',
+        outputFile:
+          process.cwd() + '/generated/filtered-react-query-client.tsx',
+        namespaces: ['shop'],
+        options: {
+          exclude: [{ type: 'operationId', pattern: '^ShopStats$' }],
+          override: [
+            {
+              type: 'operationId',
+              pattern: '^ShopPromoToday$',
+              options: { query: false },
+            },
+          ],
+        },
+      },
     ],
     forceGenerate: true,
   });

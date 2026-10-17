@@ -25,22 +25,26 @@ export type PathItem = { parameters?: Parameter[] };
 
 export type Operation = {
   operationId: string;
+  tags?: unknown[];
   'x-namespace'?: unknown;
   parameters?: Parameter[];
   requestBody?: RequestBody;
 };
 
 /** Every operation that has an `operationId`, in path, then method, order. */
-export function* documentOperations(
-  document: OpenAPIObject,
-): Generator<{ pathItem: PathItem; method: HttpMethod; op: Operation }> {
-  for (const pathItem of Object.values(document.paths ?? {})) {
+export function* documentOperations(document: OpenAPIObject): Generator<{
+  path: string;
+  pathItem: PathItem;
+  method: HttpMethod;
+  op: Operation;
+}> {
+  for (const [path, pathItem] of Object.entries(document.paths ?? {})) {
     if (!pathItem || typeof pathItem !== 'object') continue;
     for (const method of HTTP_METHODS) {
       const op = (pathItem as Record<string, unknown>)[method] as
         Partial<Operation> | undefined;
       if (op && typeof op === 'object' && op.operationId) {
-        yield { pathItem, method, op: op as Operation };
+        yield { path, pathItem, method, op: op as Operation };
       }
     }
   }

@@ -879,8 +879,10 @@ bound to the client instance it came from (its base URL and interceptors):
 
 `req` is the same grouped `{ path, query, headers }` object the call takes; an
 operation without request data takes none, so `queryOptions(config?)`. An
-operation that is neither (a `HEAD`, or any with `query: false` /
-`mutation: false` in `options`) has no hook and no options, only its call.
+operation Kubb generates neither for (a `HEAD`, one `options.include` /
+`exclude` leaves out, or one that `query: false` / `mutation: false` turns off,
+in `options` or an `options.override`) has no hook and no options, only its
+call.
 
 Use `queryOptions` where hooks can't run, such as a route loader. Give it the
 same instance you put in `<ApiClientProvider>`:

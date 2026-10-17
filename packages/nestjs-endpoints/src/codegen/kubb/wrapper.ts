@@ -1,6 +1,9 @@
 import type { OpenAPIObject } from '@nestjs/swagger';
 import { buildClientObjectExpression } from './buckets.js';
-import { operationKind, type OperationKinds } from './operation-kind.js';
+import {
+  operationKinds,
+  type OperationKindOptions,
+} from './operation-kind.js';
 
 /**
  * Build the consumer-facing axios wrapper source. It imports the Kubb-generated
@@ -79,8 +82,12 @@ export function buildReactQueryWrapperSource(params: {
   typesImport: string;
   /** Import for the emitted `schemas.ts` module. */
   schemasImport: string;
-  /** Which operations Kubb gives query or mutation helpers. */
-  operationKinds: OperationKinds;
+  /**
+   * The react-query plugin options, which decide the operations Kubb gives
+   * query or mutation helpers (`query`, `mutation`, `include`, `exclude`,
+   * `override`).
+   */
+  pluginOptions: OperationKindOptions;
   /** Source names of the operations `schemas.ts` has an input schema for. */
   inputSchemaNames: ReadonlySet<string>;
 }): string {
@@ -91,9 +98,10 @@ export function buildReactQueryWrapperSource(params: {
     runtimeImport,
     typesImport,
     schemasImport,
-    operationKinds,
+    pluginOptions,
     inputSchemaNames,
   } = params;
+  const kinds = operationKinds(document, pluginOptions);
   // A schema of the document's own that Kubb names `InputSchema` comes
   // through `export type *`; re-exporting the runtime's would hide it. Kubb's
   // casing rules are its own, so any name that reads `inputschema` counts.
@@ -109,9 +117,9 @@ export function buildReactQueryWrapperSource(params: {
 
   const buildExpr = buildClientObjectExpression({
     document,
-    plainAccess: (src, { method, hasRequest }) => {
+    plainAccess: (src, { operationId, hasRequest }) => {
       const tree: string[] = [];
-      const kind = operationKind(method, operationKinds);
+      const kind = kinds.get(operationId);
       if (kind === 'query') {
         binders.add('bindQueryOptions');
         tree.push(
@@ -138,8 +146,8 @@ export function buildReactQueryWrapperSource(params: {
     // Kubb generates no hook for an operation it makes neither a query nor a
     // mutation. A query hook takes its request data first when the operation
     // has any; mutation hooks get theirs through `mutate()`.
-    hookAccess: (src, { method, hasRequest }) => {
-      const kind = operationKind(method, operationKinds);
+    hookAccess: (src, { operationId, hasRequest }) => {
+      const kind = kinds.get(operationId);
       if (!kind) return undefined;
       binders.add('bindHook');
       return `bindHook(_hooks.${src}, ${kind === 'query' && hasRequest ? 1 : 0})`;
