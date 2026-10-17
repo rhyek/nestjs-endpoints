@@ -59,7 +59,7 @@ function emptyBucket(): BucketNode {
   return { methods: new Map(), buckets: new Map() };
 }
 
-function lowerFirst(s: string): string {
+export function lowerFirst(s: string): string {
   return s.charAt(0).toLowerCase() + s.slice(1);
 }
 
@@ -70,7 +70,7 @@ function lowerFirst(s: string): string {
  * NestJS's default `ControllerClass_methodName` operationId (emitted as
  * `controllerClassMethodName`).
  */
-function normalizeOperationIdToPascal(operationId: string): string {
+export function normalizeOperationIdToPascal(operationId: string): string {
   let normalized = operationId.replace(
     /[^A-Za-z0-9]+([A-Za-z0-9])/g,
     (_, c: string) => c.toUpperCase(),
@@ -85,20 +85,36 @@ type RequestBodyLike = {
   content?: Record<string, { schema?: unknown }>;
 };
 
-/** Follows a local `#/components/<section>/<name>` reference. */
-function deref<T extends { $ref?: string }>(
+/**
+ * The value a local JSON pointer (`#/components/schemas/Name`) points at in
+ * the document, with `~1` and `~0` unescaped; `undefined` when nothing is
+ * there.
+ */
+export function resolveLocalRef(
   document: OpenAPIObject,
-  value: T | undefined,
-): T | undefined {
-  const ref = value?.$ref;
-  if (!ref?.startsWith('#/')) return value;
+  ref: `#/${string}`,
+): unknown {
   let target: unknown = document;
   for (const segment of ref.slice(2).split('/')) {
     target = (target as Record<string, unknown> | undefined)?.[
       segment.replace(/~1/g, '/').replace(/~0/g, '~')
     ];
   }
-  return target as T | undefined;
+  return target;
+}
+
+/** Follows a local `#/components/<section>/<name>` reference. */
+export function deref<T extends { $ref?: string }>(
+  document: OpenAPIObject,
+  value: T | undefined,
+): T | undefined {
+  const ref = value?.$ref;
+  if (!isLocalRef(ref)) return value;
+  return resolveLocalRef(document, ref) as T | undefined;
+}
+
+export function isLocalRef(ref: unknown): ref is `#/${string}` {
+  return typeof ref === 'string' && ref.startsWith('#/');
 }
 
 /**
