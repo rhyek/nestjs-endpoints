@@ -16,6 +16,7 @@ const TEST = { NODE_ENV: 'test' };
 let root: string;
 let src: string;
 let manifest: string;
+let log: ReturnType<typeof vi.spyOn>;
 let warn: ReturnType<typeof vi.spyOn>;
 
 function touch(rel: string, base = src) {
@@ -36,7 +37,7 @@ beforeEach(() => {
   src = path.join(root, 'src');
   manifest = path.join(src, 'endpoints.gen.ts');
   fs.mkdirSync(src);
-  vi.spyOn(Logger.prototype, 'log').mockImplementation(() => {});
+  log = vi.spyOn(Logger.prototype, 'log').mockImplementation(() => {});
   warn = vi.spyOn(Logger.prototype, 'warn').mockImplementation(() => {});
 });
 
@@ -119,7 +120,7 @@ describe('at startup', () => {
     expect(() =>
       syncManifest(manifest, ['a.endpoint.ts'], 'js', TEST),
     ).toThrow(
-      /regenerated:\n {2}\+ new\.endpoint\.ts\n.*Run the tests again/,
+      /regenerated:\n {2}\+ new\.endpoint\.ts\n.*Run the tests again\.\n.*`npx nestjs-endpoints generate` before the tests/,
     );
     expect(keysOnDisk()).toEqual(['a.endpoint.ts', 'new.endpoint.ts']);
     // The next run loads the regenerated manifest.
@@ -131,6 +132,17 @@ describe('at startup', () => {
         TEST,
       ),
     ).toEqual(['a.endpoint.ts', 'new.endpoint.ts']);
+  });
+
+  test('an added endpoint is reported as not served by this process', () => {
+    touch('a.endpoint.ts');
+    writeManifest(manifest, [], 'js');
+    syncManifest(manifest, [], 'js', DEV);
+    expect(log).toHaveBeenCalledWith(
+      expect.stringMatching(
+        /\+ a\.endpoint\.ts\nThis process loaded the previous version.*`npx nestjs-endpoints generate` before starting it/,
+      ),
+    );
   });
 
   test('the import extension is kept', () => {
@@ -293,6 +305,20 @@ describe('while running in development', () => {
       'c.endpoint.ts',
       'shop/b.endpoint.ts',
     ]);
+  });
+
+  test('an added endpoint is reported as served after the restart', async () => {
+    log.mockClear();
+    touch('c.endpoint.ts');
+    await vi.waitFor(
+      () =>
+        expect(log).toHaveBeenCalledWith(
+          expect.stringMatching(
+            /\+ c\.endpoint\.ts\nAdded endpoints are served after a restart/,
+          ),
+        ),
+      { timeout: 3000 },
+    );
   });
 
   test('a deleted endpoint is written out', async () => {

@@ -3,8 +3,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "tsx watch --clear-screen=false src/main.ts",
-    "test": "vitest run",
+    "dev": "nestjs-endpoints generate && tsx watch --clear-screen=false src/main.ts",
+    "test": "nestjs-endpoints generate && vitest run",
     "tscheck": "tsc --noEmit"
   },
   "dependencies": {

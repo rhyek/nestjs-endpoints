@@ -5,7 +5,7 @@
 ### Features
 
 - **File-based routing works under Vitest with no extra config, and `node --watch` / `tsx watch` serve new endpoint files without a manual restart.** See [the endpoint manifest](README.md#the-endpoint-manifest).
-- **`npx nestjs-endpoints generate` rewrites the endpoint manifest on demand**, and `init` now creates it.
+- **`npx nestjs-endpoints generate` rewrites the endpoint manifest; run it in front of the scripts that start your app**, and `init` now creates it. See [the endpoint manifest](README.md#the-endpoint-manifest).
 - **`npx nestjs-endpoints init` installs a coding-agent skill** pointing at the full library guide the package now ships at `docs/agents.md`.
 
 ### Fixes

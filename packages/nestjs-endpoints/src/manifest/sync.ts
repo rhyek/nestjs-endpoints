@@ -17,6 +17,14 @@ type SyncMode = 'off' | 'check' | 'write';
 
 const WATCH_DEBOUNCE_MS = 100;
 
+/** Logged when the process that rewrote the manifest loaded the old one. */
+const STARTUP_ADDED_NOTE =
+  'This process loaded the previous version, so it serves the added endpoints only after a restart. Run `npx nestjs-endpoints generate` before starting it to avoid this.';
+
+/** Logged when the manifest changes under a running app. */
+const RUNNING_ADDED_NOTE =
+  'Added endpoints are served after a restart; a watcher such as `node --watch` restarts on this change.';
+
 const logger = new Logger('nestjs-endpoints');
 
 /** One per source manifest: a re-registration must not stack watchers. */
@@ -37,6 +45,8 @@ export function syncMode(env: NodeJS.ProcessEnv): SyncMode {
  *
  * Files added since the manifest was loaded cannot be loaded by this process;
  * rewriting the manifest restarts it under `node --watch` / `tsx watch`.
+ * Running `nestjs-endpoints generate` before the process starts means it
+ * never loads an out-of-date manifest in the first place.
  */
 export function syncManifest(
   runningFile: string,
@@ -61,7 +71,13 @@ export function syncManifest(
     if (mode === 'check') {
       throw new Error(staleMessage(sourceFile, diff));
     }
-    const current = tryWrite(sourceFile, scanned, importExtension, diff);
+    const current = tryWrite(
+      sourceFile,
+      scanned,
+      importExtension,
+      diff,
+      STARTUP_ADDED_NOTE,
+    );
     // A test run cannot load what its manifest did not list, and later test
     // files would load the rewritten one: fail clearly rather than let the
     // first file's 404s look like flakiness.
@@ -114,6 +130,7 @@ function rerunMessage(sourceFile: string, diff: KeyDiff): string {
     `nestjs-endpoints: ${displayPath(sourceFile)} was out of date and has been regenerated:`,
     formatDiff(diff),
     'This run loaded the previous version, which cannot serve the added endpoints. Run the tests again.',
+    'To avoid this, run `npx nestjs-endpoints generate` before the tests.',
   ].join('\n');
 }
 
@@ -127,6 +144,7 @@ function tryWrite(
   keys: readonly string[],
   importExtension: ImportExtension,
   diff: KeyDiff,
+  addedNote: string,
 ): boolean {
   let written: boolean;
   try {
@@ -143,9 +161,7 @@ function tryWrite(
   }
   logger.log(
     `Updated ${displayPath(sourceFile)}:\n${formatDiff(diff)}${
-      diff.added.length
-        ? '\nAdded endpoints are served after a restart, which --watch does on its own.'
-        : ''
+      diff.added.length ? `\n${addedNote}` : ''
     }`,
   );
   return true;
@@ -173,7 +189,13 @@ function watchSourceTree(
     const diff = diffKeys(current, scanned);
     if (diff) {
       current = scanned;
-      tryWrite(sourceFile, scanned, importExtension, diff);
+      tryWrite(
+        sourceFile,
+        scanned,
+        importExtension,
+        diff,
+        RUNNING_ADDED_NOTE,
+      );
     }
   };
   const scheduleRescan = () => {

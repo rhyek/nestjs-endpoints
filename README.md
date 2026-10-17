@@ -129,7 +129,7 @@ export class AppModule {}
 
 Endpoint available at `/status/health`.
 
-`src/endpoints.gen.ts` is the [endpoint manifest](#the-endpoint-manifest), written by `npx nestjs-endpoints init` and kept up to date by the app itself. Commit it.
+`src/endpoints.gen.ts` is the [endpoint manifest](#the-endpoint-manifest), written by `npx nestjs-endpoints init`. Commit it, and run `nestjs-endpoints generate` before the scripts that start the app so it is always current.
 
 ### Option 2. Traditional
 
@@ -290,13 +290,13 @@ Endpoint-file rules:
 
 Examples (assume `rootDirectory` is `./endpoints`):
 
-| File                                                          | URL                                               |
-| ------------------------------------------------------------- | ------------------------------------------------- |
-| `../user/find-all.endpoint.ts`                                | `user/find-all`                                   |
-| `../user/_mutations/create/endpoint.ts`                       | `user/create`                                     |
-| `../recipes/edit/$recipeId.endpoint.ts`                       | `recipes/edit/:recipeId`                          |
-| `../recipes/$recipeId.view/endpoint.ts`                       | `recipes/:recipeId/view`                          |
-| `../recipes/$recipeId.delete.endpoint.ts`                     | `recipes/:recipeId/delete`                        |
+| File                                                             | URL                                               |
+| ---------------------------------------------------------------- | ------------------------------------------------- |
+| `../user/find-all.endpoint.ts`                                   | `user/find-all`                                   |
+| `../user/_mutations/create/endpoint.ts`                          | `user/create`                                     |
+| `../recipes/edit/$recipeId.endpoint.ts`                          | `recipes/edit/:recipeId`                          |
+| `../recipes/$recipeId.view/endpoint.ts`                          | `recipes/:recipeId/view`                          |
+| `../recipes/$recipeId.delete.endpoint.ts`                        | `recipes/:recipeId/delete`                        |
 | `../restaurant/$restaurantId/recipes/$recipeId.view/endpoint.ts` | `restaurant/:restaurantId/recipes/:recipeId/view` |
 
 ```ts
@@ -323,18 +323,22 @@ Routers find and load endpoint files through `src/endpoints.gen.ts`, a generated
 
 Import it once, anywhere in the app's import graph (the app module is the natural place). Importing it loads nothing; it only tells routers where their files are.
 
-You don't maintain it by hand:
+A process can only load the endpoint files its manifest listed when it started. Run `nestjs-endpoints generate` in front of every script that starts the app, so it never starts with an out-of-date list. For tests, `"test": "nestjs-endpoints generate && vitest run"`, and the same in front of your dev server and any codegen script.
 
-| Where the app runs                              | What happens to the manifest                                                                                                                                                                                           |
-| ----------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Development (`NODE_ENV` unset or `development`) | Checked at startup and rewritten if endpoint files were added, removed, or renamed. While the app runs, it is rewritten on every such change, so a new endpoint is served after the restart your watcher already does. |
-| Tests                                           | Checked and rewritten at startup, without watching. If endpoint files were added, that run fails asking you to run it again: it loaded the old list.                                                                   |
-| CI (`CI` set)                                   | Checked at startup; out of date is an error listing the files to add and remove.                                                                                                                                       |
-| Production (`NODE_ENV=production`)              | Used as is.                                                                                                                                                                                                            |
+`generate` only writes the file when its contents change, so it never sets off a watcher for nothing.
+
+The app also checks the manifest itself:
+
+| Where the app runs                              | What happens to the manifest                                                                                                                                                                                                                                              |
+| ----------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Development (`NODE_ENV` unset or `development`) | Checked at startup and rewritten if endpoint files were added, removed, or renamed; added endpoints are served after the next restart. While the app runs, it is rewritten on every such change, so a new endpoint is served after the restart your watcher already does. |
+| Tests                                           | Checked and rewritten at startup, without watching. If endpoint files were added, that run fails asking you to run it again: it loaded the old list.                                                                                                                      |
+| CI (`CI` set)                                   | Checked at startup; out of date is an error listing the files to add and remove.                                                                                                                                                                                          |
+| Production (`NODE_ENV=production`)              | Used as is.                                                                                                                                                                                                                                                               |
 
 A deleted endpoint never breaks startup: the router skips manifest entries whose file is gone. Apps that run compiled output (e.g. `nest start --watch`) find the source manifest through the emitted source map.
 
-To rewrite it yourself: `npx nestjs-endpoints generate` (`--dir <dir>` when your sources are not in `src/`). If you run TypeScript with Node's native type stripping, which needs `.ts` import specifiers, pass `--import-extension ts` once; the setting is kept from then on.
+`generate` takes `--dir <dir>` when your sources are not in `src/`. If you run TypeScript with Node's native type stripping, which needs `.ts` import specifiers, pass `--import-extension ts` once; the setting is kept from then on.
 
 ### Nested router modules
 

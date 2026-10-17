@@ -26,6 +26,13 @@ describe('generateManifest', () => {
     );
   });
 
+  test('leaves an unchanged manifest untouched, so watchers do not react', () => {
+    const { file } = generateManifest({ dir: src });
+    const before = fs.statSync(file).mtimeMs;
+    expect(generateManifest({ dir: src }).written).toBe(false);
+    expect(fs.statSync(file).mtimeMs).toBe(before);
+  });
+
   test('keeps the import extension unless told otherwise', () => {
     generateManifest({ dir: src, importExtension: 'ts' });
     generateManifest({ dir: src });

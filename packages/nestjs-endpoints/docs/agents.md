@@ -134,7 +134,7 @@ Run with `npx nestjs-endpoints <command>` from the project root.
 | --- | --- |
 | `init` | One-time setup: writes the endpoint manifest `src/endpoints.gen.ts` (§5.6), marks `**/endpoints.gen.ts` as generated in `.gitattributes` (and `.prettierignore` if the project has one), installs the agent skill into `.claude/skills/` (mirrored into `.agents/` / `.cursor/` when present), and prints the import line to add to the app module. Safe to re-run. |
 | `init --refresh` | Only rewrites an installed, unedited, out-of-date skill; no-op otherwise. Never touches the manifest. For `postinstall` hooks. |
-| `generate` | Rewrites the endpoint manifest from the files on disk. Rarely needed by hand: the app keeps it current in development. Use it when endpoint files changed without the app running, or when CI reports the manifest out of date. |
+| `generate` | Rewrites the endpoint manifest from the files on disk, only when its contents change. Put it in front of every script that starts the app (dev server, tests, codegen) so no process starts with an out-of-date manifest (§5.6). Also the fix when CI reports the manifest out of date. |
 | `help`, `--version` | Usage, and the installed version. |
 
 `init` and `generate` take:
@@ -531,15 +531,21 @@ needed) and `node --watch` / `tsx watch` restart when it changes.
 - **Never edit it by hand, and commit it.** It is generated.
 - **Import it once**, anywhere in the app's import graph — the app module is the
   natural place. Order does not matter, and importing it loads no endpoints.
-- **It keeps itself current.** In development (`NODE_ENV` unset or
+- **Generate it before the app starts.** A process can only load the files
+  its manifest listed when it started, so scripts that start the app run
+  `nestjs-endpoints generate` first:
+  `"test": "nestjs-endpoints generate && vitest run"`, and the same in front
+  of the dev server and codegen scripts. It writes only when the
+  contents change, so it never restarts a watcher for nothing.
+- **The app checks it too.** In development (`NODE_ENV` unset or
   `development`) the app rewrites it at startup and on every add / delete /
   rename of an endpoint or router-module file while running; a watcher then
   restarts the app with the new route set. Test runs rewrite it at startup
   only, and when endpoint files were added that run fails with "Run the tests
   again" (it loaded the old list). With `CI` set, an out-of-date manifest fails startup. With
   `NODE_ENV=production` it is used as is.
-- **A new endpoint is served after a restart.** Under a watcher that is
-  automatic; without one, restart the app.
+- **A new endpoint added while the app runs is served after a restart.** Under
+  a watcher that is automatic; without one, restart the app.
 - **Deleted endpoints never fail startup** — entries whose file is gone are
   skipped.
 - Regenerate on demand: `npx nestjs-endpoints generate` (`--dir <dir>` for a
@@ -972,8 +978,10 @@ import {
 `<router-root>/<segments>/<name>.endpoint.ts`, `export default endpoint({...})`,
 declare `input`/`output`, add any provider it needs to the nearest
 `router.module.ts`'s `providers`. Nothing else to register: the endpoint
-manifest picks the file up the next time the app runs in development (or run
-`npx nestjs-endpoints generate`); commit the updated `src/endpoints.gen.ts`.
+manifest picks the file up when the app's scripts next run
+`nestjs-endpoints generate`, or a running dev server sees it (or run
+`npx nestjs-endpoints generate` yourself); commit the updated
+`src/endpoints.gen.ts`.
 Regenerate the client if one exists.
 
 **Add a path parameter.** Rename the file/folder to use `$name`
@@ -1017,6 +1025,6 @@ whose folders should become buckets. URLs are unaffected.
 | Routes disappear in production | The build bundles the app; file-based routing needs real files on disk. |
 | `no endpoint manifest covers "<dir>"` | `src/endpoints.gen.ts` is missing or not imported. Run `npx nestjs-endpoints init`, then import it from the app module — or, in a test that imports a router module directly, from the test or Vitest `setupFiles` (§10.4). |
 | `endpoints.gen.ts is out of date` (CI) | Endpoint files were added/removed without the manifest being regenerated. Run `npx nestjs-endpoints generate` and commit it. |
-| `endpoints.gen.ts was out of date and has been regenerated … Run the tests again` | A test run found endpoint files the manifest didn't list. It has been rewritten; re-run (Vitest's watch mode does so on its own). |
-| A new endpoint 404s until restart | Expected without a watcher: the manifest was updated, the running process predates the file. Restart, or run under `node --watch` / `tsx watch`. |
+| `endpoints.gen.ts was out of date and has been regenerated … Run the tests again` | A test run found endpoint files the manifest didn't list. It has been rewritten; re-run (Vitest's watch mode does so on its own). Run `nestjs-endpoints generate` in front of the test script to avoid it. |
+| A new endpoint 404s until restart | Expected without a watcher: the manifest was updated, the running process predates the file. Restart, or run under `node --watch` / `tsx watch`. If the file existed before the app started, the start script is missing `nestjs-endpoints generate &&`. |
 | `Cannot find the source of …endpoints.gen.js (no source map?)` | A compiled app without source maps can't locate the manifest to keep it in sync. Enable `sourceMap`, or run `npx nestjs-endpoints generate` after changing endpoint files. |
