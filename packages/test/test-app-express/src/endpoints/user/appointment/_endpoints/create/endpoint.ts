@@ -9,37 +9,39 @@ import {
   IAppointmentRepository,
 } from '../../appointment-repository.interface';
 
-export default endpoint({
-  method: 'post',
-  summary: 'Create an appointment',
-  input: z.object({
-    userId: z.number(),
-    date: z.coerce.date(),
+export const appointmentInput = z.object({
+  userId: z.number(),
+  date: z.coerce.date(),
+});
+
+export const appointmentCreated = z.object({
+  id: z.number(),
+  date: z
+    .date()
+    .transform((date) => date.toISOString())
+    .meta({
+      type: 'string',
+      format: 'date-time',
+    }),
+  address: z.string(),
+});
+
+export const appointmentError = z.union([
+  z.string(),
+  z.object({
+    message: z.string(),
+    errorCode: z.string(),
   }),
+]);
+
+export default endpoint.mutation({
+  summary: 'Create an appointment',
+  input: appointmentInput,
   output: {
-    201: schema(
-      z.object({
-        id: z.number(),
-        date: z
-          .date()
-          .transform((date) => date.toISOString())
-          .meta({
-            type: 'string',
-            format: 'date-time',
-          }),
-        address: z.string(),
-      }),
-      {
-        description: 'Appointment created',
-      },
-    ),
-    400: z.union([
-      z.string(),
-      z.object({
-        message: z.string(),
-        errorCode: z.string(),
-      }),
-    ]),
+    201: schema(appointmentCreated, {
+      description: 'Appointment created',
+    }),
+    400: appointmentError,
   },
   decorators: [UseGuards(AuthGuard)],
   inject: {

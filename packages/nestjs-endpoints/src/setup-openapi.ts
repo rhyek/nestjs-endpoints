@@ -10,7 +10,13 @@ import {
   SwaggerModule,
 } from '@nestjs/swagger';
 import { settings } from './consts.js';
+import { collectDescriptors } from './descriptors.js';
 import { getCallsiteFile } from './helpers.js';
+import { readPkgJson } from './package-json.js';
+import {
+  mergeSharedSchemas,
+  rewriteOutputRefs,
+} from './shared-schemas.js';
 
 export type SetupOpenAPIOptions = {
   configure?: (documentBuilder: DocumentBuilder) => void;
@@ -35,24 +41,6 @@ export type SetupOpenAPIOptions = {
   };
 };
 
-async function readPkgJson() {
-  const start = path.dirname(getCallsiteFile());
-  for (
-    let dir = start;
-    dir !== path.parse(dir).root && dir !== process.cwd();
-    dir = path.dirname(dir)
-  ) {
-    const pkgJson = path.join(dir, 'package.json');
-    if (await fs.stat(pkgJson).catch(() => false)) {
-      const parsed = JSON.parse(await fs.readFile(pkgJson, 'utf-8'));
-      if (parsed.name === 'nestjs-endpoints') {
-        return parsed;
-      }
-    }
-  }
-  return null;
-}
-
 export async function setupOpenAPI(
   app: INestApplication,
   options?: SetupOpenAPIOptions,
@@ -63,13 +51,33 @@ export async function setupOpenAPI(
   }
   const config = builder.build();
   const document = SwaggerModule.createDocument(app, config);
+  const descriptors = collectDescriptors(app);
+  const shared = mergeSharedSchemas(descriptors);
   document.components = {
     ...document.components,
     schemas: {
       ...document.components?.schemas,
       ...settings.openapi.components.schemas,
+      ...shared.schemas,
     },
   };
+  if (shared.renamed.size > 0) {
+    const operationIds = new Set(descriptors.map((d) => d.operationId));
+    for (const pathItem of Object.values(document.paths ?? {})) {
+      for (const operation of Object.values(pathItem ?? {})) {
+        if (
+          operation &&
+          typeof operation === 'object' &&
+          'operationId' in operation &&
+          operationIds.has(operation.operationId as string) &&
+          'responses' in operation
+        ) {
+          (operation as { responses: unknown }).responses =
+            rewriteOutputRefs(operation.responses, shared.renamed);
+        }
+      }
+    }
+  }
   if (settings.openapi.tags.length > 0) {
     const byName = new Map<string, { name: string; description?: string }>(
       (document.tags ?? []).map((t) => [t.name, t]),

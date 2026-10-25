@@ -257,7 +257,8 @@ function withClient<F extends (...args: never[]) => unknown>(
 }
 
 /**
- * An operation's input as JSON Schema (\`schemas.input\`). \`'~type'\` is never
+ * An operation's input or query as JSON Schema (\`schemas.input\`,
+ * \`schemas.query\`). \`'~type'\` is never
  * there at runtime: it carries the type of the value the schema describes, so
  * code that is handed only the schema, a form library say, can infer it.
  */

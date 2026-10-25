@@ -4,7 +4,7 @@ import { useApiClient } from '../../test-app-express/generated/react-query-clien
 export function UserPage() {
   const apiClient = useApiClient();
   const { data, error, status, refetch } = apiClient.useUserGet(
-    { query: { id: 1 } },
+    { body: { id: 1 } },
     {
       query: {
         retry: false,

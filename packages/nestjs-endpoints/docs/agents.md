@@ -1,10 +1,11 @@
 # nestjs-endpoints — agent guide
 
-`nestjs-endpoints` turns a single `endpoint({...})` call into a real NestJS
-controller. One file = one route = one handler (the REPR pattern). Input and
-output are Zod schemas, which give you runtime validation, an OpenAPI 3.1.1
-document, and — optionally — a fully typed `axios` / `@tanstack/react-query`
-client SDK generated from that document.
+`nestjs-endpoints` turns a single `endpoint.query({...})` or
+`endpoint.mutation({...})` call into a real NestJS controller. One file = one
+route = one handler (the REPR pattern). Input and output are Zod schemas, which
+give you runtime validation, an OpenAPI 3.1.1 document, and — optionally — a
+fully typed `axios` / `@tanstack/react-query` client SDK generated from those
+schemas.
 
 This guide is the complete reference. Read the section you need; the tables near
 the top answer most questions on their own.
@@ -52,14 +53,25 @@ surrounding code:
 
 ## 2. Quick reference
 
-### 2.1 `endpoint({...})` options
+### 2.1 `endpoint.query({...})` / `endpoint.mutation({...})` options
+
+The two builders take the same options and serve the same way. The builder
+decides what the generated react-query client gives the operation: query
+helpers (`useFn(req)`, `queryKey`, `queryOptions`) for `endpoint.query()`,
+mutation helpers (`useFn()`, `mutationKey`, `mutationOptions`) for
+`endpoint.mutation()`. Use `endpoint.query()` for reads and
+`endpoint.mutation()` for writes.
 
 | Option | Type | Notes |
 | --- | --- | --- |
-| `method` | `'get' \| 'post' \| 'put' \| 'delete' \| 'patch'` | Default `'get'`. |
+| `method` | `'get' \| 'post' \| 'put' \| 'delete' \| 'patch'` | Default `'post'`. Set it only for a caller other than the generated client that needs another method, such as an OAuth callback or a download link that must be a `GET`. A delete or an update needs none: the generated client calls every method the same way. Any other value throws when the endpoint is defined. |
 | `path` | `string` | Explicit HTTP path. **Required for endpoints registered manually outside a router** (see §4.2). Omit to use file-based routing. |
-| `input` | Zod schema | Bound to `@Query()` when `method: 'get'`, otherwise `@Body()`. |
+| `input` | Zod schema | The JSON body (`@Body()`). Not allowed with `method: 'get'`: a type error, and a throw when the endpoint is defined. |
+| `query` | Zod object | Search parameters (`@Query()`), on any method. |
 | `params` | Zod object | Path params. Keys must match the `:names` in the URL. |
+
+`query` and `params` take an object schema, bare, behind a transform or
+preprocess step, or given through `schema()`; anything else is a type error.
 | `output` | Zod schema, or `Record<number, Zod schema>` | Response validation + OpenAPI. Multi-status form requires `response(...)`. |
 | `inject` | `Record<string, Type \| decorated<T>(...)>` | Class-level providers (≡ constructor injection). |
 | `injectOnRequest` | `Record<string, decorated<T>(...)>` | Per-request values (≡ `@Req()`, `@Session()`, …). |
@@ -110,21 +122,25 @@ Assume `rootDirectory: './endpoints'` and no `basePath`.
 `useFn` = the paired React Query hook.
 
 Each operation takes one object grouping its request: `path` (path `params`),
-`query` (a GET's `input`), `body` (a mutation's `input`) and `headers`.
+`query` (the endpoint's `query`) and `body` (its `input`). Its `headers` is
+typed `never`, since endpoints declare no header parameters; set request
+headers on `client.axios`.
 
 | Endpoint shape | axios | react-query |
 | --- | --- | --- |
-| GET, no `input` | `fn()` | `useFn(options?)` |
-| GET, `input` | `fn({ query })` | `useFn({ query }, options?)` |
-| GET, all-`optional` `input` | `fn()` or `fn({ query })` | `useFn()` or `useFn({ query })` |
-| GET, `params` (path) | `fn({ path })` | `useFn({ path }, options?)` |
-| POST/PUT/PATCH/DELETE, `input` | `fn({ body })` | `useFn().mutateAsync({ body })` |
+| `endpoint.query()`, nothing declared | `fn()` | `useFn(options?)` |
+| `endpoint.query()`, `input` | `fn({ body })` | `useFn({ body }, options?)` |
+| `endpoint.query()`, `query` only, every field `.optional()` or `.default()` | `fn()` or `fn({ query })` | `useFn()` or `useFn({ query })` |
+| `endpoint.query()`, `params` (path) | `fn({ path })` | `useFn({ path }, options?)` |
+| `endpoint.query()`, `params`, `query` and `input` | `fn({ path, query, body })` | `useFn({ path, query, body }, options?)` |
+| `endpoint.mutation()`, `input` | `fn({ body })` | `useFn().mutateAsync({ body })` |
 | …plus path `params` | `fn({ path, body })` | `useFn().mutateAsync({ path, body })` |
 | …path `params`, no `input` | `fn({ path })` | `useFn().mutateAsync({ path })` |
 
 The axios method's object also takes axios request config (`signal`,
 `timeout`, …); every hook takes a trailing optional
-`{ query?, mutation?, client? }` options object.
+`{ query?, mutation?, client? }` options object, which is a mutation hook's
+only argument: `useFn({ mutation: { onSuccess } })`.
 
 ### 2.5 CLI
 
@@ -151,11 +167,11 @@ Run with `npx nestjs-endpoints <command>` from the project root.
 ### 3.1 The minimum
 
 ```ts
-// src/endpoints/status/health.endpoint.ts  →  GET /status/health
+// src/endpoints/articles/latest.endpoint.ts  →  POST /articles/latest
 import { endpoint } from 'nestjs-endpoints';
 
-export default endpoint({
-  handler: () => ({ ok: true }),
+export default endpoint.query({
+  handler: () => [{ id: 1, title: 'Hello' }],
 });
 ```
 
@@ -163,15 +179,14 @@ With no `output` schema there is no response validation and the OpenAPI
 operation has no typed response — the generated SDK will type it as `any`.
 **Always declare `output`** unless you have a reason not to.
 
-### 3.2 Input, params, output
+### 3.2 Input, query, params, output
 
 ```ts
 // src/endpoints/user/create.endpoint.ts  →  POST /user/create
 import { endpoint, z } from 'nestjs-endpoints';
 import { DbService } from './db.service';
 
-export default endpoint({
-  method: 'post',
+export default endpoint.mutation({
   input: z.object({
     name: z.string(),
     email: z.email(),
@@ -192,10 +207,19 @@ export default endpoint({
 
 Rules that bite if you forget them:
 
-- **`input` binds to `@Query()` for `method: 'get'` and to `@Body()` for every
-  other method.** A GET endpoint's input therefore arrives as *strings* — use
-  `z.coerce.number()`, `z.coerce.boolean()`, `z.coerce.date()`.
-- **`params` always arrives as strings too** — same coercion rule.
+- **`input` is the JSON body; `query` is the search parameters.** Every
+  endpoint is a `POST` unless it sets `method`, so send reads' input in the
+  body too. A `GET` has no body: with `method: 'get'`, declare `query`, never
+  `input`.
+- **A request without a body reads as `{}`**, unless `input` accepts a missing
+  body (`.optional()`). On Fastify, a request that sends
+  `Content-Type: application/json` with no body is answered `400` before it
+  reaches the handler.
+- **Every endpoint answers `200`, a `POST` included,** unless its handler
+  returns another status with `response(status, body)` (§3.4).
+- **`query` and `params` arrive as strings** — use `z.coerce.number()`,
+  `z.stringbool()` (not `z.coerce.boolean()`, which reads `'false'` as
+  `true`), `z.coerce.date()`.
 - Input validation failure → `ZodValidationException` → HTTP **400** with
   `{ statusCode, message: 'Validation failed', errors: ZodIssue[] }`.
 - Output validation failure → `ZodSerializationException` → HTTP **500**.
@@ -203,8 +227,30 @@ Rules that bite if you forget them:
   'nestjs-endpoints'` is the idiomatic single import. Importing `zod` directly
   works too.
 
-Nested-object query params (`?add[a]=1&add[b]=2`) need the adapter configured
-for extended query parsing — see the NestJS
+```ts
+// src/endpoints/issues/list.endpoint.ts  →  POST /issues/list?page=2
+export default endpoint.query({
+  query: z.object({ page: z.coerce.number().default(1) }),
+  input: z.object({ status: z.enum(['open', 'closed']) }),
+  inject: { issues: IssuesRepository },
+  handler: ({ query, input, issues }) =>
+    issues.list(input.status, query.page),
+});
+// client.issuesList({ query: { page: 2 }, body: { status: 'open' } })
+```
+
+```ts
+// src/endpoints/auth/callback.endpoint.ts  →  GET /auth/callback?code=…&state=…
+export default endpoint.query({
+  method: 'get',
+  query: z.object({ code: z.string(), state: z.string() }),
+  inject: { auth: AuthService },
+  handler: ({ query, auth }) => auth.complete(query.code, query.state),
+});
+```
+
+Nested-object search parameters (`?add[a]=1&add[b]=2`) need the adapter
+configured for extended query parsing — see the NestJS
 [query-parameters docs](https://docs.nestjs.com/controllers#query-parameters).
 
 ### 3.3 What the handler receives
@@ -214,9 +260,10 @@ One object, with exactly these keys:
 | Key | Present when | Value |
 | --- | --- | --- |
 | `input` | `input` declared | Parsed output of the input schema. |
-| `rawInput` | `input` declared | The unvalidated body/query, before parsing. |
+| `rawInput` | `input` declared | The unvalidated body, before parsing. |
+| `query` | `query` declared | Parsed search parameters. |
 | `params` | `params` declared | Parsed path params. |
-| `schemas` | always | `{ input?, params? }` — the Zod schemas themselves. |
+| `schemas` | always | `{ input?, query?, params? }` — the Zod schemas themselves. |
 | `response` | always | `response(status, body)` — required for multi-status output. |
 | *(your keys)* | — | Everything from `inject` and `injectOnRequest`, by the name you gave it. |
 
@@ -230,8 +277,7 @@ and the body against that status's schema.
 import { UseGuards } from '@nestjs/common';
 import { endpoint, schema, z } from 'nestjs-endpoints';
 
-export default endpoint({
-  method: 'post',
+export default endpoint.mutation({
   summary: 'Create an appointment',
   input: z.object({ userId: z.number(), date: z.coerce.date() }),
   output: {
@@ -258,7 +304,8 @@ export default endpoint({
 ```
 
 `schema(zodSchema, { description })` attaches an OpenAPI description to one
-status. It is accepted anywhere a schema is (`input`, `params`, `output`), but
+status. It is accepted anywhere a schema is (`input`, `query`, `params`,
+`output`), but
 the description only surfaces for `output`.
 
 With a **single** `output` schema you just return the value; over HTTP
@@ -280,7 +327,7 @@ import { Inject, Req, Session } from '@nestjs/common';
 import type { Request } from 'express';
 import { decorated, endpoint } from 'nestjs-endpoints';
 
-export default endpoint({
+export default endpoint.query({
   // Class-level ≡ constructor(private readonly db: DbService) {}
   inject: {
     db: DbService,
@@ -306,7 +353,7 @@ the owning router's `providers` (or `imports`).
 ### 3.6 Per-endpoint decorators
 
 `decorators: MethodDecorator[]` is applied to the generated handler method. Use
-it for one-off `UseGuards`, `UseInterceptors`, `HttpCode`, `Header`, custom
+it for one-off `UseGuards`, `UseInterceptors`, `Header`, custom
 `SetMetadata`, etc. For anything that should cover a whole folder, put it on the
 router instead (§5.5) — that's the whole point of router-scoped guards.
 
@@ -344,8 +391,9 @@ like any controller.
 
 ```ts
 // src/health-check.ts
-export const healthCheck = endpoint({
+export const healthCheck = endpoint.query({
   path: '/status/health',
+  method: 'get', // a probe calls it with a GET
   handler: () => ({ ok: true }),
 });
 
@@ -376,8 +424,8 @@ export default EndpointRouterModule.create({
 
 Both styles coexist in one app. A router scans its roots for file-based
 endpoints *and* registers anything in `endpoints:`; plain `@Controller()`
-classes elsewhere in the app keep working and still show up in the OpenAPI
-document and the generated SDK.
+classes elsewhere in the app keep working and show up in the OpenAPI document,
+but not in the generated SDK (§8).
 
 ---
 
@@ -561,6 +609,9 @@ needed) and `node --watch` / `tsx watch` restart when it changes.
 ### 6.1 `setupOpenAPI`
 
 Use this when you only want the spec (or want to drive your own generator).
+The document is for the docs viewer and other generators: `setupCodegen`
+generates its clients from the endpoints' Zod schemas, not from the document
+(§8). The document also covers plain Nest controllers, which the SDK does not.
 
 ```ts
 import { NestFactory } from '@nestjs/core';
@@ -598,13 +649,21 @@ OpenAPI tag description for its group. When two or more distinct top-level
 groups exist, an `x-tagGroups` extension is emitted so Scalar/ReDoc render
 sidebar headers.
 
+Each operation carries `x-endpoint-kind`: `query` for an `endpoint.query()`,
+`mutation` for an `endpoint.mutation()`. A generator run against the document
+(rather than `setupCodegen`) should choose query or mutation hooks from it,
+since most endpoints are `POST`s whatever their kind. An operation in a
+namespace also carries `x-namespace`, its namespace chain.
+
 ### 6.3 Schema naming
 
 Component schemas are named from the operation: `UserCreateOutput`, and
 `UserCreate400Output` for non-200 statuses. A request body gets `UserCreateInput`.
-A GET endpoint's `input` becomes inline query parameters rather than a component
-schema, so there is no `…Input` for it — the generated client types it as
-`GreetQueryParams`.
+An endpoint's `query` becomes one query parameter per property; the generated
+client types the group as `<OperationId>Query` (`IssuesListQuery`). The object
+itself is a component only when it has a `.meta({ id })`. It must be an object
+schema (also with `.meta({ id })`, or behind a transform or preprocess step);
+anything else throws at startup, as does a `params` that is not one.
 
 ### 6.4 `.transform()` in output schemas
 
@@ -618,6 +677,12 @@ z.date()
   .transform((d) => d.toISOString())
   .meta({ type: 'string', format: 'date-time' });
 ```
+
+Dates convert to an ISO date-time or date in requests and an ISO date-time in
+responses. A `z.bigint()` needs `.meta({ type })` on the bigint itself, not on
+a wrapper such as `.optional()`, saying what travels (for example
+`z.coerce.bigint().meta({ type: 'string' }).optional()`); without it, startup
+throws.
 
 ---
 
@@ -659,6 +724,8 @@ router serves `/shop/catering/book` and lands at `client.shop.useCateringBook()`
    PascalCase.
 3. The namespace chain's PascalCase prefix is stripped before the name is placed
    in its bucket: `shopRecipesEdit` in bucket `shop.recipes` becomes `edit`.
+4. An endpoint in no namespace sits at the client's root under its full name:
+   `/orders/list` is `client.ordersList` and `client.useOrdersList`.
 
 Consequences worth knowing:
 
@@ -703,9 +770,13 @@ await setupCodegen(app, {
 await app.listen(3000);
 ```
 
-`openapi` takes the same options as `setupOpenAPI`. Kubb is the engine; the
-react-query client needs `@tanstack/react-query` >= 5.82 in the consuming app,
-plus `axios` and `react`.
+The clients are generated from each endpoint's Zod schemas, so they cover
+endpoints only: routes of plain Nest controllers are in the OpenAPI document
+but not in the SDK. `openapi` is optional and takes the same options as
+`setupOpenAPI` (§6.1); when it is given, the document is built, written to its
+`outputFile` and served at its `ui.path`. Without it, no document is written or
+served. Kubb is the engine; the react-query client needs
+`@tanstack/react-query` >= 5.82 in the consuming app, plus `axios` and `react`.
 
 Per-client options:
 
@@ -714,11 +785,14 @@ Per-client options:
 | `type` | `'axios'` or `'react-query'`. |
 | `outputFile` | **Must include an extension** (`.ts` / `.tsx`) — the generated tree goes in a sibling directory named after it, so an extensionless path would collide. |
 | `namespaces` | `string[]` restricting the client to those top-level namespaces. Omit for full access; `[]` is rejected. |
-| `options` | react-query only: forwarded to `@kubb/plugin-react-query` (query keys, suspense/infinite generation, …). The `client` and `hooks` fields are managed for you. Its `query`, `mutation`, `include`, `exclude` and `override` also decide which operations get hooks and query or mutation options (§9.2). |
+| `options` | react-query only: forwarded to `@kubb/plugin-react-query` (query keys, suspense/infinite generation, …). The `client` and `hooks` fields are managed for you. The builder decides an operation's kind, so `query.methods` and `mutation.methods` are ignored; `include`, `exclude`, and a `query: false` or `mutation: false` (top level or in an `override`) decide which operations get hooks and query or mutation options (§9.2). |
 
-`forceGenerate: true` (top level) wipes and regenerates everything this call
-owns. Otherwise a client regenerates when the OpenAPI document changed, or when
-its wrapper file or sibling directory is missing.
+`forceGenerate: true` (top level) wipes and regenerates every client.
+Otherwise a client regenerates when what it is generated from changes (its
+endpoints' schemas, its routers' `description`s, its `type`, `namespaces` and
+`options`, the nestjs-endpoints version), or when its wrapper file or sibling
+directory is missing. The wrapper's first line,
+`// nestjs-endpoints: <sha256>`, records the hash of those inputs.
 
 ### 8.2 What gets written
 
@@ -803,8 +877,8 @@ const { data: user } = await client.user.create({
 
 Methods resolve to the full `AxiosResponse` and **reject on non-2xx**, exactly
 like axios — so error handling is `try/catch` + `err.response.status`. Pass
-`throwOnError: false` to get the error response back instead. `headers` carries
-only the endpoint's declared headers; set any others on `client.axios`.
+`throwOnError: false` to get the error response back instead. Set request
+headers on `client.axios`; an operation's `headers` is typed `never`.
 
 ### 9.2 react-query
 
@@ -855,7 +929,7 @@ Notes:
 - Hooks return **unwrapped data** (`list.data` is the payload). The axios methods
   on the same bucket return the full `AxiosResponse`.
 - Pass React Query options through the trailing argument:
-  `client.useGreet({ query: { name } }, { query: { enabled: !!name, retry: false } })`.
+  `client.useGreet({ body: { name } }, { query: { enabled: !!name, retry: false } })`.
 - Errors are typed as `ResponseErrorConfig<Error>` — read
   `error.response?.data`.
 - `useApiClient()` must be called under `<ApiClientProvider>`; it throws
@@ -864,25 +938,32 @@ Notes:
   the internal tree but are **not** exposed on the client object. Don't import
   them directly.
 
-#### Query options, mutation options and the input schema
+#### Query options, mutation options and the input schemas
 
 Each operation's axios method also carries what TanStack Query and a form need,
 bound to the client instance it came from (its base URL and interceptors):
 
 | Property | On | What it is |
 | --- | --- | --- |
-| `queryKey(req)` | query operations (`query.methods`, `GET` by default) | The key the query is cached under. |
-| `queryOptions(req, config?)` | query operations | Options for `useQuery`, `queryClient.ensureQueryData`, `prefetchQuery`, … No React context needed. |
-| `mutationKey()` | mutation operations (`mutation.methods`, `POST`, `PUT`, `PATCH`, `DELETE` by default) | The mutation's key. |
-| `mutationOptions(config?)` | mutation operations | Options for `useMutation`. |
-| `schemas.input` | operations that take input | The input as JSON Schema, every `$ref` resolved. |
+| `queryKey(req)` | `endpoint.query()`s | The key the query is cached under. |
+| `queryOptions(req, config?)` | `endpoint.query()`s | Options for `useQuery`, `queryClient.ensureQueryData`, `prefetchQuery`, … No React context needed. |
+| `mutationKey()` | `endpoint.mutation()`s | The mutation's key. |
+| `mutationOptions(config?)` | `endpoint.mutation()`s | Options for `useMutation`. |
+| `schemas.input` | operations that declare `input` | The body as JSON Schema, every `$ref` resolved. |
+| `schemas.query` | operations that declare `query` with properties | The search parameters as JSON Schema, every `$ref` resolved. |
 
-`req` is the same grouped `{ path, query, headers }` object the call takes; an
+`req` is the same grouped `{ path, query, body }` object the call takes; an
 operation without request data takes none, so `queryOptions(config?)`. An
-operation Kubb generates neither for (a `HEAD`, one `options.include` /
-`exclude` leaves out, or one that `query: false` / `mutation: false` turns off,
-in `options` or an `options.override`) has no hook and no options, only its
-call.
+operation Kubb generates neither for (one `options.include` / `exclude` leaves
+out, or one that `query: false` / `mutation: false` turns off, in `options` or
+an `options.override`) has no hook and no options, only its call.
+
+A query's key is `[{ url, params? }, query?, body?]`: `url` is the path the app
+serves the endpoint at (global prefix and router `basePath` included) with its
+`:param` segments, and `params` the path params. The hook and `queryOptions`
+use the same key. `queryClient.invalidateQueries` matches keys by prefix, so
+`{ queryKey: [{ url: '/orders/list' }] }` invalidates every cached page and
+filter of that operation; `queryKey(req)` names one.
 
 Use `queryOptions` where hooks can't run, such as a route loader. Give it the
 same instance you put in `<ApiClientProvider>`:
@@ -892,7 +973,7 @@ import { api } from './api'; // export const api = createApiClient({ … })
 
 export const loader = ({ context }: { context: { queryClient: QueryClient } }) =>
   context.queryClient.ensureQueryData(
-    api.user.find.queryOptions({ query: { id: 1 } }),
+    api.user.find.queryOptions({ body: { id: 1 } }),
   );
 ```
 
@@ -903,19 +984,22 @@ const create = useMutation({
   ...client.user.create.mutationOptions(),
   onSuccess: () =>
     queryClient.invalidateQueries({
-      queryKey: client.user.find.queryKey({ query: { id: 1 } }),
+      queryKey: client.user.find.queryKey({ body: { id: 1 } }),
     }),
 });
 create.mutate({ body: { name: 'Tom', email: 'tom@x.com' } });
 ```
 
-`schemas.input` is what the endpoint declares as `input`: its JSON body, or,
-when it has no body (a `GET`), its query parameters as one object. Path
-parameters and headers are not input, and neither is a body that is not JSON (a
-file upload); an operation without input has no `schemas`. It is plain JSON data, so
-it is in your bundle, a few KB per operation. Its type, `InputSchema<T>`
-(exported by the client, or, when your document has its own type of that
-name, from `<output-dir>/client-runtime`), carries the request body or query
+`schemas.input` is the endpoint's `input` schema converted to JSON Schema, the
+same conversion the client's body type is built from, and `schemas.query` its
+`query` schema, the one its query type is built from, both with every `$ref`
+resolved. `schemas.query` is the whole object schema, object-level keywords
+(`additionalProperties`, `description`) included. Path parameters are in
+neither; an operation without `input`, and without a `query` that has
+properties, has no `schemas`. They are plain JSON data, so they are in your
+bundle, a few KB per operation. Their type, `InputSchema<T>` (exported by the
+client, or, when your app has its own schema of that name, from
+`<output-dir>/client-runtime`), carries the request body or query
 type in an optional `'~type'` property that is never there at runtime, so a
 form library can infer the form's values from the schema alone. That type is the input side of the
 zod schema: a field with a default, or a `.nullish()` one, may be left out.
@@ -932,10 +1016,14 @@ const app = moduleFixture.createNestApplication();
 await app.init();
 
 await request(app.getHttpServer())
-  .get('/user/find?id=1')
+  .post('/user/find')
+  .send({ id: 1 })
   .expect(200)
   .then((res) => expect(res.body).toMatchObject({ id: 1 }));
 ```
+
+Replace a provider with Nest's own testing API:
+`Test.createTestingModule({ imports: [AppModule] }).overrideProvider(OrdersRepository).useValue(fake)`.
 
 ### 10.2 e2e through the generated client
 
@@ -947,7 +1035,7 @@ await app.init();
 await app.listen(0);
 const client = createApiClient({ baseURL: await app.getUrl() });
 
-await expect(client.userFind({ query: { id: 1 } })).resolves.toMatchObject({
+await expect(client.userFind({ body: { id: 1 } })).resolves.toMatchObject({
   data: { id: 1, email: 'john@hotmail.com' },
 });
 ```
@@ -955,7 +1043,7 @@ await expect(client.userFind({ query: { id: 1 } })).resolves.toMatchObject({
 ### 10.3 Integration — call the handler directly with `invoke`
 
 Every endpoint class exposes `invoke`, which runs the same validation pipeline
-(input, params, output) without HTTP:
+(input, query, params, output) without HTTP:
 
 ```ts
 import userFindEndpoint from 'src/endpoints/user/find.endpoint';
@@ -971,8 +1059,9 @@ await app.init();
 const userFind = app.get(userFindEndpoint);
 await expect(userFind.invoke({ id: 1 })).resolves.toMatchObject({ id: 1 });
 
-// Path params go in the second argument. Raw strings are coerced, exactly
-// as they would be over HTTP.
+// With `input`, path and search parameters go in the second argument
+// (without it, in the first). Raw strings are coerced, exactly as they
+// would be over HTTP.
 const recipesEdit = app.get(recipesEditEndpoint);
 await recipesEdit.invoke({ name: 'Margherita' }, { params: { recipeId: '1' } });
 ```
@@ -981,10 +1070,10 @@ Signatures:
 
 | Endpoint | Call |
 | --- | --- |
-| no `input`, no `params` | `invoke()` |
+| no `input`, `query` or `params` | `invoke()` |
 | `input` only | `invoke(rawInput)` |
-| `params` only | `invoke({ params })` |
-| both | `invoke(rawInput, { params })` |
+| `query` and/or `params`, no `input` | `invoke({ query, params })` |
+| `input` and `query` and/or `params` | `invoke(rawInput, { query, params })` |
 
 Validation failures throw `ZodValidationException`; `.getZodError()` gives you
 the `ZodError`. `invoke` returns the **validated body** for a single-status
@@ -1017,7 +1106,7 @@ import {
   EndpointRouterModule,
   setupOpenAPI,
   setupCodegen,
-  ZodValidationException,    // 400 — input/params failed
+  ZodValidationException,    // 400 — input/query/params failed
   ZodSerializationException, // 500 — output failed
   ApiQueries,          // helper decorators, rarely needed directly
   ApiParams,
@@ -1031,8 +1120,9 @@ import {
 ## 12. Recipes
 
 **Add an endpoint to an existing file-based router.** Create
-`<router-root>/<segments>/<name>.endpoint.ts`, `export default endpoint({...})`,
-declare `input`/`output`, add any provider it needs to the nearest
+`<router-root>/<segments>/<name>.endpoint.ts`,
+`export default endpoint.query({...})` for a read or
+`endpoint.mutation({...})` for a write, declare `input`/`output`, add any provider it needs to the nearest
 `router.module.ts`'s `providers`. Nothing else to register: the endpoint
 manifest picks the file up when the app's scripts next run
 `nestjs-endpoints generate`, or a running dev server sees it (or run
@@ -1068,7 +1158,9 @@ whose folders should become buckets. URLs are unaffected.
 | --- | --- |
 | Route 404s | Endpoint file isn't named `*.endpoint.ts` / `endpoint.ts`, or it sits under a folder owned by a nested `router.module.ts` you didn't expect, or it isn't `export default`ed. |
 | Route mounted at `/dist/...` or `/src/...` | Manually-registered endpoint with no `path` (§4.2). |
-| 400 "Validation failed" on a GET | Query values arrive as strings — use `z.coerce.*`. |
+| 400 "Validation failed" on search or path parameters | `query` and `params` values arrive as strings — use `z.coerce.*`. |
+| 400 `Body cannot be empty when content-type is set to 'application/json'` (Fastify) | A request with `Content-Type: application/json` and no body. Send `{}`, or leave the header off. |
+| `` a GET endpoint cannot declare `input` `` at startup | `method: 'get'` with `input`: a GET has no body. Use `query`, or drop `method`. |
 | 500 on a response that looks right | Output schema mismatch (`ZodSerializationException`). |
 | `Did not find schema for status code N` | `response(N, ...)` used with a status absent from the `output` map. |
 | Handler returns a value but nothing validates | Multi-status `output` requires `response(status, body)`. |
@@ -1077,7 +1169,7 @@ whose folders should become buckets. URLs are unaffected.
 | SDK method keeps its full flat name inside its bucket (`client.shop.recipes.shopRecipes`) | A bare `endpoint.ts` whose path equals its namespace chain, so stripping would leave nothing — give the file a leaf name. |
 | `middleware options object must be the last entry` | The `{ exclude }` object isn't last in the `middleware` array. |
 | `useApiClient must be used within an <ApiClientProvider>` | Missing provider above the component. |
-| Nothing regenerates after an endpoint change | The OpenAPI doc didn't change, or codegen isn't running — use `forceGenerate: true`. |
+| Nothing regenerates after an endpoint change | Codegen isn't running, or the route isn't in that client (a plain controller, or a namespace its `namespaces` leaves out). `forceGenerate: true` regenerates every client. |
 | Routes disappear in production | The build bundles the app; file-based routing needs real files on disk. |
 | `no endpoint manifest covers "<dir>"` | `src/endpoints.gen.ts` is missing or not imported. Run `npx nestjs-endpoints init`, then import it from the app module — or, in a test that imports a router module directly, from the test or Vitest `setupFiles` (§10.4). |
 | `endpoints.gen.ts is out of date` (CI) | Endpoint files were added/removed without the manifest being regenerated. Run `npx nestjs-endpoints generate` and commit it. |

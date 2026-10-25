@@ -9,6 +9,8 @@
 - **`npx nestjs-endpoints init` installs a coding-agent skill** pointing at the full library guide the package now ships at `docs/agents.md`.
 - **Each react-query client operation carries its `queryOptions` / `queryKey` or `mutationOptions` / `mutationKey`, bound to the client instance**, so route loaders can use `queryClient.ensureQueryData(...)` outside React. See [react-query](README.md#react-query).
 - **Each react-query client operation that takes input carries `schemas.input`, its input as self-contained JSON Schema**, for forms to read. See [react-query](README.md#react-query).
+- **Endpoints declare search parameters with `query`, on any method**, and react-query operations carry them as `schemas.query`. See [Queries and mutations](README.md#queries-and-mutations).
+- **Each OpenAPI operation carries `x-endpoint-kind` (`query` or `mutation`)**, for generators run against the document. See [Manual codegen](README.md#manual-codegen-with-openapi-spec-file).
 
 ### Fixes
 
@@ -18,17 +20,26 @@
 - **A `.nullish().default(...)` field wrapped in `z.preprocess(...)` is no longer marked `required`** in the generated OpenAPI document, matching the same field declared without `preprocess`.
 - **`ApiQueries` / `ApiParams` accept `z.preprocess(...)` schemas under zod 4.6.**
 - **Generated clients no longer include an unused `.kubb/` directory.**
+- **A shared schema used in both requests and responses appears in the OpenAPI document once per shape, as `<id>` and `<id>Output`.**
 
 ### Breaking changes
 
+- **`endpoint()` is replaced by `endpoint.query()` and `endpoint.mutation()`, which decide whether the react-query client gives an operation query or mutation hooks.** Rename each `endpoint(` to the builder for its kind. See [Queries and mutations](README.md#queries-and-mutations).
+- **Endpoints are POSTs by default, and `input` is always the JSON body.** Send a read's input as the body, or add `method: 'get'` to an endpoint that must stay a GET and declare its input as `query`.
+- **A react-query client's `query.methods` and `mutation.methods` options are ignored; the builder decides an operation's kind.**
+- **`params` must be a Zod object schema, as `query` is.** Declare it as `z.object({ … })`, one key per path parameter.
 - **This package is now ESM-only.** Set `"type": "module"` in your project; CommonJS is no longer supported.
 - **NestJS >= 12 is required.** Run `nest upgrade` to migrate.
 - **Node.js >= 24 is required.**
 - **TypeScript >= 6 is required.**
 - **File-based routing needs the endpoint manifest.** Run `npx nestjs-endpoints init`, then add `import './endpoints.gen.js';` to your app module, and commit `src/endpoints.gen.ts`.
-- **Generated client methods and hooks take one object that groups the request into `path`, `query`, `body` and `headers`**, as in `client.recipesEdit({ path: { recipeId }, body: { name } })`. See [Codegen](README.md#codegen-optional).
+- **Generated client methods and hooks take one object that groups the request into `path`, `query` and `body`**, as in `client.recipesEdit({ path: { recipeId }, body: { name } })`. See [Codegen](README.md#codegen-optional).
 - **Generated per-operation type names changed** (`ShopRecipesEditMutationResponse` is now `ShopRecipesEditStatus200`, for example); schema types keep their names.
-- **Per-call `headers` accept only the headers an endpoint declares**; set any others on `client.axios`.
+- **A `z.bigint()` in an endpoint schema needs `.meta({ type })`.** _(Breaking: it throws at startup without one.)_
+- **A `.meta({ id })` that names two different schemas in requests, or two in responses, throws at startup.** _(Breaking: give one of them a different id.)_
+- **Generated clients cover endpoints only.** _(Breaking: routes from plain Nest controllers leave the SDK.)_
+- **`setupCodegen` writes the OpenAPI document only when `openapi` is given.** _(Breaking: no default file is written.)_
+- **Request headers are set on the client's axios instance (`client.axios`), not per call.**
 - **A react-query client's `options` are now [`@kubb/plugin-react-query` 5's](https://kubb.dev/extensions/kubb-labs/plugin-react-query/options).**
 - **The react-query client requires `@tanstack/react-query` >= 5.82.**
 

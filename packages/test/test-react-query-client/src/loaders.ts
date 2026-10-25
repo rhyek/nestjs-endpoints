@@ -8,6 +8,6 @@ export function loadGreeting(
   name: string,
 ) {
   return queryClient.ensureQueryData(
-    api.greet.queryOptions({ query: { name } }),
+    api.greet.queryOptions({ body: { name } }),
   );
 }

@@ -3,7 +3,7 @@ import { decorated, endpoint, z } from 'nestjs-endpoints';
 import { UserRepository } from '../user.repository';
 import { UserRepositoryToken } from '../user.repository.token';
 
-export const userListWithPath = endpoint({
+export const userListWithPath = endpoint.query({
   path: '/user/list-with-path',
   output: z.array(
     z.object({

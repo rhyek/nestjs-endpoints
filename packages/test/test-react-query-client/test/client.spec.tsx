@@ -10,12 +10,13 @@ import {
 import { App } from '../src/App';
 import { GreetPage } from '../src/GreetPage';
 import { OptionalParamsPage } from '../src/OptionalParamsPage';
+import { SearchPage } from '../src/SearchPage';
 import { UserPage } from '../src/UserPage';
 
 function SpreadGreet() {
   const api = useApiClient();
   const { data } = api.useGreet(
-    { query: { name: 'Spread' } },
+    { body: { name: 'Spread' } },
     { query: { retry: false } },
   );
   return <div data-testid="spread-greeting">{data ?? ''}</div>;
@@ -83,6 +84,30 @@ describe('Client', () => {
       expect(
         await screen.findByTestId('optional-result'),
       ).toHaveTextContent('"ok":true');
+    });
+  });
+
+  test('a POST endpoint.query() is a query, keyed by its search params and body', async () => {
+    render(
+      <App>
+        <SearchPage />
+      </App>,
+    );
+    await vitest.waitFor(async () => {
+      expect(
+        JSON.parse(
+          (await screen.findByTestId('search-result')).textContent,
+        ),
+      ).toEqual({ term: 'pizza', tags: [], page: 1 });
+    });
+    // A new search param is a new query key, so the hook fetches again.
+    await userEvent.click(screen.getByText('Next page'));
+    await vitest.waitFor(async () => {
+      expect(
+        JSON.parse(
+          (await screen.findByTestId('search-result')).textContent,
+        ),
+      ).toEqual({ term: 'pizza', tags: [], page: 2 });
     });
   });
 

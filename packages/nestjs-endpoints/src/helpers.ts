@@ -1,17 +1,14 @@
 import { AsyncLocalStorage } from 'node:async_hooks';
 import path from 'node:path';
 import { applyDecorators } from '@nestjs/common';
-import {
-  ApiParam,
-  ApiParamOptions,
-  ApiQuery,
-  ApiQueryOptions,
-} from '@nestjs/swagger';
+import { ApiParam, ApiQuery } from '@nestjs/swagger';
 import callsites from 'callsites';
-import { z, ZodPipe, ZodTransform } from 'zod';
-import { createSchema } from 'zod-openapi';
 import { callsiteFileToPath } from './callsite.js';
-import { zodToOpenApi } from './zod-to-openapi.js';
+import {
+  convertObject,
+  type ObjectSchemaLike,
+} from './object-parameters.js';
+import { registerComponents } from './zod-to-openapi.js';
 
 function isDirPathSegment(dir: string) {
   const segment = path.basename(dir);
@@ -109,91 +106,30 @@ export function getHttpPathPascalName(httpPath: string) {
     .replace(/[/-]([a-z0-9])/g, (_, char: string) => char.toUpperCase());
 }
 
-/** An object schema, bare or behind a transform or preprocess step. */
-type ObjectSchemaLike =
-  | z.ZodObject
-  | z.ZodPipe<z.ZodObject>
-  | z.ZodPipe<any, z.ZodObject>
-  // zod >= 4.6 types `z.preprocess()` as its own pipe, which the generic
-  // pipe above does not accept. Derived from `z.preprocess` rather than
-  // naming `z.ZodPreprocess`, which older zod 4 releases do not export.
-  | ReturnType<typeof z.preprocess<any, z.ZodObject, any>>;
-
 export const ApiQueries = <T extends ObjectSchemaLike>(zodObject: T) => {
-  const source: z.ZodObject = (() => {
-    if (zodObject instanceof ZodPipe) {
-      if (zodObject.def.in instanceof ZodTransform) {
-        return zodObject.def.out;
-      } else {
-        return zodObject.def.in;
-      }
-    }
-    return zodObject;
-  })();
-  const optionsList = Object.keys(source.shape).reduce<
-    Array<
-      ApiQueryOptions & {
-        schema: ReturnType<typeof createSchema>['schema'];
-      }
-    >
-  >((acc, name) => {
-    const zodType = source.shape[name];
-    if (zodType) {
-      const { openApiSchema } = zodToOpenApi({
-        schema: zodType,
-        schemaType: 'input',
-      });
-      acc.push({
-        name,
-        required: !zodType.isOptional(),
-        schema: openApiSchema,
-      });
-    }
-
-    return acc;
-  }, []);
-
+  const { parameters, components } = convertObject(
+    zodObject,
+    'The schema given to ApiQueries()',
+  );
+  registerComponents(components);
   return applyDecorators(
-    ...optionsList.map((options) => ApiQuery(options)),
+    ...parameters.map((p) =>
+      ApiQuery({ name: p.name, required: p.required, schema: p.schema }),
+    ),
   );
 };
 
 export const ApiParams = <T extends ObjectSchemaLike>(zodObject: T) => {
-  const source: z.ZodObject = (() => {
-    if (zodObject instanceof ZodPipe) {
-      if (zodObject.def.in instanceof ZodTransform) {
-        return zodObject.def.out;
-      } else {
-        return zodObject.def.in;
-      }
-    }
-    return zodObject;
-  })();
-  const optionsList = Object.keys(source.shape).reduce<
-    Array<
-      ApiParamOptions & {
-        schema: ReturnType<typeof createSchema>['schema'];
-      }
-    >
-  >((acc, name) => {
-    const zodType = source.shape[name];
-    if (zodType) {
-      const { openApiSchema } = zodToOpenApi({
-        schema: zodType,
-        schemaType: 'input',
-      });
-      acc.push({
-        name,
-        // Path parameters are always required in OpenAPI.
-        required: true,
-        schema: openApiSchema,
-      });
-    }
-    return acc;
-  }, []);
-
+  const { parameters, components } = convertObject(
+    zodObject,
+    'The schema given to ApiParams()',
+  );
+  registerComponents(components);
   return applyDecorators(
-    ...optionsList.map((options) => ApiParam(options)),
+    ...parameters.map((p) =>
+      // Path parameters are always required in OpenAPI.
+      ApiParam({ name: p.name, required: true, schema: p.schema }),
+    ),
   );
 };
 

@@ -1,7 +1,7 @@
 import { endpoint, z } from 'nestjs-endpoints';
 import { RecipesRepository } from './repository.service';
 
-export const createManualRecipeEndpoint = endpoint({
+export const createManualRecipeEndpoint = endpoint.query({
   path: 'create',
   input: z.object({
     name: z.string(),

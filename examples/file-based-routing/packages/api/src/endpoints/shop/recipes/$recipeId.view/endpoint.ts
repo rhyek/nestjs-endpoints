@@ -4,10 +4,10 @@ import { RecipesRepository } from '../repository.service';
 // File-based routing: a `$`-prefixed segment becomes a path parameter
 // and a `.` inside one filename/folder splits into multiple URL segments.
 // Folder: shop/recipes/$recipeId.view/  →  URL: /shop/recipes/:recipeId/view
-// SDK:    client.shop.recipes.useView(recipeId)
-//         — `:recipeId` drops out of the method name; the typed first arg
+// SDK:    client.shop.recipes.useView({ path: { recipeId } })
+//         — `:recipeId` drops out of the method name; the `path` group
 //           conveys it.
-export default endpoint({
+export default endpoint.query({
   params: z.object({
     // Path params arrive as strings — coerce to the type you want.
     recipeId: z.coerce.number(),

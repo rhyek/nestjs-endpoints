@@ -7,8 +7,7 @@ import { createApp } from './create-app';
 
 describe('zod-openapi', () => {
   test('payloads are correct', async () => {
-    const testEndpoint = endpoint({
-      method: 'post',
+    const testEndpoint = endpoint.mutation({
       path: '/test1',
       input: z.object({
         name: z.string(),
@@ -54,8 +53,7 @@ describe('zod-openapi', () => {
     }
   });
   test('openapi schema is generated correctly', async () => {
-    const testEndpoint = endpoint({
-      method: 'post',
+    const testEndpoint = endpoint.mutation({
       path: '/test2',
       input: z.object({
         name: z.string(),
@@ -173,6 +171,45 @@ describe('zod-openapi', () => {
           },
         },
       });
+    } finally {
+      await app.close();
+    }
+  });
+  test('a shared id used in both directions gets an Output twin', async () => {
+    const address = z
+      .object({ city: z.string(), country: z.string().default('GT') })
+      .meta({ id: 'Address' });
+    const testEndpoint = endpoint.mutation({
+      path: '/shared-address',
+      input: z.object({ address }),
+      output: z.object({ address }),
+      handler: ({ input }) => input,
+    });
+    @Module({
+      controllers: [testEndpoint],
+    })
+    class TestModule {}
+
+    const moduleFixture: TestingModule = await Test.createTestingModule({
+      imports: [TestModule],
+    }).compile();
+
+    const { app } = await createApp(moduleFixture);
+    try {
+      const { document } = await setupOpenAPI(app as any);
+      const schemas = document.components!.schemas as any;
+      expect(schemas.Address.required).toEqual(['city']);
+      expect(schemas.AddressOutput.required).toEqual(['city', 'country']);
+      expect(schemas.SharedAddressInput.properties.address).toEqual({
+        $ref: '#/components/schemas/Address',
+      });
+      expect(schemas.SharedAddressOutput.properties.address).toEqual({
+        $ref: '#/components/schemas/AddressOutput',
+      });
+      const op = (document.paths['/shared-address'] as any).post;
+      expect(
+        op.responses['200'].content['application/json'].schema,
+      ).toEqual({ $ref: '#/components/schemas/SharedAddressOutput' });
     } finally {
       await app.close();
     }

@@ -1,11 +1,15 @@
 import path from 'node:path';
-import type { OpenAPIObject } from '@nestjs/swagger';
 import type { UserConfig } from 'kubb';
+import type { EndpointDescriptor } from '../../descriptors.js';
+import type { SharedSchemas } from '../../shared-schemas.js';
+import { hashHeader } from '../hash.js';
+import { adapterEndpoints, buildInputNode } from './adapter.js';
 import { emitPlugin } from './emit-plugin.js';
 import {
   buildSchemasModuleSource,
   collectInputSchemas,
 } from './input-schemas.js';
+import { kindOverrides } from './operation-kind.js';
 import {
   AXIOS_CLIENT_RUNTIME_SOURCE,
   REACT_QUERY_CLIENT_RUNTIME_SOURCE,
@@ -54,20 +58,14 @@ function resolveLayout(outputFile: string) {
 
 /** Load Kubb and the plugins every client uses. */
 async function loadKubb() {
-  const [
-    { createKubb },
-    kit,
-    { adapterOas },
-    { pluginTs },
-    { pluginClient },
-  ] = await Promise.all([
-    import('kubb'),
-    import('kubb/kit'),
-    import('@kubb/adapter-oas'),
-    import('@kubb/plugin-ts'),
-    import('@kubb/plugin-client'),
-  ]);
-  return { createKubb, kit, adapterOas, pluginTs, pluginClient };
+  const [{ createKubb }, kit, { pluginTs }, { pluginClient }] =
+    await Promise.all([
+      import('kubb'),
+      import('kubb/kit'),
+      import('@kubb/plugin-ts'),
+      import('@kubb/plugin-client'),
+    ]);
+  return { createKubb, kit, pluginTs, pluginClient };
 }
 
 type Kubb = Awaited<ReturnType<typeof loadKubb>>;
@@ -79,17 +77,17 @@ type Kubb = Awaited<ReturnType<typeof loadKubb>>;
  */
 async function runKubbBuild(
   kubb: Kubb,
-  document: OpenAPIObject,
+  source: { descriptors: EndpointDescriptor[]; shared: SharedSchemas },
   outDir: string,
   plugins: NonNullable<UserConfig['plugins']>,
 ): Promise<void> {
-  const { createKubb, adapterOas, pluginTs, pluginClient } = kubb;
+  const { createKubb, kit, pluginTs, pluginClient } = kubb;
   const build = createKubb({
     root: process.cwd(),
-    // Kubb types a parsed spec as a plain record.
-    input: document as unknown as Record<string, unknown>,
-    // `int64` stays `number`, as JSON carries it.
-    adapter: adapterOas({ integerType: 'number' }),
+    // Kubb requires an `input` beside an adapter; ours ignores it and reads
+    // the descriptors.
+    input: {},
+    adapter: adapterEndpoints(kit, buildInputNode(source)),
     output: {
       path: outDir,
       clean: true,
@@ -117,21 +115,26 @@ async function runKubbBuild(
 
 /** Generate the axios client for one `setupCodegen` entry using Kubb. */
 export async function generateAxiosClient(params: {
-  document: OpenAPIObject;
+  /** The client's descriptors, already filtered to its namespaces. */
+  descriptors: EndpointDescriptor[];
+  /** The shared schemas of the whole app. */
+  shared: SharedSchemas;
   outputFile: string;
+  /** Written into the wrapper's first line, for change detection. */
+  hash: string;
 }): Promise<void> {
-  const { document, outputFile } = params;
+  const { descriptors, shared, outputFile, hash } = params;
   const { outDir, dirName } = resolveLayout(outputFile);
   const kubb = await loadKubb();
 
   const wrapperSource = buildAxiosWrapperSource({
-    document,
+    descriptors,
     clientsImport: `./${dirName}/clients`,
     typesImport: `./${dirName}/types`,
     runtimeImport: `./${dirName}/client-runtime`,
   });
 
-  await runKubbBuild(kubb, document, outDir, [
+  await runKubbBuild(kubb, { descriptors, shared }, outDir, [
     emitPlugin(kubb.kit, {
       name: 'plugin-nestjs-endpoints-axios',
       outDir,
@@ -142,7 +145,7 @@ export async function generateAxiosClient(params: {
           source: AXIOS_CLIENT_RUNTIME_SOURCE,
         },
       ],
-      wrapperSource,
+      wrapperSource: hashHeader(hash) + wrapperSource,
     }),
   ]);
 }
@@ -152,24 +155,30 @@ export async function generateAxiosClient(params: {
  *
  * The hooks call the same request functions the axios methods expose, and
  * unwrap the response's data themselves. They read their bound client from
- * React context via `bindHook`. Each operation's input schema goes into
- * `schemas.ts` beside the runtime.
+ * React context via `bindHook`. Each operation's input and query schemas go
+ * into `schemas.ts` beside the runtime.
  */
 export async function generateReactQueryClient(params: {
-  document: OpenAPIObject;
+  /** The client's descriptors, already filtered to its namespaces. */
+  descriptors: EndpointDescriptor[];
+  /** The shared schemas of the whole app. */
+  shared: SharedSchemas;
   outputFile: string;
   options?: ReactQueryPluginOptions;
+  /** Written into the wrapper's first line, for change detection. */
+  hash: string;
 }): Promise<void> {
-  const { document, outputFile, options } = params;
+  const { descriptors, shared, outputFile, options, hash } = params;
   const { outDir, dirName } = resolveLayout(outputFile);
   const [kubb, { pluginReactQuery }] = await Promise.all([
     loadKubb(),
     import('@kubb/plugin-react-query'),
   ]);
 
-  const inputSchemas = collectInputSchemas(document);
+  const inputSchemas = collectInputSchemas(descriptors, shared);
   const wrapperSource = buildReactQueryWrapperSource({
-    document,
+    descriptors,
+    shared,
     opsImport: `./${dirName}/clients`,
     hooksImport: `./${dirName}/hooks`,
     runtimeImport: `./${dirName}/client-runtime`,
@@ -179,8 +188,15 @@ export async function generateReactQueryClient(params: {
     inputSchemaNames: new Set(inputSchemas.keys()),
   });
 
-  await runKubbBuild(kubb, document, outDir, [
-    pluginReactQuery({ ...options, hooks: true }),
+  await runKubbBuild(kubb, { descriptors, shared }, outDir, [
+    pluginReactQuery({
+      ...options,
+      // The builder, not the HTTP method, decides each operation's kind.
+      override: kindOverrides(descriptors, options) as NonNullable<
+        ReactQueryPluginOptions['override']
+      >,
+      hooks: true,
+    }),
     emitPlugin(kubb.kit, {
       name: 'plugin-nestjs-endpoints-react-query',
       outDir,
@@ -199,7 +215,7 @@ export async function generateReactQueryClient(params: {
           }),
         },
       ],
-      wrapperSource,
+      wrapperSource: hashHeader(hash) + wrapperSource,
     }),
   ]);
 }

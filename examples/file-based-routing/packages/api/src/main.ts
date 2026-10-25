@@ -16,7 +16,7 @@ async function bootstrap() {
       // optional. setting so the openapi doc is visible.
       outputFile: path.join(process.cwd(), 'openapi.json'),
       configure: (b) => b.setTitle('Shop API'),
-      // Serves Swagger UI at /docs using the same doc codegen consumes.
+      // Serves Swagger UI at /docs.
       ui: { path: 'docs' },
     },
     clients: [

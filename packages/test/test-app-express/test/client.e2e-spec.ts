@@ -15,7 +15,7 @@ describe('generated client', () => {
         baseURL: await app.getUrl(),
       });
       await expect(
-        client.userGet({ query: { id: 1 } }),
+        client.userGet({ body: { id: 1 } }),
       ).rejects.toMatchObject({
         response: {
           status: 404,
@@ -30,7 +30,7 @@ describe('generated client', () => {
       } = await client.userCreate({
         body: { name: 'Jake', email: 'jake@gmail.com' },
       });
-      const { data: user } = await client.userFind({ query: { id } });
+      const { data: user } = await client.userFind({ body: { id } });
       expect(user).toEqual({
         id,
         name: 'Jake',
@@ -54,7 +54,7 @@ describe('generated client', () => {
       });
       const client = createApiClient(axios);
       await expect(
-        client.userGet({ query: { id: 1 } }),
+        client.userGet({ body: { id: 1 } }),
       ).rejects.toMatchObject({
         response: {
           status: 404,
@@ -69,7 +69,7 @@ describe('generated client', () => {
       } = await client.userCreate({
         body: { name: 'Jake', email: 'jake@gmail.com' },
       });
-      const { data: user } = await client.userFind({ query: { id } });
+      const { data: user } = await client.userFind({ body: { id } });
       expect(user).toEqual({
         id,
         name: 'Jake',
@@ -89,7 +89,7 @@ describe('generated client', () => {
       const client = createApiClient({
         baseURL: await app.getUrl(),
       });
-      const { data } = await client.greet({ query: { name: 'Alice' } });
+      const { data } = await client.greet({ body: { name: 'Alice' } });
       expect(data).toBe('Hello, Alice!');
     } finally {
       await app.close();
@@ -109,7 +109,7 @@ describe('generated client', () => {
         });
         // Un-namespaced operation (no router namespace) sits at the root
         // of the client using its flat camelCase name.
-        const greet = await client.greet({ query: { name: 'Clara' } });
+        const greet = await client.greet({ body: { name: 'Clara' } });
         expect(greet.data).toBe('Hello, Clara!');
         // One-level namespace bucket (from `namespace: 'articles'`).
         const latest = await client.articles.latest();
@@ -117,7 +117,7 @@ describe('generated client', () => {
         // Two-level nested namespace bucket (shop → cart, from two routers
         // both declaring `namespace: true`).
         const cart = await client.shop.cart.add({
-          query: { item: 'apple' },
+          body: { item: 'apple' },
         });
         expect(cart.data).toMatchObject({ added: 'apple' });
       } finally {
@@ -139,7 +139,7 @@ describe('generated client', () => {
         });
         // Seed a recipe so we have something to address by id.
         const { data: created } = await client.recipesCreate({
-          query: { name: 'Pizza' },
+          body: { name: 'Pizza' },
         });
         expect(created).toEqual({ id: 1, name: 'Pizza' });
 
@@ -151,7 +151,7 @@ describe('generated client', () => {
         });
         expect(edited).toEqual({ id: 1, name: 'Margherita' });
 
-        // GET /recipes/:recipeId/view
+        // POST /recipes/:recipeId/view
         const { data: viewed } = await client.recipesView({
           path: { recipeId: created.id },
         });
@@ -163,7 +163,7 @@ describe('generated client', () => {
         });
         expect(removed).toEqual({ id: 1, name: 'Margherita' });
 
-        // Multi-param: GET /restaurant/:restaurantId/recipes/:recipeId/view
+        // Multi-param: POST /restaurant/:restaurantId/recipes/:recipeId/view
         const { data: multi } = await client.restaurantRecipesView({
           path: { restaurantId: 7, recipeId: 42 },
         });
@@ -198,7 +198,7 @@ describe('generated client', () => {
         });
 
         const cart = await client.shop.cart.add({
-          query: { item: 'apple' },
+          body: { item: 'apple' },
         });
         expect(cart.data).toMatchObject({ added: 'apple' });
         expect(seenUrls).toContain('/shop/cart/add');
@@ -218,7 +218,7 @@ describe('generated client', () => {
       try {
         const client = createApiClient({ baseURL: await app.getUrl() });
         await expect(
-          client.userGet({ query: { id: 1 }, throwOnError: false }),
+          client.userGet({ body: { id: 1 }, throwOnError: false }),
         ).resolves.toMatchObject({
           status: 404,
           data: { message: 'User not found' },
@@ -247,6 +247,37 @@ describe('generated client', () => {
         await expect(
           client.optionalParams({ query: { q: 'hi' } }),
         ).resolves.toMatchObject({ data: { ok: true, q: 'hi' } });
+      } finally {
+        await app.close();
+      }
+    },
+  );
+
+  test.concurrent(
+    'search params travel in `query` on a GET, beside `body` on a POST',
+    async () => {
+      const moduleFixture: TestingModule = await Test.createTestingModule({
+        imports: [AppModule],
+      }).compile();
+      const { app } = await createApp(moduleFixture);
+      try {
+        const client = createApiClient({ baseURL: await app.getUrl() });
+        // GET /oauth/callback?code=...&state=...&expiresIn=...
+        const { data: callback } = await client.oauthCallback({
+          query: { code: 'abc', state: 'xyz', expiresIn: 3600 },
+        });
+        expect(callback).toEqual({
+          code: 'abc',
+          state: 'xyz',
+          expiresIn: 3600,
+        });
+
+        // POST /search?page=2 with a JSON body.
+        const { data: found } = await client.search({
+          query: { page: 2 },
+          body: { term: 'pizza', tags: ['vegan'] },
+        });
+        expect(found).toEqual({ term: 'pizza', tags: ['vegan'], page: 2 });
       } finally {
         await app.close();
       }

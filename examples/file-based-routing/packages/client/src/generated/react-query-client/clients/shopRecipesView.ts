@@ -13,5 +13,5 @@ import { client } from '../client-runtime'
 export function shopRecipesView<ThrowOnError extends boolean = true>(options: Options<ShopRecipesViewOptions, ThrowOnError>): Promise<RequestResult<ShopRecipesViewResponses, ThrowOnError>> {
   const { client: request = client, ...config } = options
 
-  return request({ method: 'GET', url: '/shop/recipes/{recipeId}/view', ...config, throwOnError: config.throwOnError ?? true }) as Promise<RequestResult<ShopRecipesViewResponses, ThrowOnError>>
+  return request({ method: 'POST', url: '/shop/recipes/{recipeId}/view', ...config, throwOnError: config.throwOnError ?? true }) as Promise<RequestResult<ShopRecipesViewResponses, ThrowOnError>>
 }

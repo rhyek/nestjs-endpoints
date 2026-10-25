@@ -1,14 +1,18 @@
 import { endpoint, z } from 'nestjs-endpoints';
 import { RecipesRepository } from '../repository.service';
 
-export default endpoint({
+export const recipeParams = z.object({
+  recipeId: z.coerce.number(),
+});
+
+export const recipeInput = z.object({
+  name: z.string(),
+});
+
+export default endpoint.mutation({
   method: 'patch',
-  params: z.object({
-    recipeId: z.coerce.number(),
-  }),
-  input: z.object({
-    name: z.string(),
-  }),
+  params: recipeParams,
+  input: recipeInput,
   output: z.object({
     id: z.number(),
     name: z.string(),

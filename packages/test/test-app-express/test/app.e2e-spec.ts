@@ -3,7 +3,9 @@ import { ArgumentsHost, Catch } from '@nestjs/common';
 import { APP_FILTER, BaseExceptionFilter } from '@nestjs/core';
 import { Test, TestingModule } from '@nestjs/testing';
 import {
+  endpoint,
   setupOpenAPI,
+  z,
   ZodSerializationException,
   ZodValidationException,
 } from 'nestjs-endpoints';
@@ -72,7 +74,7 @@ describe('api', { concurrent: true }, () => {
   test('error endpoint throws', async () => {
     const { req, validationExceptionSpy, serializationExceptionSpy } =
       await setup();
-    await req.get('/test/error').expect(500, {
+    await req.post('/test/error').expect(500, {
       statusCode: 500,
       message: 'Internal server error',
     });
@@ -82,7 +84,7 @@ describe('api', { concurrent: true }, () => {
 
   test('user get inexistent user returns 404', async () => {
     const { req } = await setup();
-    await req.get('/user/get?id=1').expect(404, {
+    await req.post('/user/get').send({ id: 1 }).expect(404, {
       statusCode: 404,
       message: 'User not found',
       error: 'Not Found',
@@ -105,29 +107,44 @@ describe('api', { concurrent: true }, () => {
         },
       ]);
     });
-    await req.get('/user/find').expect(400, {
-      statusCode: 400,
-      message: 'Validation failed',
-      errors: [
-        {
-          expected: 'number',
-          code: 'invalid_type',
-          received: 'NaN',
-          path: ['id'],
-          message: 'Invalid input: expected number, received NaN',
-        },
-      ],
-    });
+    await req
+      .post('/user/find')
+      .send({})
+      .expect(400, {
+        statusCode: 400,
+        message: 'Validation failed',
+        errors: [
+          {
+            expected: 'number',
+            code: 'invalid_type',
+            received: 'NaN',
+            path: ['id'],
+            message: 'Invalid input: expected number, received NaN',
+          },
+        ],
+      });
     expect(validationExceptionSpy).toHaveBeenCalledTimes(1);
     expect(serializationExceptionSpy).toHaveBeenCalledTimes(0);
   });
 
+  test('a request without a body reads as an empty object', async () => {
+    const { req } = await setup();
+    // The issue is the missing field, not a missing object.
+    await req
+      .post('/search')
+      .expect(400)
+      .then((resp) => {
+        expect(resp.body.errors).toMatchObject([{ path: ['term'] }]);
+      });
+  });
+
   test('user find can return null value', async () => {
     const { req, httpAdapter } = await setup();
-    // await req.get('/user/find?id=1').expect(200, null);
+    // await req.post('/user/find').send({ id: 1 }).expect(200, null);
     // http://github.com/nestjs/nest/issues/10415
     await req
-      .get('/user/find?id=1')
+      .post('/user/find')
+      .send({ id: 1 })
       .expect(200)
       .then((resp) => {
         expect(resp.body).toBe(httpAdapter === 'express' ? '' : null);
@@ -140,7 +157,7 @@ describe('api', { concurrent: true }, () => {
       .post('/user/create')
       .send({ name: 'John', email: 'john@example.com' })
       .expect(200, { id: 1 });
-    await req.get('/user/find?id=1').expect(200, {
+    await req.post('/user/find').send({ id: 1 }).expect(200, {
       id: 1,
       name: 'John',
       email: 'john@example.com',
@@ -185,7 +202,7 @@ describe('api', { concurrent: true }, () => {
     serializationExceptionSpy.mockImplementation((_exception) => {
       exception = _exception;
     });
-    await req.get('/user/find?id=1').expect(500);
+    await req.post('/user/find').send({ id: 1 }).expect(500);
     expect(validationExceptionSpy).toHaveBeenCalledTimes(0);
     expect(serializationExceptionSpy).toHaveBeenCalledTimes(1);
     expect(exception).toBeInstanceOf(ZodSerializationException);
@@ -368,7 +385,8 @@ describe('api', { concurrent: true }, () => {
   test('appointment count returns number', async () => {
     const { req } = await setup();
     await req
-      .get('/user/appointment/count?userId=1')
+      .post('/user/appointment/count')
+      .send({ userId: 1 })
       .expect('Content-Type', /json/)
       .expect(200)
       .expect((resp) => {
@@ -390,7 +408,8 @@ describe('api', { concurrent: true }, () => {
       })
       .expect(201);
     await req
-      .get('/user/appointment/count?userId=1')
+      .post('/user/appointment/count')
+      .send({ userId: 1 })
       .expect('Content-Type', /json/)
       .expect(200)
       .expect((resp) => {
@@ -432,13 +451,14 @@ describe('api', { concurrent: true }, () => {
     const { app } = await createApp(moduleFixture);
     app.useLogger(false);
     const req = request(app.getHttpServer());
-    await req.get('/user/find?id=1').expect(200, {
+    await req.post('/user/find').send({ id: 1 }).expect(200, {
       id: 34,
       name: 'John',
       email: 'john@hotmail.com',
     });
     await req
-      .get('/user/find?id=1')
+      .post('/user/find')
+      .send({ id: 1 })
       .expect(200)
       .then((resp) => {
         expect(resp.body).toMatchObject({
@@ -467,8 +487,8 @@ describe('api', { concurrent: true }, () => {
   test('greet endpoint returns greeting', async () => {
     const { req } = await setup();
     await req
-      .get('/greet')
-      .query({ name: 'John' })
+      .post('/greet')
+      .send({ name: 'John' })
       .expect(200, 'Hello, John!');
   });
 
@@ -476,8 +496,8 @@ describe('api', { concurrent: true }, () => {
     const { req, validationExceptionSpy, serializationExceptionSpy } =
       await setup();
     await req
-      .get('/greet')
-      .query({ wrongField: 'John' })
+      .post('/greet')
+      .send({ wrongField: 'John' })
       .expect(400, {
         statusCode: 400,
         message: 'Validation failed',
@@ -505,48 +525,174 @@ describe('api', { concurrent: true }, () => {
       });
   });
 
+  test('a GET endpoint reads its search params', async () => {
+    const { req } = await setup();
+    await req
+      .get('/oauth/callback')
+      .query({ code: 'abc', state: 'xyz', expiresIn: '3600' })
+      .expect(200, { code: 'abc', state: 'xyz', expiresIn: 3600 });
+  });
+
+  test('a GET endpoint validates its search params', async () => {
+    const { req, validationExceptionSpy, serializationExceptionSpy } =
+      await setup();
+    await req
+      .get('/oauth/callback')
+      .query({ code: 'abc', expiresIn: 'soon' })
+      .expect(400, {
+        statusCode: 400,
+        message: 'Validation failed',
+        errors: [
+          {
+            expected: 'string',
+            code: 'invalid_type',
+            path: ['state'],
+            message: 'Invalid input: expected string, received undefined',
+          },
+          {
+            expected: 'number',
+            code: 'invalid_type',
+            received: 'NaN',
+            path: ['expiresIn'],
+            message: 'Invalid input: expected number, received NaN',
+          },
+        ],
+      });
+    expect(validationExceptionSpy).toHaveBeenCalledTimes(1);
+    expect(serializationExceptionSpy).toHaveBeenCalledTimes(0);
+  });
+
+  test('a GET endpoint answers no other method', async () => {
+    const { req } = await setup();
+    await req
+      .post('/oauth/callback')
+      .query({ code: 'abc', state: 'xyz', expiresIn: '3600' })
+      .expect(404);
+  });
+
+  test('an endpoint reads its search params and its body together', async () => {
+    const { req } = await setup();
+    await req
+      .post('/search')
+      .query({ page: '2' })
+      .send({ term: 'pizza', tags: ['vegan'] })
+      .expect(200, { term: 'pizza', tags: ['vegan'], page: 2 });
+    // Both sides apply their defaults.
+    await req
+      .post('/search')
+      .send({ term: 'pizza' })
+      .expect(200, { term: 'pizza', tags: [], page: 1 });
+  });
+
+  test('an endpoint validates its search params and its body', async () => {
+    const { req, validationExceptionSpy } = await setup();
+    await req
+      .post('/search')
+      .query({ page: '2' })
+      .send({ term: '' })
+      .expect(400)
+      .then((resp) => {
+        expect(resp.body.errors).toMatchObject([
+          { code: 'too_small', path: ['term'] },
+        ]);
+      });
+    await req
+      .post('/search')
+      .query({ page: '0' })
+      .send({ term: 'pizza' })
+      .expect(400)
+      .then((resp) => {
+        expect(resp.body.errors).toMatchObject([
+          { code: 'too_small', path: ['page'] },
+        ]);
+      });
+    expect(validationExceptionSpy).toHaveBeenCalledTimes(2);
+  });
+
   test('nested endpoints router module: recipes create works', async () => {
     const { req } = await setup();
     await req
-      .get('/recipes/create')
-      .query({ name: 'Pizza' })
+      .post('/recipes/create')
+      .send({ name: 'Pizza' })
       .expect(200, { id: 1, name: 'Pizza' });
     await req
-      .get('/recipes/create')
-      .query({ name: 'Pasta' })
+      .post('/recipes/create')
+      .send({ name: 'Pasta' })
       .expect(200, { id: 2, name: 'Pasta' });
   });
 
   test('manual endpoints router module: recipes-manual-1 create works', async () => {
     const { req } = await setup();
     await req
-      .get('/recipes-manual-1/create')
-      .query({ name: 'Pizza' })
+      .post('/recipes-manual-1/create')
+      .send({ name: 'Pizza' })
       .expect(200, { id: 1, name: 'Pizza', manual: true });
     await req
-      .get('/recipes-manual-1/create')
-      .query({ name: 'Pasta' })
+      .post('/recipes-manual-1/create')
+      .send({ name: 'Pasta' })
       .expect(200, { id: 2, name: 'Pasta', manual: true });
   });
 
   test('nested endpoints router module: recipes create input validation throws', async () => {
     const { req, validationExceptionSpy, serializationExceptionSpy } =
       await setup();
-    await req.get('/recipes/create').expect(400, {
-      statusCode: 400,
-      message: 'Validation failed',
-      errors: [
-        {
-          expected: 'string',
-          code: 'invalid_type',
-          path: ['name'],
-          message: 'Invalid input: expected string, received undefined',
-        },
-      ],
-    });
+    await req
+      .post('/recipes/create')
+      .send({})
+      .expect(400, {
+        statusCode: 400,
+        message: 'Validation failed',
+        errors: [
+          {
+            expected: 'string',
+            code: 'invalid_type',
+            path: ['name'],
+            message: 'Invalid input: expected string, received undefined',
+          },
+        ],
+      });
     expect(validationExceptionSpy).toHaveBeenCalledTimes(1);
     expect(serializationExceptionSpy).toHaveBeenCalledTimes(0);
   });
+});
+
+test('a GET endpoint cannot declare input', () => {
+  // A GET request has no body, so `input` is refused by the types (tscheck
+  // fails if this directive goes unused) and when the endpoint is defined.
+  expect(() =>
+    endpoint.query({
+      method: 'get',
+      // @ts-expect-error: `input` is `never` on a GET endpoint.
+      input: z.object({ name: z.string() }),
+      handler: () => null,
+    }),
+  ).toThrow(/a GET endpoint cannot declare `input`/);
+});
+
+test('a request without a body reads as `{}`, unless the input accepts `undefined`', async () => {
+  const allOptional = endpoint.mutation({
+    path: '/no-body/all-optional',
+    input: z.object({ a: z.string().default('x') }),
+    output: z.object({ a: z.string() }),
+    handler: ({ input }) => input,
+  });
+  const optionalBody = endpoint.mutation({
+    path: '/no-body/optional',
+    input: z.object({ a: z.string() }).optional(),
+    output: z.object({ given: z.boolean() }),
+    handler: ({ input }) => ({ given: input !== undefined }),
+  });
+  const moduleFixture = await Test.createTestingModule({
+    controllers: [allOptional, optionalBody],
+  }).compile();
+  const { app } = await createApp(moduleFixture);
+  try {
+    const req = request(app.getHttpServer());
+    await req.post('/no-body/all-optional').expect(200, { a: 'x' });
+    await req.post('/no-body/optional').expect(200, { given: false });
+  } finally {
+    await app.close();
+  }
 });
 
 test('spec works', async () => {
@@ -636,20 +782,21 @@ test('spec works', async () => {
         },
       },
       '/user/find': {
-        get: {
+        post: {
           operationId: 'UserFind',
           summary: '',
           tags: ['user'],
-          parameters: [
-            {
-              name: 'id',
-              required: true,
-              in: 'query',
-              schema: {
-                type: 'number',
+          parameters: [],
+          requestBody: {
+            required: true,
+            content: {
+              'application/json': {
+                schema: {
+                  $ref: '#/components/schemas/UserFindInput',
+                },
               },
             },
-          ],
+          },
           responses: {
             '200': {
               description: '',
@@ -705,20 +852,21 @@ test('spec works', async () => {
         },
       },
       '/user/appointment/count': {
-        get: {
+        post: {
           operationId: 'UserAppointmentCount',
           summary: '',
           tags: ['user/appointment'],
-          parameters: [
-            {
-              name: 'userId',
-              required: true,
-              in: 'query',
-              schema: {
-                type: 'number',
+          parameters: [],
+          requestBody: {
+            required: true,
+            content: {
+              'application/json': {
+                schema: {
+                  $ref: '#/components/schemas/UserAppointmentCountInput',
+                },
               },
             },
-          ],
+          },
           responses: {
             '200': {
               description: '',
@@ -840,20 +988,21 @@ test('spec works', async () => {
   expect(parsed).toMatchObject({
     paths: {
       '/recipes/create': {
-        get: {
+        post: {
           operationId: 'RecipesCreate',
           summary: '',
           tags: ['recipes'],
-          parameters: [
-            {
-              name: 'name',
-              required: true,
-              in: 'query',
-              schema: {
-                type: 'string',
+          parameters: [],
+          requestBody: {
+            required: true,
+            content: {
+              'application/json': {
+                schema: {
+                  $ref: '#/components/schemas/RecipesCreateInput',
+                },
               },
             },
-          ],
+          },
           responses: {
             '200': {
               description: '',
@@ -889,20 +1038,21 @@ test('spec works', async () => {
   expect(parsed).toMatchObject({
     paths: {
       '/recipes-manual-1/create': {
-        get: {
+        post: {
           operationId: 'RecipesManual1Create',
           summary: '',
           tags: ['recipes-manual-1'],
-          parameters: [
-            {
-              name: 'name',
-              required: true,
-              in: 'query',
-              schema: {
-                type: 'string',
+          parameters: [],
+          requestBody: {
+            required: true,
+            content: {
+              'application/json': {
+                schema: {
+                  $ref: '#/components/schemas/RecipesManual1CreateInput',
+                },
               },
             },
-          ],
+          },
           responses: {
             '200': {
               description: '',
@@ -941,7 +1091,7 @@ test('spec works', async () => {
   expect(parsed).toMatchObject({
     paths: {
       '/user/list-for-router-with-path': {
-        get: {
+        post: {
           operationId: 'UserListForRouterWithPath',
           parameters: [],
           responses: {
@@ -961,7 +1111,7 @@ test('spec works', async () => {
         },
       },
       '/src/endpoints/user/list/user-list-no-path': {
-        get: {
+        post: {
           operationId: 'SrcEndpointsUserListUserListNoPath',
           parameters: [],
           responses: {
@@ -981,7 +1131,7 @@ test('spec works', async () => {
         },
       },
       '/user/list-with-path': {
-        get: {
+        post: {
           operationId: 'UserListWithPath',
           parameters: [],
           responses: {
@@ -1001,7 +1151,7 @@ test('spec works', async () => {
         },
       },
       '/user/list-with-path-no-suffix': {
-        get: {
+        post: {
           operationId: 'UserListWithPathNoSuffix',
           parameters: [],
           responses: {
@@ -1022,4 +1172,62 @@ test('spec works', async () => {
       },
     },
   });
+  // Search params are query parameters on any method; `input` stays the
+  // body, and a GET has none.
+  expect(parsed).toMatchObject({
+    paths: {
+      '/oauth/callback': {
+        get: {
+          operationId: 'OauthCallback',
+          parameters: [
+            {
+              name: 'code',
+              required: true,
+              in: 'query',
+              schema: { type: 'string', minLength: 1 },
+            },
+            {
+              name: 'state',
+              required: true,
+              in: 'query',
+              schema: { type: 'string' },
+            },
+            {
+              name: 'expiresIn',
+              required: true,
+              in: 'query',
+              schema: { type: 'integer' },
+            },
+          ],
+        },
+      },
+      '/search': {
+        post: {
+          operationId: 'Search',
+          parameters: [
+            {
+              name: 'page',
+              required: false,
+              in: 'query',
+              schema: { type: 'integer', default: 1 },
+            },
+          ],
+          requestBody: {
+            required: true,
+            content: {
+              'application/json': {
+                schema: {
+                  $ref: '#/components/schemas/SearchInput',
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+  });
+  expect(Object.keys(parsed.paths['/oauth/callback'])).toEqual(['get']);
+  expect(parsed.paths['/oauth/callback'].get).not.toHaveProperty(
+    'requestBody',
+  );
 });

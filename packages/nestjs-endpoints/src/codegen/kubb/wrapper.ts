@@ -1,9 +1,48 @@
-import type { OpenAPIObject } from '@nestjs/swagger';
+import { settings } from '../../consts.js';
+import type { EndpointDescriptor } from '../../descriptors.js';
+import {
+  reachableSchemas,
+  type SharedSchemas,
+} from '../../shared-schemas.js';
+import { rootsOf } from './adapter.js';
 import { buildClientObjectExpression } from './buckets.js';
 import {
   operationKinds,
   type OperationKindOptions,
 } from './operation-kind.js';
+
+/**
+ * The descriptions router modules give their namespaces, keyed by the chain
+ * joined with `/`, written above each namespace bucket.
+ */
+function tagDescriptions(): Map<string, string> {
+  return new Map(
+    settings.openapi.tags.map(({ name, description }) => [
+      name,
+      description,
+    ]),
+  );
+}
+
+/**
+ * The descriptions a wrapper for `descriptors` writes above its buckets:
+ * those of every namespace chain, and each of its prefixes, the descriptors
+ * sit under. Keyed like `descriptions`.
+ */
+export function printedTagDescriptions(
+  descriptors: readonly EndpointDescriptor[],
+  descriptions: ReadonlyMap<string, string> = tagDescriptions(),
+): Record<string, string> {
+  const printed: Record<string, string> = {};
+  for (const { namespaceChain } of descriptors) {
+    for (let i = 1; i <= namespaceChain.length; i++) {
+      const key = namespaceChain.slice(0, i).join('/');
+      const description = descriptions.get(key);
+      if (description) printed[key] = description;
+    }
+  }
+  return printed;
+}
 
 /**
  * Build the consumer-facing axios wrapper source. It imports the Kubb-generated
@@ -14,7 +53,7 @@ import {
  * (see `./buckets`).
  */
 export function buildAxiosWrapperSource(params: {
-  document: OpenAPIObject;
+  descriptors: readonly EndpointDescriptor[];
   /** Import specifier for the generated `clients` barrel (no extension). */
   clientsImport: string;
   /** Import specifier for the emitted runtime module (no extension). */
@@ -22,10 +61,12 @@ export function buildAxiosWrapperSource(params: {
   /** Import specifier for the generated barrel whose types are re-exported. */
   typesImport: string;
 }): string {
-  const { document, clientsImport, runtimeImport, typesImport } = params;
+  const { descriptors, clientsImport, runtimeImport, typesImport } =
+    params;
 
   const buildExpr = buildClientObjectExpression({
-    document,
+    descriptors,
+    tagDescriptions: tagDescriptions(),
     plainAccess: (src) => `bindClient(_ops.${src}, _request)`,
     hookAccess: null,
     rootExtras: ['axios: _axios'],
@@ -58,10 +99,12 @@ export function buildAxiosWrapperSource(params: {
  *
  * - the imperative axios method (full `AxiosResponse`, bound to the instance
  *   via `bindOperation`), which also holds the operation's tree:
- *   - a query: `queryKey` and `queryOptions` (bound via `bindQueryOptions`);
- *   - anything else: `mutationKey` and `mutationOptions` (bound via
- *     `bindMutationOptions`);
- *   - with input: `schemas.input`, its JSON Schema from `schemas.ts`;
+ *   - an `endpoint.query()`: `queryKey` and `queryOptions` (bound via
+ *     `bindQueryOptions`);
+ *   - an `endpoint.mutation()`: `mutationKey` and `mutationOptions` (bound
+ *     via `bindMutationOptions`);
+ *   - with input or search parameters: `schemas.input` and `schemas.query`,
+ *     their JSON Schema from `schemas.ts`;
  * - its paired React Query hook (`bindHook`, which reads the bound client from
  *   `ApiClientContext`).
  *
@@ -71,7 +114,12 @@ export function buildAxiosWrapperSource(params: {
  * from the generated `hooks` barrel and return unwrapped data.
  */
 export function buildReactQueryWrapperSource(params: {
-  document: OpenAPIObject;
+  descriptors: readonly EndpointDescriptor[];
+  /**
+   * The app's shared schemas; those the descriptors reach become generated
+   * types.
+   */
+  shared: SharedSchemas;
   /** Import for the generated `clients` barrel (axios methods). */
   opsImport: string;
   /** Import for the generated `hooks` barrel. */
@@ -88,11 +136,12 @@ export function buildReactQueryWrapperSource(params: {
    * `override`).
    */
   pluginOptions: OperationKindOptions;
-  /** Source names of the operations `schemas.ts` has an input schema for. */
+  /** Source names of the operations `schemas.ts` has schemas for. */
   inputSchemaNames: ReadonlySet<string>;
 }): string {
   const {
-    document,
+    descriptors,
+    shared,
     opsImport,
     hooksImport,
     runtimeImport,
@@ -101,13 +150,16 @@ export function buildReactQueryWrapperSource(params: {
     pluginOptions,
     inputSchemaNames,
   } = params;
-  const kinds = operationKinds(document, pluginOptions);
-  // A schema of the document's own that Kubb names `InputSchema` comes
-  // through `export type *`; re-exporting the runtime's would hide it. Kubb's
+  const kinds = operationKinds(descriptors, pluginOptions);
+  // A shared schema of the app's own that Kubb names `InputSchema` comes
+  // through `export type *`; re-exporting the runtime's would hide it. Only
+  // the shared schemas this client's operations reach are generated. Kubb's
   // casing rules are its own, so any name that reads `inputschema` counts.
-  const ownsInputSchema = Object.keys(
-    document.components?.schemas ?? {},
-  ).some(
+  const generated = reachableSchemas(
+    descriptors.flatMap((d) => rootsOf(d, shared.renamed)),
+    shared,
+  );
+  const ownsInputSchema = Object.keys(generated).some(
     (name) =>
       name.replace(/[^A-Za-z0-9]/g, '').toLowerCase() === 'inputschema',
   );
@@ -116,7 +168,8 @@ export function buildReactQueryWrapperSource(params: {
   const binders = new Set<string>();
 
   const buildExpr = buildClientObjectExpression({
-    document,
+    descriptors,
+    tagDescriptions: tagDescriptions(),
     plainAccess: (src, { operationId, hasRequest }) => {
       const tree: string[] = [];
       const kind = kinds.get(operationId);
@@ -134,7 +187,7 @@ export function buildReactQueryWrapperSource(params: {
         );
       }
       if (inputSchemaNames.has(src)) {
-        tree.push(`schemas: { input: _schemas.${src} }`);
+        tree.push(`schemas: _schemas.${src}`);
       }
       if (!tree.length) {
         binders.add('bindClient');

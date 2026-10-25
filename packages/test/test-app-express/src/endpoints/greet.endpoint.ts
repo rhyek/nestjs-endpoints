@@ -2,10 +2,12 @@ import { endpoint } from 'nestjs-endpoints';
 import { z } from 'zod';
 import { HelloService } from './hello.service';
 
-export default endpoint({
-  input: z.object({
-    name: z.string(),
-  }),
+export const greetInput = z.object({
+  name: z.string(),
+});
+
+export default endpoint.query({
+  input: greetInput,
   output: z.string(),
   inject: {
     helloService: HelloService,

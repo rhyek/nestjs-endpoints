@@ -4,7 +4,7 @@ import { endpoint, z } from 'nestjs-endpoints';
 // both patterns side-by-side: `client.shop.useHomepage()` (the hook) on
 // the homepage and `client.shop.stats()` (imperative via the bound
 // axios client) on this one — both reached from the same `useApiClient()`.
-export default endpoint({
+export default endpoint.query({
   output: z.object({
     visitors: z.number(),
   }),

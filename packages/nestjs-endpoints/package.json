@@ -50,7 +50,7 @@
     "tscheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@kubb/adapter-oas": "5.11.0",
+    "@kubb/ast": "5.11.0",
     "@kubb/plugin-client": "5.5.15",
     "@kubb/plugin-react-query": "5.5.3",
     "@kubb/plugin-ts": "5.0.14",

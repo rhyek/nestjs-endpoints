@@ -1,6 +1,6 @@
 import { endpoint } from 'nestjs-endpoints';
 
-export default endpoint({
+export default endpoint.query({
   handler: async () => {
     throw new Error('test');
     await new Promise((resolve) => setTimeout(resolve, 1000));

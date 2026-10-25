@@ -5,14 +5,14 @@ import { RecipesRepository } from '../src/endpoints/recipes/repository.service';
 import { createApp } from './create-app';
 
 // Covers the file-based routing convention `$param` → `:param` (TanStack-style)
-// and the new `params` Zod-schema option on `endpoint(...)`.
+// and the `params` Zod-schema option.
 //
 // Routes exercised:
 // - PATCH  /recipes/edit/:recipeId            (folder leaf $recipeId)
-// - GET    /recipes/:recipeId/view            (folder $recipeId.view + endpoint.ts)
+// - POST   /recipes/:recipeId/view            (folder $recipeId.view + endpoint.ts)
 // - POST   /recipes/:recipeId/check-ingredients (nested folder $recipeId/...)
 // - DELETE /recipes/:recipeId/delete          (file $recipeId.delete.endpoint.ts)
-// - GET    /restaurant/:restaurantId/recipes/:recipeId/view (multi-param)
+// - POST   /restaurant/:restaurantId/recipes/:recipeId/view (multi-param)
 
 describe('path params via $-segment file-based routing', () => {
   async function setup() {
@@ -31,8 +31,8 @@ describe('path params via $-segment file-based routing', () => {
       // Seed via the existing create endpoint so we exercise the same
       // repository everything else reads from.
       const { body: created } = await req
-        .get('/recipes/create')
-        .query({ name: 'Pizza' })
+        .post('/recipes/create')
+        .send({ name: 'Pizza' })
         .expect(200);
       expect(created).toEqual({ id: 1, name: 'Pizza' });
 
@@ -45,8 +45,8 @@ describe('path params via $-segment file-based routing', () => {
       // Set ingredients directly on the repo so we can verify check.
       repo.update(1, { ingredients: ['flour', 'tomato', 'mozzarella'] });
 
-      // $recipeId.view/endpoint.ts — GET returns the recipe.
-      await req.get('/recipes/1/view').expect(200, {
+      // $recipeId.view/endpoint.ts — returns the recipe.
+      await req.post('/recipes/1/view').expect(200, {
         id: 1,
         name: 'Margherita',
         ingredients: ['flour', 'tomato', 'mozzarella'],
@@ -70,7 +70,7 @@ describe('path params via $-segment file-based routing', () => {
 
       // After deletion the view endpoint should 404 (NotFoundException
       // is thrown by the repo).
-      await req.get('/recipes/1/view').expect(404);
+      await req.post('/recipes/1/view').expect(404);
     } finally {
       await app.close();
     }
@@ -104,7 +104,7 @@ describe('path params via $-segment file-based routing', () => {
     const { app, req } = await setup();
     try {
       await req
-        .get('/restaurant/7/recipes/42/view')
+        .post('/restaurant/7/recipes/42/view')
         .expect(200, { restaurantId: 7, recipeId: 42 });
     } finally {
       await app.close();

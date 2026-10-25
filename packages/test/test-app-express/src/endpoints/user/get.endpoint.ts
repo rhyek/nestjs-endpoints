@@ -2,10 +2,8 @@ import { NotFoundException } from '@nestjs/common';
 import { endpoint, z } from 'nestjs-endpoints';
 import { UserService } from './user.service';
 
-export default endpoint({
+export default endpoint.query({
   input: z.object({
-    // GET endpoints use query params for input,
-    // so we need to coerce the string to a number
     id: z.coerce.number(),
   }),
   output: z.object({

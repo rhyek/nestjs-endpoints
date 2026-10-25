@@ -1,15 +1,32 @@
-import type { OpenAPIObject } from '@nestjs/swagger';
 import { describe, expect, test } from 'vitest';
+import type { EndpointDescriptor } from '../../descriptors.js';
 import { buildClientObjectExpression } from './buckets.js';
 
-/** Build a minimal OpenAPI document from a `paths` map for the bucket builder. */
-function doc(paths: Record<string, unknown>): OpenAPIObject {
+/** A minimal descriptor for the bucket builder. */
+function descriptor(
+  fields: Pick<EndpointDescriptor, 'operationId'> &
+    Partial<EndpointDescriptor>,
+): EndpointDescriptor {
   return {
-    openapi: '3.0.0',
-    info: { title: 't', version: '1' },
-    paths,
-  } as unknown as OpenAPIObject;
+    kind: 'query',
+    method: 'post',
+    path: '/',
+    pathParams: [],
+    namespaceChain: [],
+    tags: [],
+    summary: '',
+    outputs: [],
+    ...fields,
+  };
 }
+
+const input = { json: { type: 'object' }, components: {} };
+const query: EndpointDescriptor['query'] = {
+  json: { type: 'object', properties: { q: { type: 'string' } } },
+  components: {},
+  parameters: [{ name: 'q', required: false, schema: { type: 'string' } }],
+};
+const noTags = new Map<string, string>();
 
 const plain = (src: string) => `P(${src})`;
 const hook = (src: string) => `H(${src})`;
@@ -17,15 +34,19 @@ const hook = (src: string) => `H(${src})`;
 describe('buildClientObjectExpression', () => {
   test('nests namespaced ops and pairs plain + hook forms with stripped names', () => {
     const expr = buildClientObjectExpression({
-      document: doc({
-        '/auth/login': { post: { operationId: 'AuthLogin' } },
-        '/shop/cart/add': {
-          get: {
-            operationId: 'ShopCartAdd',
-            'x-namespace': ['shop', 'cart'],
-          },
-        },
-      }),
+      descriptors: [
+        descriptor({
+          operationId: 'AuthLogin',
+          method: 'post',
+          path: '/auth/login',
+        }),
+        descriptor({
+          operationId: 'ShopCartAdd',
+          path: '/shop/cart/add',
+          namespaceChain: ['shop', 'cart'],
+        }),
+      ],
+      tagDescriptions: noTags,
       plainAccess: plain,
       hookAccess: hook,
       rootExtras: ['axios: _axios'],
@@ -45,9 +66,14 @@ describe('buildClientObjectExpression', () => {
 
   test('axios-only build (no hookAccess) omits the hook form', () => {
     const expr = buildClientObjectExpression({
-      document: doc({
-        '/auth/login': { post: { operationId: 'AuthLogin' } },
-      }),
+      descriptors: [
+        descriptor({
+          operationId: 'AuthLogin',
+          method: 'post',
+          path: '/auth/login',
+        }),
+      ],
+      tagDescriptions: noTags,
       plainAccess: plain,
       hookAccess: null,
       rootExtras: [],
@@ -58,11 +84,14 @@ describe('buildClientObjectExpression', () => {
 
   test('quotes bucket / method keys that are not safe identifiers', () => {
     const expr = buildClientObjectExpression({
-      document: doc({
-        '/a': {
-          get: { operationId: 'CheckIn', 'x-namespace': ['check-out'] },
-        },
-      }),
+      descriptors: [
+        descriptor({
+          operationId: 'CheckIn',
+          path: '/a',
+          namespaceChain: ['check-out'],
+        }),
+      ],
+      tagDescriptions: noTags,
       plainAccess: plain,
       hookAccess: null,
       rootExtras: [],
@@ -73,10 +102,11 @@ describe('buildClientObjectExpression', () => {
   test('throws when two operations resolve to the same wrapper property', () => {
     expect(() =>
       buildClientObjectExpression({
-        document: doc({
-          '/foo': { get: { operationId: 'Thing' } },
-          '/bar': { get: { operationId: 'Thing' } },
-        }),
+        descriptors: [
+          descriptor({ operationId: 'Thing', path: '/foo' }),
+          descriptor({ operationId: 'Thing', path: '/bar' }),
+        ],
+        tagDescriptions: noTags,
         plainAccess: plain,
         hookAccess: null,
         rootExtras: [],
@@ -90,76 +120,85 @@ describe('buildClientObjectExpression', () => {
       t: { method: string; hasRequest: boolean },
     ) => `${src}:${t.method}:${t.hasRequest}`;
     const expr = buildClientObjectExpression({
-      document: {
-        ...doc({
-          '/none': { get: { operationId: 'None' } },
-          '/query': {
-            get: {
-              operationId: 'Query',
-              parameters: [{ in: 'query', name: 'q' }],
-            },
-          },
-          '/cookie': {
-            get: {
-              operationId: 'Cookie',
-              parameters: [{ in: 'cookie', name: 'c' }],
-            },
-          },
-          '/item/{id}': {
-            parameters: [{ in: 'path', name: 'id', required: true }],
-            get: { operationId: 'Item' },
-          },
-          '/ref': {
-            get: {
-              operationId: 'Ref',
-              parameters: [{ $ref: '#/components/parameters/Auth' }],
-            },
-          },
-          '/body': {
-            post: {
-              operationId: 'Body',
-              requestBody: {
-                content: { 'application/json': { schema: {} } },
-              },
-            },
-          },
-          '/body-ref': {
-            post: {
-              operationId: 'BodyRef',
-              requestBody: { $ref: '#/components/requestBodies/Thing' },
-            },
+      descriptors: [
+        descriptor({ operationId: 'None', path: '/none' }),
+        descriptor({ operationId: 'Query', path: '/query', query }),
+        descriptor({ operationId: 'Cookie', path: '/cookie' }),
+        descriptor({
+          operationId: 'Item',
+          path: '/item/{id}',
+          pathParams: [{ name: 'id', schema: { type: 'string' } }],
+        }),
+        descriptor({
+          operationId: 'Ref',
+          method: 'get',
+          path: '/ref',
+          query,
+        }),
+        descriptor({ operationId: 'Body', path: '/body', input }),
+        descriptor({
+          operationId: 'BodyRef',
+          path: '/body-ref',
+          input: {
+            json: { $ref: '#/components/schemas/BodyRefInput' },
+            components: { BodyRefInput: { type: 'object' } },
           },
         }),
-        components: {
-          parameters: { Auth: { in: 'header', name: 'x-auth' } },
-          requestBodies: {
-            Thing: { content: { 'application/json': { schema: {} } } },
-          },
-        },
-      } as unknown as OpenAPIObject,
+      ],
+      tagDescriptions: noTags,
       plainAccess: target,
       hookAccess: null,
       rootExtras: [],
     });
-    expect(expr).toContain('none: none:get:false');
-    expect(expr).toContain('query: query:get:true');
-    // Kubb gives cookies no request group.
-    expect(expr).toContain('cookie: cookie:get:false');
-    // Path-item level parameters count.
-    expect(expr).toContain('item: item:get:true');
+    expect(expr).toContain('none: none:post:false');
+    expect(expr).toContain('query: query:post:true');
+    // Neither path parameters, query nor input: no request argument.
+    expect(expr).toContain('cookie: cookie:post:false');
+    // Path parameters alone count.
+    expect(expr).toContain('item: item:post:true');
     expect(expr).toContain('ref: ref:get:true');
     expect(expr).toContain('body: body:post:true');
     expect(expr).toContain('bodyRef: bodyRef:post:true');
   });
 
+  test('a query carries request data only through its search parameters', () => {
+    const target = (src: string, t: { hasRequest: boolean }) =>
+      `${src}:${t.hasRequest}`;
+    const expr = buildClientObjectExpression({
+      descriptors: [
+        // `query: z.object({})`: no search parameters, which Kubb gives no
+        // request argument.
+        descriptor({
+          operationId: 'EmptyQuery',
+          path: '/empty-query',
+          query: { ...query, parameters: [] },
+        }),
+        descriptor({
+          operationId: 'PathOnly',
+          path: '/path-only/{id}',
+          pathParams: [{ name: 'id', schema: { type: 'string' } }],
+        }),
+      ],
+      tagDescriptions: noTags,
+      plainAccess: target,
+      hookAccess: null,
+      rootExtras: [],
+    });
+    expect(expr).toContain('emptyQuery: emptyQuery:false');
+    expect(expr).toContain('pathOnly: pathOnly:true');
+  });
+
   test('throws when a namespace segment collides with a reserved root key', () => {
     expect(() =>
       buildClientObjectExpression({
-        document: doc({
-          '/x': {
-            get: { operationId: 'AxiosThing', 'x-namespace': ['axios'] },
-          },
-        }),
+        descriptors: [
+          descriptor({
+            operationId: 'AxiosThing',
+            path: '/x',
+            namespaceChain: ['axios'],
+          }),
+        ],
+        tagDescriptions: noTags,
         plainAccess: plain,
         hookAccess: null,
         rootExtras: [],

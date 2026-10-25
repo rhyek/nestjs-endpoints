@@ -40,13 +40,13 @@ describe('the operation tree', () => {
     );
     expect(
       queryClient.getQueryData(
-        api.greet.queryKey({ query: { name: 'Ana' } }),
+        api.greet.queryKey({ body: { name: 'Ana' } }),
       ),
     ).toBe('Hello, Ana!');
 
     await expect(
       new QueryClient().fetchQuery({
-        ...unreachable.greet.queryOptions({ query: { name: 'Ana' } }),
+        ...unreachable.greet.queryOptions({ body: { name: 'Ana' } }),
         retry: false,
       }),
     ).rejects.toMatchObject(networkError);
@@ -101,7 +101,47 @@ describe('the operation tree', () => {
     expect(JSON.stringify(input)).not.toContain('#/components/');
   });
 
-  test('an operation without input has no schemas', () => {
+  test('schemas.query describes the search params', () => {
+    // A GET with only search params has `query` and no `input`.
+    expect(api.oauthCallback.schemas).toEqual({
+      query: {
+        type: 'object',
+        properties: {
+          code: { type: 'string', minLength: 1 },
+          state: { type: 'string' },
+          expiresIn: expect.objectContaining({ type: 'integer' }),
+        },
+        required: ['code', 'state', 'expiresIn'],
+      },
+    });
+    // Both sides of a request that carries both.
+    expect(Object.keys(api.search.schemas).sort()).toEqual([
+      'input',
+      'query',
+    ]);
+    expect(api.search.schemas.query).toMatchObject({
+      properties: { page: { type: 'integer', default: 1 } },
+    });
+    expect(api.search.schemas.input.required).toEqual(['term']);
+    // An input-only operation has no `query`.
+    expect('query' in api.greet.schemas).toBe(false);
+  });
+
+  test('an endpoint.query() is a query whatever its method', () => {
+    // `search` is a POST, `oauthCallback` a GET; both get query helpers.
+    for (const op of [api.search, api.oauthCallback]) {
+      expect(typeof op.queryOptions).toBe('function');
+      expect(typeof op.queryKey).toBe('function');
+      expect('mutationOptions' in op).toBe(false);
+    }
+    expect(typeof api.useSearch).toBe('function');
+    expect(typeof api.useOauthCallback).toBe('function');
+    // And an endpoint.mutation() gets mutation helpers.
+    expect(typeof api.profileUpdate.mutationOptions).toBe('function');
+    expect('queryOptions' in api.profileUpdate).toBe(false);
+  });
+
+  test('an operation without input or search params has no schemas', () => {
     expect('schemas' in api.articles.latest).toBe(false);
     expect('schemas' in api.greet).toBe(true);
   });
@@ -117,7 +157,7 @@ describe('the operation tree', () => {
     >();
     // The call keeps its own generic signature beside the tree.
     expectTypeOf(api.greet).toBeCallableWith({
-      query: { name: 'Ana' },
+      body: { name: 'Ana' },
       throwOnError: false,
     });
   });

@@ -37,8 +37,8 @@ describe('recipes middleware + interceptor', () => {
     const { app, req } = await bootstrap();
     try {
       await req
-        .get('/recipes/create')
-        .query({ name: 'Pizza' })
+        .post('/recipes/create')
+        .send({ name: 'Pizza' })
         .expect(200);
       // let res.on('finish') callbacks flush
       await new Promise((resolve) => setTimeout(resolve, 25));
@@ -66,7 +66,7 @@ describe('recipes middleware + interceptor', () => {
   test('middleware excluded for /recipes/list; interceptor still runs', async () => {
     const { app, req } = await bootstrap();
     try {
-      await req.get('/recipes/list').expect(200);
+      await req.post('/recipes/list').expect(200);
       await new Promise((resolve) => setTimeout(resolve, 25));
       const entries = relevantRecipesLogs();
       expect(entries).toEqual([

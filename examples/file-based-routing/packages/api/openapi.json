@@ -31,13 +31,14 @@
         "tags": [
           "shop"
         ],
+        "x-endpoint-kind": "mutation",
         "x-namespace": [
           "shop"
         ]
       }
     },
     "/shop/homepage": {
-      "get": {
+      "post": {
         "operationId": "ShopHomepage",
         "parameters": [],
         "responses": {
@@ -56,13 +57,14 @@
         "tags": [
           "shop"
         ],
+        "x-endpoint-kind": "query",
         "x-namespace": [
           "shop"
         ]
       }
     },
     "/shop/stats": {
-      "get": {
+      "post": {
         "operationId": "ShopStats",
         "parameters": [],
         "responses": {
@@ -81,13 +83,14 @@
         "tags": [
           "shop"
         ],
+        "x-endpoint-kind": "query",
         "x-namespace": [
           "shop"
         ]
       }
     },
     "/shop/recipes/{recipeId}/view": {
-      "get": {
+      "post": {
         "operationId": "ShopRecipesView",
         "parameters": [
           {
@@ -115,6 +118,7 @@
         "tags": [
           "shop/recipes"
         ],
+        "x-endpoint-kind": "query",
         "x-namespace": [
           "shop",
           "recipes"
@@ -151,6 +155,7 @@
         "tags": [
           "shop/recipes"
         ],
+        "x-endpoint-kind": "mutation",
         "x-namespace": [
           "shop",
           "recipes"
@@ -196,6 +201,7 @@
         "tags": [
           "shop/recipes"
         ],
+        "x-endpoint-kind": "mutation",
         "x-namespace": [
           "shop",
           "recipes"
@@ -203,7 +209,7 @@
       }
     },
     "/shop/recipes/list": {
-      "get": {
+      "post": {
         "operationId": "ShopRecipesList",
         "parameters": [],
         "responses": {
@@ -222,6 +228,7 @@
         "tags": [
           "shop/recipes"
         ],
+        "x-endpoint-kind": "query",
         "x-namespace": [
           "shop",
           "recipes"
@@ -251,21 +258,31 @@
   "servers": [],
   "components": {
     "schemas": {
-      "ShopRecipesViewOutput": {
+      "ShopCateringBookInput": {
         "type": "object",
         "properties": {
-          "id": {
-            "type": "number"
+          "email": {
+            "type": "string",
+            "format": "email",
+            "pattern": "^(?:[A-Za-z0-9_'+\\-]+\\.)*[A-Za-z0-9_'+\\-]*[A-Za-z0-9_+-]@(?:[A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
           },
-          "name": {
-            "type": "string"
+          "date": {
+            "oneOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "string",
+                "format": "date"
+              }
+            ]
           }
         },
         "required": [
-          "id",
-          "name"
-        ],
-        "additionalProperties": false
+          "email",
+          "date"
+        ]
       },
       "ShopRecipesCreateInput": {
         "type": "object",
@@ -278,6 +295,50 @@
         "required": [
           "name"
         ]
+      },
+      "ShopRecipesEditInput": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "name"
+        ]
+      },
+      "ShopCateringBookOutput": {
+        "type": "object",
+        "properties": {
+          "confirmed": {
+            "type": "boolean"
+          },
+          "for": {
+            "type": "string"
+          },
+          "on": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "confirmed",
+          "for",
+          "on"
+        ],
+        "additionalProperties": false
+      },
+      "ShopHomepageOutput": {
+        "type": "object",
+        "properties": {
+          "tagline": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "tagline"
+        ],
+        "additionalProperties": false
       },
       "ShopRecipesCreateOutput": {
         "type": "object",
@@ -294,18 +355,6 @@
           "name"
         ],
         "additionalProperties": false
-      },
-      "ShopRecipesEditInput": {
-        "type": "object",
-        "properties": {
-          "name": {
-            "type": "string",
-            "minLength": 1
-          }
-        },
-        "required": [
-          "name"
-        ]
       },
       "ShopRecipesEditOutput": {
         "type": "object",
@@ -342,52 +391,19 @@
           "additionalProperties": false
         }
       },
-      "ShopCateringBookInput": {
+      "ShopRecipesViewOutput": {
         "type": "object",
         "properties": {
-          "email": {
-            "type": "string",
-            "format": "email",
-            "pattern": "^(?:[A-Za-z0-9_'+\\-]+\\.)*[A-Za-z0-9_'+\\-]*[A-Za-z0-9_+-]@(?:[A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
+          "id": {
+            "type": "number"
           },
-          "date": {
+          "name": {
             "type": "string"
           }
         },
         "required": [
-          "email",
-          "date"
-        ]
-      },
-      "ShopCateringBookOutput": {
-        "type": "object",
-        "properties": {
-          "confirmed": {
-            "type": "boolean"
-          },
-          "for": {
-            "type": "string"
-          },
-          "on": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "confirmed",
-          "for",
-          "on"
-        ],
-        "additionalProperties": false
-      },
-      "ShopHomepageOutput": {
-        "type": "object",
-        "properties": {
-          "tagline": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "tagline"
+          "id",
+          "name"
         ],
         "additionalProperties": false
       },

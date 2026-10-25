@@ -5,7 +5,7 @@ import {
   IAppointmentRepository,
 } from '../appointment-repository.interface';
 
-export default endpoint({
+export default endpoint.query({
   input: z.object({
     userId: z.coerce.number(),
   }),

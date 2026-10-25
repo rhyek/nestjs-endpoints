@@ -1,103 +1,80 @@
 /**
- * Each operation's input as self-contained JSON Schema, for the react-query
- * client's `schemas.ts` (`api.<operation>.schemas.input`). "Input" is what an
- * endpoint declares as `input`: its JSON request body, or, when it has no
- * body, its query parameters gathered into an object. Path parameters,
- * headers and a body that is not JSON are not input.
+ * Each operation's request schemas as self-contained JSON Schema, for the
+ * react-query client's `schemas.ts`: `api.<operation>.schemas.input` is what
+ * the endpoint declares as `input`, the one the client's body type is built
+ * from, and `schemas.query` what it declares as `query`, with the shared
+ * schemas they refer to inlined. Path parameters are neither, and a `query`
+ * without properties has no search parameters to describe.
  */
-import type { OpenAPIObject } from '@nestjs/swagger';
-import {
-  deref,
-  documentOperations,
-  isLocalRef,
-  operationParameters,
-  operationSourceName,
-  resolveLocalRef,
-  type Operation,
-  type Parameter,
-  type PathItem,
-} from './document.js';
+import type { EndpointDescriptor } from '../../descriptors.js';
+import type { SharedSchemas } from '../../shared-schemas.js';
+import { operationSourceName } from './buckets.js';
 
 export type InputSchemaEntry = {
   /** The operation's name on the generated flat module (`authLogin`). */
   sourceName: string;
-  kind: 'body' | 'query';
-  /** JSON Schema with every `$ref` resolved. */
-  schema: Record<string, unknown>;
+  /** JSON Schema with every `$ref` resolved, by the request group it types. */
+  schemas: {
+    input?: Record<string, unknown>;
+    query?: Record<string, unknown>;
+  };
 };
 
+/** What a `$ref` resolves against: the shared schemas, as components. */
+type RefTarget = { components: { schemas: Record<string, unknown> } };
+
 /**
- * The input schema of every operation that has input, keyed by source name.
- * Pass the document each client is generated from (already filtered to its
- * namespaces), so the map holds only that client's operations.
+ * The request schemas of every operation that has an input or search
+ * parameters, keyed by source name. Pass the descriptors each client is
+ * generated from (already filtered to its namespaces), so the map holds only
+ * that client's operations.
  */
 export function collectInputSchemas(
-  document: OpenAPIObject,
+  descriptors: readonly EndpointDescriptor[],
+  shared: SharedSchemas,
 ): Map<string, InputSchemaEntry> {
+  const document: RefTarget = { components: { schemas: shared.schemas } };
   const entries = new Map<string, InputSchemaEntry>();
-  for (const { pathItem, op } of documentOperations(document)) {
-    const input = operationInput(document, pathItem, op);
-    if (!input) continue;
-    const sourceName = operationSourceName(op.operationId);
-    entries.set(sourceName, {
-      sourceName,
-      kind: input.kind,
-      schema: resolveRefs(
-        document,
-        input.schema,
-        op.operationId,
-        [],
-      ) as Record<string, unknown>,
-    });
+  const resolve = (json: unknown, operationId: string) =>
+    resolveRefs(document, json, operationId, []) as Record<
+      string,
+      unknown
+    >;
+  for (const { operationId, input, query } of descriptors) {
+    const schemas: InputSchemaEntry['schemas'] = {};
+    if (input) {
+      schemas.input = resolve(input.json, operationId);
+    }
+    // Without search parameters there is no query type to describe.
+    if (query?.parameters.length) {
+      schemas.query = resolve(query.json, operationId);
+    }
+    if (!schemas.input && !schemas.query) continue;
+    const sourceName = operationSourceName(operationId);
+    entries.set(sourceName, { sourceName, schemas });
   }
   return entries;
 }
 
-function operationInput(
-  document: OpenAPIObject,
-  pathItem: PathItem,
-  op: Operation,
-): { kind: InputSchemaEntry['kind']; schema: unknown } | undefined {
-  const content = deref(document, op.requestBody)?.content;
-  if (content) {
-    // A body in another format (a file upload, say) is the input, and JSON
-    // Schema cannot describe it, so the operation gets none.
-    const body = content['application/json']?.schema;
-    return body ? { kind: 'body', schema: body } : undefined;
+function isLocalRef(ref: unknown): ref is `#/${string}` {
+  return typeof ref === 'string' && ref.startsWith('#/');
+}
+
+/**
+ * The value a local JSON pointer (`#/components/schemas/Name`) points at,
+ * with `~1` and `~0` unescaped; `undefined` when nothing is there.
+ */
+function resolveLocalRef(
+  document: RefTarget,
+  ref: `#/${string}`,
+): unknown {
+  let target: unknown = document;
+  for (const segment of ref.slice(2).split('/')) {
+    target = (target as Record<string, unknown> | undefined)?.[
+      segment.replace(/~1/g, '/').replace(/~0/g, '~')
+    ];
   }
-  const query = operationParameters(document, pathItem, op).filter(
-    (parameter): parameter is Parameter & { name: string } =>
-      parameter.in === 'query' && Boolean(parameter.name),
-  );
-  if (!query.length) {
-    return undefined;
-  }
-  const properties: Record<string, unknown> = {};
-  const required: string[] = [];
-  for (const {
-    name,
-    schema = {},
-    description,
-    required: isRequired,
-  } of query) {
-    // The parameter's description belongs to the field it becomes. Beside a
-    // `$ref` it is a sibling keyword, which wins over the referenced one.
-    properties[name] =
-      description === undefined
-        ? schema
-        : { ...(schema as object), description };
-    if (isRequired) {
-      required.push(name);
-    }
-  }
-  return {
-    kind: 'query',
-    schema: {
-      type: 'object',
-      properties,
-      ...(required.length ? { required } : {}),
-    },
-  };
+  return target;
 }
 
 /**
@@ -108,7 +85,7 @@ function operationInput(
  * schema reached twice side by side is fine.
  */
 function resolveRefs(
-  document: OpenAPIObject,
+  document: RefTarget,
   value: unknown,
   operationId: string,
   chain: readonly string[],
@@ -141,7 +118,7 @@ function resolveRefs(
     : undefined;
   if (target === undefined) {
     throw new Error(
-      `The input schema of operation "${operationId}" refers to ${ref}, which is not in the document.`,
+      `The input schema of operation "${operationId}" refers to ${ref}, which is not among the shared schemas.`,
     );
   }
   return {
@@ -174,11 +151,11 @@ const SCHEMA_MAPS = new Set([
 /**
  * One keyword of a schema, with its `$ref`s resolved where it holds schemas.
  * Data is copied as it is, `$ref`-shaped values included. A `discriminator`'s
- * `mapping` names schemas in the document, so it goes; the inlined members
+ * `mapping` names shared schemas by `$ref`, so it goes; the inlined members
  * still say which value of `propertyName` selects them.
  */
 function resolveKeyword(
-  document: OpenAPIObject,
+  document: RefTarget,
   key: string,
   item: unknown,
   operationId: string,
@@ -203,10 +180,14 @@ function resolveKeyword(
   return resolveRefs(document, item, operationId, chain);
 }
 
+/** The client's request group each schema types: `input` is the body. */
+const clientGroups = { input: 'body', query: 'query' } as const;
+
 /**
- * The source of `schemas.ts`: one `InputSchema<T>` per entry, `T` being the
- * operation's request body or query type, so code holding the schema alone
- * can tell the shape of the value it describes.
+ * The source of `schemas.ts`: per entry, an object holding an
+ * `InputSchema<T>` per request group, `T` being the operation's request body
+ * (`input`) or search parameters (`query`) type, so code holding the schema
+ * alone can tell the shape of the value it describes.
  */
 export function buildSchemasModuleSource(params: {
   entries: Iterable<InputSchemaEntry>;
@@ -221,7 +202,8 @@ export function buildSchemasModuleSource(params: {
     `/**\n` +
     ` * Generated by nestjs-endpoints — do not edit manually.\n` +
     ` *\n` +
-    ` * Each operation's input as JSON Schema, with every $ref resolved.\n` +
+    ` * Each operation's input and query as JSON Schema, with every $ref\n` +
+    ` * resolved.\n` +
     ` */\n`;
   if (!entries.length) {
     return `${header}export {};\n`;
@@ -236,10 +218,16 @@ export function buildSchemasModuleSource(params: {
     `import type { InputSchema } from '${runtimeImport}';\n` +
     `import type { ${typeNames.join(', ')} } from '${typesImport}';\n` +
     entries
-      .map(
-        ({ sourceName, kind, schema }) =>
-          `\nexport const ${sourceName}: InputSchema<NonNullable<${optionsType(sourceName)}['${kind}']>> = ${JSON.stringify(schema, null, 2)};\n`,
-      )
+      .map(({ sourceName, schemas }) => {
+        const type = (['input', 'query'] as const)
+          .filter((group) => schemas[group])
+          .map(
+            (group) =>
+              `${group}: InputSchema<NonNullable<${optionsType(sourceName)}['${clientGroups[group]}']>>`,
+          )
+          .join('; ');
+        return `\nexport const ${sourceName}: { ${type} } = ${JSON.stringify(schemas, null, 2)};\n`;
+      })
       .join('')
   );
 }

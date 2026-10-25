@@ -13,5 +13,5 @@ import { client } from '../client-runtime'
 export function shopHomepage<ThrowOnError extends boolean = true>(options: Options<ShopHomepageOptions, ThrowOnError> = {}): Promise<RequestResult<ShopHomepageResponses, ThrowOnError>> {
   const { client: request = client, ...config } = options
 
-  return request({ method: 'GET', url: '/shop/homepage', ...config, throwOnError: config.throwOnError ?? true }) as Promise<RequestResult<ShopHomepageResponses, ThrowOnError>>
+  return request({ method: 'POST', url: '/shop/homepage', ...config, throwOnError: config.throwOnError ?? true }) as Promise<RequestResult<ShopHomepageResponses, ThrowOnError>>
 }

@@ -1,8 +1,10 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { ZodValidationException } from 'nestjs-endpoints';
 import { AuthService } from '../src/auth/auth.service';
+import oauthCallbackEndpoint from '../src/endpoints/oauth/callback.endpoint';
 import recipesEditEndpoint from '../src/endpoints/recipes/edit/$recipeId.endpoint';
 import { RecipesRepository } from '../src/endpoints/recipes/repository.service';
+import searchEndpoint from '../src/endpoints/search.endpoint';
 import userCreateEndpoint from '../src/endpoints/user/create.endpoint';
 import userFindEndpoint from '../src/endpoints/user/find.endpoint';
 import { userListNoPath as userListNoPathEndpoint } from '../src/endpoints/user/list/user-list-no-path.endpoint';
@@ -113,5 +115,44 @@ test('invoke threads path params through the second arg', async () => {
     expect(error).toBeInstanceOf(ZodValidationException);
     const issues = (error as ZodValidationException).getZodError().issues;
     expect(issues).toMatchObject([{ path: ['recipeId'] }]);
+  }
+});
+
+test('invoke threads search params through the last arg', async () => {
+  const moduleFixture: TestingModule = await Test.createTestingModule({
+    controllers: [oauthCallbackEndpoint, searchEndpoint],
+  }).compile();
+  const app = moduleFixture.createNestApplication();
+  app.useLogger(false);
+  await app.init();
+
+  // Search param strings get coerced by the Zod schema, as over HTTP.
+  const oauthCallback = app.get(oauthCallbackEndpoint);
+  await expect(
+    oauthCallback.invoke({
+      query: { code: 'abc', state: 'xyz', expiresIn: '3600' },
+    }),
+  ).resolves.toEqual({ code: 'abc', state: 'xyz', expiresIn: 3600 });
+
+  // With an `input`, the body comes first and the search params after it.
+  const search = app.get(searchEndpoint);
+  await expect(
+    search.invoke({ term: 'pizza' }, { query: { page: '3' } }),
+  ).resolves.toEqual({ term: 'pizza', tags: [], page: 3 });
+
+  // Every search param is optional, so the options may be left out.
+  await expect(search.invoke({ term: 'pizza' })).resolves.toEqual({
+    term: 'pizza',
+    tags: [],
+    page: 1,
+  });
+
+  try {
+    await search.invoke({ term: 'pizza' }, { query: { page: 0 } });
+    throw new Error('Should not reach here');
+  } catch (error) {
+    expect(error).toBeInstanceOf(ZodValidationException);
+    const issues = (error as ZodValidationException).getZodError().issues;
+    expect(issues).toMatchObject([{ path: ['page'] }]);
   }
 });

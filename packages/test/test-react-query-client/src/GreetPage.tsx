@@ -5,7 +5,7 @@ export function GreetPage() {
   const apiClient = useApiClient();
   const [name, setName] = useState('');
   const { data, error, status, refetch } = apiClient.useGreet(
-    { query: { name } },
+    { body: { name } },
     {
       query: {
         enabled: !!name,

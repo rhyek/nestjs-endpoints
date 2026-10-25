@@ -1,7 +1,7 @@
 import { endpoint, z } from 'nestjs-endpoints';
 import { RecipesRepository } from './repository.service';
 
-export default endpoint({
+export default endpoint.query({
   output: z.array(
     z.object({
       id: z.number(),

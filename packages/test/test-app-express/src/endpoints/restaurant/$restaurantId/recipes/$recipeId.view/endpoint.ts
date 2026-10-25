@@ -3,7 +3,7 @@ import { endpoint, z } from 'nestjs-endpoints';
 // Demonstrates multiple path parameters in a single endpoint:
 // folder layout `restaurant/$restaurantId/recipes/$recipeId.view/`
 // → URL `restaurant/:restaurantId/recipes/:recipeId/view`.
-export default endpoint({
+export default endpoint.query({
   params: z.object({
     restaurantId: z.coerce.number(),
     recipeId: z.coerce.number(),

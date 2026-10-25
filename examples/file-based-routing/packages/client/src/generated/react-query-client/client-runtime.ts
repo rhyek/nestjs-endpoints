@@ -170,3 +170,64 @@ export function bindHook<F extends (...args: never[]) => unknown>(
     );
   }) as unknown as F;
 }
+
+/**
+ * `bindClient`, plus the operation's tree (its query or mutation options, and
+ * its input schema) as properties of the bound function. One call does both:
+ * nesting `bindClient(...)` inside `Object.assign(...)` would make
+ * TypeScript fix the request function's `ThrowOnError` type parameter.
+ */
+export function bindOperation<
+  F extends (...args: never[]) => unknown,
+  T extends object,
+>(fn: F, request: Client, tree: T): F & T {
+  return Object.assign(bindClient(fn, request), tree);
+}
+
+/**
+ * Wrap a generated `xQueryOptions` so the query it describes calls through
+ * the bound client, outside React too (`queryClient.ensureQueryData(...)` in
+ * a route loader). The request config it takes last gets `client`;
+ * `hasRequest` says whether the request data comes before it.
+ */
+export function bindQueryOptions<F extends (...args: never[]) => unknown>(
+  fn: F,
+  request: Client,
+  hasRequest: boolean,
+): F {
+  return withClient(fn, request, hasRequest ? 1 : 0);
+}
+
+/**
+ * Wrap a generated `xMutationOptions` so the mutation it describes calls
+ * through the bound client. Its one argument is the request config.
+ */
+export function bindMutationOptions<F extends (...args: never[]) => unknown>(
+  fn: F,
+  request: Client,
+): F {
+  return withClient(fn, request, 0);
+}
+
+function withClient<F extends (...args: never[]) => unknown>(
+  fn: F,
+  request: Client,
+  configIndex: number,
+): F {
+  return ((...args: unknown[]) =>
+    (fn as unknown as (...rest: unknown[]) => unknown)(
+      ...Array.from({ length: configIndex }, (_, i) => args[i]),
+      { ...(args[configIndex] as object | undefined), client: request },
+    )) as unknown as F;
+}
+
+/**
+ * An operation's input or query as JSON Schema (`schemas.input`,
+ * `schemas.query`). `'~type'` is never
+ * there at runtime: it carries the type of the value the schema describes, so
+ * code that is handed only the schema, a form library say, can infer it.
+ */
+export type InputSchema<T> = {
+  readonly [key: string]: unknown;
+  readonly '~type'?: T;
+};

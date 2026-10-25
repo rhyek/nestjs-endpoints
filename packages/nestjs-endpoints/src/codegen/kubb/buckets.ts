@@ -1,23 +1,36 @@
 /**
- * Shared logic for turning an OpenAPI document into the nested, namespaced
- * client shape — operation collection (with `x-namespace` chains, over the
- * operations and names of `./document`), bucket-tree assembly with collision
- * detection, and serialization to an object literal. Consumed by the axios
- * and react-query wrapper builders in `./kubb`, which supply the
+ * Shared logic for turning the endpoints' descriptors into the nested,
+ * namespaced client shape — operation collection (by `namespaceChain`, under
+ * the names the generated code gives them), bucket-tree assembly with
+ * collision detection, and serialization to an object literal. Consumed by
+ * the axios and react-query wrapper builders in `./kubb`, which supply the
  * per-operation access expressions.
  */
-import type { OpenAPIObject } from '@nestjs/swagger';
+import type { EndpointDescriptor } from '../../descriptors.js';
 import type { HttpMethod } from '../http-methods.js';
-import {
-  deref,
-  documentOperations,
-  normalizeOperationIdToPascal,
-  operationParameters,
-  operationSourceName,
-  type Operation,
-  type PathItem,
-} from './document.js';
 import { stripNamespaceFromFlatName } from './name-transform.js';
+
+/**
+ * Normalize an operationId to an identifier: treat any non-alphanumeric
+ * separator (underscore, hyphen, space) as a word boundary and PascalCase
+ * the token on the right. Matches both the generated client's naming and
+ * NestJS's default `ControllerClass_methodName` operationId (emitted as
+ * `controllerClassMethodName`).
+ */
+export function normalizeOperationIdToPascal(operationId: string): string {
+  let normalized = operationId.replace(
+    /[^A-Za-z0-9]+([A-Za-z0-9])/g,
+    (_, c: string) => c.toUpperCase(),
+  );
+  normalized = normalized.replace(/[^A-Za-z0-9]/g, '');
+  return normalized.charAt(0).toUpperCase() + normalized.slice(1);
+}
+
+/** The operation's request function on the generated flat module (`authLogin`). */
+export function operationSourceName(operationId: string): string {
+  const pascal = normalizeOperationIdToPascal(operationId);
+  return pascal.charAt(0).toLowerCase() + pascal.slice(1);
+}
 
 /**
  * Each operation is emitted in one of two forms inside its namespace bucket on
@@ -37,8 +50,8 @@ type Shape = 'plain' | 'hook';
 /**
  * What the wrapper needs to know about an operation's generated function to
  * bind it: the HTTP method, and whether the operation carries request data
- * (path, query or header parameters, or a body), which decides whether a query
- * hook takes a leading request argument.
+ * (path or query parameters, or a body), which decides whether a query hook
+ * takes a leading request argument.
  */
 export type OperationTarget = {
   operationId: string;
@@ -78,53 +91,38 @@ function emptyBucket(): BucketNode {
 
 /**
  * Whether Kubb gives the operation's generated functions a request argument:
- * any path, query or header parameter (path-item level included), or a request
- * body with a schema.
+ * any path parameter, any search parameter, or a body. A `query` object
+ * without properties has no search parameters.
  */
-function hasRequestData(
-  document: OpenAPIObject,
-  pathItem: PathItem,
-  op: Operation,
-): boolean {
-  if (
-    operationParameters(document, pathItem, op).some((parameter) =>
-      ['path', 'query', 'header'].includes(parameter.in ?? ''),
-    )
-  ) {
-    return true;
-  }
-  const content = deref(document, op.requestBody)?.content;
-  return Boolean(content && Object.values(content)[0]?.schema);
+function hasRequestData(d: EndpointDescriptor): boolean {
+  return (
+    d.pathParams.length > 0 ||
+    (d.query?.parameters.length ?? 0) > 0 ||
+    d.input !== undefined
+  );
 }
 
 function collectOperations(
-  document: OpenAPIObject,
+  descriptors: readonly EndpointDescriptor[],
   shape: Shape,
 ): NamespacedOp[] {
-  const out: NamespacedOp[] = [];
-  for (const { pathItem, method, op } of documentOperations(document)) {
-    const rawChain = op['x-namespace'];
-    const namespaceChain = Array.isArray(rawChain)
-      ? rawChain.filter((s): s is string => typeof s === 'string')
-      : [];
+  return descriptors.map((d) => {
     const sourceName =
       shape === 'hook'
-        ? 'use' + normalizeOperationIdToPascal(op.operationId)
-        : operationSourceName(op.operationId);
-    const propertyName = stripNamespaceFromFlatName(
+        ? 'use' + normalizeOperationIdToPascal(d.operationId)
+        : operationSourceName(d.operationId);
+    return {
+      namespaceChain: d.namespaceChain,
       sourceName,
-      namespaceChain,
-    );
-    out.push({
-      namespaceChain,
-      sourceName,
-      propertyName,
-      operationId: op.operationId,
-      method,
-      hasRequest: hasRequestData(document, pathItem, op),
-    });
-  }
-  return out;
+      propertyName: stripNamespaceFromFlatName(
+        sourceName,
+        d.namespaceChain,
+      ),
+      operationId: d.operationId,
+      method: d.method,
+      hasRequest: hasRequestData(d),
+    };
+  });
 }
 
 function placeOp(
@@ -219,7 +217,7 @@ function serializeBucket(
   plainAccess: Access,
   hookAccess: Access | null,
   chain: string[],
-  tagDescriptions: Map<string, string>,
+  tagDescriptions: ReadonlyMap<string, string>,
   rootExtras: string[] = [],
 ): string {
   const lines: string[] = ['{'];
@@ -267,43 +265,34 @@ function serializeBucket(
 /** Reserved at the root of the namespaced client object. */
 const ROOT_RESERVED: ReadonlySet<string> = new Set(['axios']);
 
-function tagDescriptionsFrom(
-  document: OpenAPIObject,
-): Map<string, string> {
-  const map = new Map<string, string>();
-  for (const tag of document.tags ?? []) {
-    if (tag.name && typeof tag.description === 'string') {
-      map.set(tag.name, tag.description);
-    }
-  }
-  return map;
-}
-
 /**
- * Serialize an OpenAPI document into the nested, namespaced client object
+ * Serialize the descriptors into the nested, namespaced client object
  * literal — the single orchestration shared by the axios and react-query
  * wrapper builders. `plainAccess` maps an operation's flat (axios) source name
  * to the expression placed in the object; `hookAccess` does the same for the
  * paired React Query hook (pass `null` for an axios-only client). Both also get
- * the operation's {@link OperationTarget}. `rootExtras` are extra root-level
- * entries (e.g. the `.axios` passthrough).
+ * the operation's {@link OperationTarget}. `tagDescriptions` maps a namespace
+ * chain joined with `/` to the description written above its bucket.
+ * `rootExtras` are extra root-level entries (e.g. the `.axios` passthrough).
  */
 export function buildClientObjectExpression(params: {
-  document: OpenAPIObject;
+  descriptors: readonly EndpointDescriptor[];
+  tagDescriptions: ReadonlyMap<string, string>;
   plainAccess: Access;
   hookAccess: Access | null;
   rootExtras: string[];
   indent?: string;
 }): string {
   const {
-    document,
+    descriptors,
+    tagDescriptions,
     plainAccess,
     hookAccess,
     rootExtras,
     indent = '    ',
   } = params;
-  const plainOps = collectOperations(document, 'plain');
-  const hookOps = hookAccess ? collectOperations(document, 'hook') : [];
+  const plainOps = collectOperations(descriptors, 'plain');
+  const hookOps = hookAccess ? collectOperations(descriptors, 'hook') : [];
   const root = buildBucketRoot(plainOps, hookOps, ROOT_RESERVED);
   return serializeBucket(
     root,
@@ -311,7 +300,7 @@ export function buildClientObjectExpression(params: {
     plainAccess,
     hookAccess,
     [],
-    tagDescriptionsFrom(document),
+    tagDescriptions,
     rootExtras,
   );
 }

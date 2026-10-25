@@ -2,8 +2,7 @@ import { endpoint, z } from 'nestjs-endpoints';
 import { AuthService } from '../../auth/auth.service';
 import { UserService } from './user.service';
 
-export default endpoint({
-  method: 'post',
+export default endpoint.mutation({
   input: z.object({
     name: z.string(),
     email: z.string().email(),

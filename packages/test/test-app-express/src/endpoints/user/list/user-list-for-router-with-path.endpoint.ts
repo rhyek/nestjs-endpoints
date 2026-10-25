@@ -1,6 +1,6 @@
 import { endpoint, z } from 'nestjs-endpoints';
 
-export default endpoint({
+export default endpoint.query({
   path: '/user/list-for-router-with-path',
   output: z.array(
     z.object({

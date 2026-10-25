@@ -5,8 +5,7 @@ import request from 'supertest';
 
 describe('raw input', () => {
   test('raw input is available in the handler', async () => {
-    const testEndpoint = endpoint({
-      method: 'post',
+    const testEndpoint = endpoint.mutation({
       path: '/test',
       input: z.object({
         name: z.string(),

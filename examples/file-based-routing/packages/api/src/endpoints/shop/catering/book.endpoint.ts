@@ -4,8 +4,7 @@ import { endpoint, z } from 'nestjs-endpoints';
 // parent shop router's namespace chain. `catering` contributes to the
 // URL (/shop/catering/book) but not to the SDK tree — the generated
 // hook lands at `client.shop.useCateringBook()`.
-export default endpoint({
-  method: 'post',
+export default endpoint.mutation({
   input: z.object({
     email: z.email(),
     date: z.coerce.date(),

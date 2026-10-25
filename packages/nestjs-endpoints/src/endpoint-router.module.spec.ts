@@ -27,7 +27,7 @@ describe('a router no endpoint manifest covers', () => {
 });
 
 test('a top-level router stays top-level when another router awaits it first', async () => {
-  const ping = endpoint({ path: 'ping', handler: () => 'pong' });
+  const ping = endpoint.query({ path: 'ping', handler: () => 'pong' });
   const router = EndpointRouterModule.create({ endpoints: [ping] });
   // What a parent router does when a file it discovered default-exports a
   // router that was already created outside any router.

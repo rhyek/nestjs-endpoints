@@ -18,8 +18,8 @@ describe('multi-root + folder-inferred basePath', () => {
   test('parent router: own endpoints mount under folder-inferred basePath', async () => {
     const { app, req } = await setup();
     try {
-      await req.get('/shop/stats').expect(200, { visitors: 42 });
-      await req.get('/shop/promo/today').expect(200, { code: 'TODAY10' });
+      await req.post('/shop/stats').expect(200, { visitors: 42 });
+      await req.post('/shop/promo/today').expect(200, { code: 'TODAY10' });
     } finally {
       await app.close();
     }
@@ -29,11 +29,11 @@ describe('multi-root + folder-inferred basePath', () => {
     const { app, req } = await setup();
     try {
       await req
-        .get('/shop/category/list')
+        .post('/shop/category/list')
         .expect(200, [{ id: 1, name: 'books' }]);
       await req
-        .get('/shop/cart/add')
-        .query({ item: 'ABC' })
+        .post('/shop/cart/add')
+        .send({ item: 'ABC' })
         .expect(200, { added: 'ABC' });
     } finally {
       await app.close();
@@ -46,13 +46,13 @@ describe('multi-root + folder-inferred basePath', () => {
     //   - `create.endpoint.ts`  → /shop/recipes/create
     const { app, req } = await setup();
     try {
-      await req.get('/shop/recipes').expect(200, []);
+      await req.post('/shop/recipes').expect(200, []);
       await req
-        .get('/shop/recipes/create')
-        .query({ name: 'Pizza' })
+        .post('/shop/recipes/create')
+        .send({ name: 'Pizza' })
         .expect(200, { id: 1, name: 'Pizza' });
       await req
-        .get('/shop/recipes')
+        .post('/shop/recipes')
         .expect(200, [{ id: 1, name: 'Pizza' }]);
     } finally {
       await app.close();
@@ -63,8 +63,8 @@ describe('multi-root + folder-inferred basePath', () => {
     const { app, req } = await setup();
     try {
       // Folder is 'blog' but basePath: 'articles' is explicit.
-      await req.get('/articles/latest').expect(200, { title: 'Hello' });
-      await req.get('/blog/latest').expect(404);
+      await req.post('/articles/latest').expect(200, { title: 'Hello' });
+      await req.post('/blog/latest').expect(404);
     } finally {
       await app.close();
     }
@@ -77,8 +77,8 @@ describe('multi-root + folder-inferred basePath', () => {
     const { app, req } = await setup();
     try {
       await req
-        .get('/greet')
-        .query({ name: 'Jo' })
+        .post('/greet')
+        .send({ name: 'Jo' })
         .expect(200, 'Hello, Jo!');
       await req
         .post('/user/create')

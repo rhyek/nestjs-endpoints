@@ -1,8 +1,7 @@
 import { endpoint, z } from 'nestjs-endpoints';
 import { RecipesRepository } from '../repository.service';
 
-export default endpoint({
-  method: 'post',
+export default endpoint.mutation({
   params: z.object({
     recipeId: z.coerce.number(),
   }),
