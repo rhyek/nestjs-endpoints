@@ -4,6 +4,8 @@ export {
   decorated,
   schema,
   EndpointResponse,
+  type EndpointBuilder,
+  type EndpointBuilders,
 } from './endpoint-fn.js';
 export {
   ZodValidationException,
@@ -15,6 +17,7 @@ export * from './codegen/index.js';
 export {
   EndpointRouterModule,
   EndpointsRouterModule,
+  type EndpointRouter,
 } from './endpoint-router.module.js';
 export {
   registerEndpointManifest,

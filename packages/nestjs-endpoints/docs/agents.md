@@ -86,7 +86,9 @@ Returns a **NestJS controller class**. Use it as a `controllers:` entry, an
 ### 2.2 `EndpointRouterModule.create({...})` options
 
 Returns `Promise<DynamicModule>` — pass it straight into `imports:` or
-`export default` it from a `router.module.ts`.
+`export default` it from a `router.module.ts`. The promise also carries
+`endpoint`, the router's own builders (`router.endpoint.query(...)` /
+`router.endpoint.mutation(...)`; §3.5).
 
 | Option | Type | Notes |
 | --- | --- | --- |
@@ -94,10 +96,11 @@ Returns `Promise<DynamicModule>` — pass it straight into `imports:` or
 | `basePath` | `string` | URL prefix for everything this router owns. Inferred when omitted (§5.2). `''` or `'/'` opts out. |
 | `namespace` | `boolean \| string` | SDK bucket segment. Does **not** affect URLs (§7). |
 | `description` | `string` | OpenAPI tag description + JSDoc on the generated SDK bucket. |
-| `endpoints` | `Type[]` | Endpoints registered manually (they get this router's `basePath`). |
+| `endpoints` | `Type[] \| (() => (Type \| Promise<object>)[])` | Endpoints registered manually (they get this router's `basePath`). A callback runs when the router does, so the endpoints it `import()`s can use the router's `endpoint`; each `import()` lists every endpoint the module exports (§4.2). |
 | `middleware` | `(Type<NestMiddleware> \| Function)[]` | Optional trailing `{ exclude: string[] }` entry (paths relative to `basePath`). |
 | `interceptors` | `(Type<NestInterceptor> \| NestInterceptor)[]` | Applied controller-scoped to the whole subtree. |
 | `guards` | `(Type<CanActivate> \| CanActivate)[]` | Applied controller-scoped to the whole subtree. |
+| `endpointConfig` | `{ inject?, injectOnRequest? }` | Shaped as the endpoint options of the same names; added to each endpoint this router owns that is built with its `endpoint` (§3.5). |
 | `imports` / `exports` / `providers` | as in `@Module` | |
 
 ### 2.3 File → URL
@@ -348,7 +351,65 @@ TypeScript type you want on the handler argument. Custom decorators
 (`createParamDecorator`) work: `decorated<User>(CurrentUser())`.
 
 Providers must be resolvable from the module the endpoint lands in — put them in
-the owning router's `providers` (or `imports`).
+the owning router's `providers`, or export them from a module in its `imports`.
+
+#### Router injections
+
+What every endpoint of a router needs goes on the router, once, in
+`endpointConfig`. `create()` returns the router with an `endpoint` builder, and
+each endpoint built with it receives the router's injections with its own:
+
+```ts
+// src/workspace/router.module.ts
+export default EndpointRouterModule.create({
+  providers: [WorkspaceService, AuditService],
+  endpointConfig: {
+    inject: { workspace: WorkspaceService },
+    injectOnRequest: { user: decorated<User>(CurrentUser()) },
+  },
+});
+
+// src/workspace/rename.endpoint.ts
+import router from './router.module';
+
+export default router.endpoint.mutation({
+  input: z.object({ name: z.string() }),
+  inject: { audit: AuditService },
+  handler: ({ input, workspace, user, audit }) => { /* … */ },
+});
+```
+
+Or the router module re-exports the builder, and its endpoints use
+`import { endpoint } from './router.module'` and `endpoint.mutation(...)`:
+
+```ts
+// src/workspace/router.module.ts
+const router = EndpointRouterModule.create({ /* …the options above */ });
+export const { endpoint } = router;
+export default router;
+```
+
+- The injections reach only the endpoints the router owns, its subfolders
+  included, that are built with its `endpoint`: not one built with the
+  package's `endpoint`, nor those of a nested router, which declares its own.
+  An endpoint built with the `endpoint` of a router that declares injections
+  fails at startup if another router owns it.
+- Declaring a key the router already injects (in either map) is a type error,
+  `` `workspace` is already injected by its router ``, and throws when the
+  endpoint is defined. A router key goes in one of the router's two maps: a key
+  in both is a type error, `` `user` is in both inject and injectOnRequest ``,
+  and `create()` throws.
+- The providers the router's `inject` names resolve as an endpoint's own do
+  (above).
+- The injections are part of the endpoint however it is loaded: compiled on
+  its own in a test (§10.3), it gets them (list the providers the router's
+  `inject` names in the testing module), and `invoke()` sees the router's
+  `inject`.
+- Nothing the router module imports statically, directly or through a
+  provider, guard or endpoint in an `endpoints: [...]` array, may import its
+  `endpoint`: that is an import cycle, which fails at load (§13). A router
+  that lists its endpoints by hand lists them with an `endpoints` callback
+  (§4.2).
 
 ### 3.6 Per-endpoint decorators
 
@@ -417,6 +478,23 @@ export default EndpointRouterModule.create({
   basePath: 'recipes-manual',
   providers: [RecipesRepository],
   endpoints: [createManualRecipeEndpoint],
+});
+```
+
+Endpoints built with the router's own `endpoint` (§3.5) are listed with a
+callback instead. The router calls it when it runs, once the router module has
+loaded, and each `import()` lists every endpoint the module exports, default or
+named. A static import of them from the router module is an import cycle.
+
+```ts
+export default EndpointRouterModule.create({
+  basePath: 'recipes-manual',
+  providers: [RecipesRepository],
+  endpointConfig: { inject: { recipes: RecipesRepository } },
+  endpoints: () => [
+    import('./create.endpoint.js'),
+    import('./list.endpoint.js'),
+  ],
 });
 ```
 
@@ -510,6 +588,9 @@ export default EndpointRouterModule.create({
   description: 'Recipe catalog and authoring.',
 });
 ```
+
+A nested router does not inherit its parent's router injections (§3.5); it
+declares its own.
 
 `rootDirectory` also takes an array; each entry is scanned independently under
 the same `basePath`:
@@ -1175,4 +1256,9 @@ whose folders should become buckets. URLs are unaffected.
 | `endpoints.gen.ts is out of date` (CI) | Endpoint files were added/removed without the manifest being regenerated. Run `npx nestjs-endpoints generate` and commit it. |
 | `endpoints.gen.ts was out of date and has been regenerated … Run the tests again` | A test run found endpoint files the manifest didn't list. It has been rewritten; re-run (Vitest's watch mode does so on its own). Run `nestjs-endpoints generate` in front of the test script to avoid it. |
 | A new endpoint 404s until restart | Expected without a watcher: the manifest was updated, the running process predates the file. Restart, or run under `node --watch` / `tsx watch`. If the file existed before the app started, the start script is missing `nestjs-endpoints generate &&`. |
+| `Cannot access 'router' before initialization` (or `'endpoint'`: the binding the importing file used) at load; under Vitest, `Cannot read properties of undefined (reading 'endpoint')` (or `'query'` / `'mutation'`) | An import cycle: the router module statically imports, directly or through a provider, guard or listed endpoint, a file that imports its `endpoint`. Move what the router module needs out of that file, or list the endpoint with an `endpoints` callback (§4.2). |
+| `` `endpoints` lists a module that exports no endpoint `` | An `import()` in a router's `endpoints` callback resolves to a module without an endpoint export. Point it at the endpoint's file. |
+| `<endpoint file> is built with the endpoint of <router A> but is owned by <router B>` at startup | The endpoint is built with another router's `endpoint`: it imports another folder's router module, or another router lists it in `endpoints`. Build it with the `endpoint` of the router module that owns it; one listed in `endpoints` uses the package's `endpoint` (§3.5). |
+| `` `x` is already injected by its router `` (a type error, or thrown when the endpoint is defined) | The endpoint redeclares a key its router's `inject` / `injectOnRequest` already provides. Drop it from the endpoint. |
+| `` `x` is in both inject and injectOnRequest `` (a type error, or thrown by `create()`) | The router's `endpointConfig` declares the key in both maps. Keep it in one. |
 | `Cannot find the source of …endpoints.gen.js (no source map?)` | A compiled app without source maps can't locate the manifest to keep it in sync. Enable `sourceMap`, or run `npx nestjs-endpoints generate` after changing endpoint files. |

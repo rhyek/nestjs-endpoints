@@ -66,6 +66,10 @@ registerEndpointManifest(import.meta.url, {
       import('./endpoints/user/list/user-list-with-path.endpoint.js'),
     'endpoints/user/purge.endpoint.ts': () =>
       import('./endpoints/user/purge.endpoint.js'),
+    'misrouted/endpoints/borrowed.endpoint.ts': () =>
+      import('./misrouted/endpoints/borrowed.endpoint.js'),
+    'misrouted/router.module.ts': () =>
+      import('./misrouted/router.module.js'),
     'secured/endpoints/me.endpoint.ts': () =>
       import('./secured/endpoints/me.endpoint.js'),
     'secured/router.module.ts': () => import('./secured/router.module.js'),
@@ -87,5 +91,22 @@ registerEndpointManifest(import.meta.url, {
     'shop/recipes/router.module.ts': () =>
       import('./shop/recipes/router.module.js'),
     'shop/router.module.ts': () => import('./shop/router.module.js'),
+    'team/endpoints/lead.endpoint.ts': () =>
+      import('./team/endpoints/lead.endpoint.js'),
+    'team/endpoints/roster.endpoint.ts': () =>
+      import('./team/endpoints/roster.endpoint.js'),
+    'team/router.module.ts': () => import('./team/router.module.js'),
+    'workspace/billing/endpoints/invoice.endpoint.ts': () =>
+      import('./workspace/billing/endpoints/invoice.endpoint.js'),
+    'workspace/billing/router.module.ts': () =>
+      import('./workspace/billing/router.module.js'),
+    'workspace/endpoints/legacy.endpoint.ts': () =>
+      import('./workspace/endpoints/legacy.endpoint.js'),
+    'workspace/endpoints/members/list.endpoint.ts': () =>
+      import('./workspace/endpoints/members/list.endpoint.js'),
+    'workspace/endpoints/whoami.endpoint.ts': () =>
+      import('./workspace/endpoints/whoami.endpoint.js'),
+    'workspace/router.module.ts': () =>
+      import('./workspace/router.module.js'),
   },
 });

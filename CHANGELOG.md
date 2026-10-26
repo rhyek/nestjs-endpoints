@@ -9,6 +9,8 @@
 - **`npx nestjs-endpoints init` installs a coding-agent skill** pointing at the full library guide the package now ships at `docs/agents.md`.
 - **Each react-query client operation carries its `queryOptions` / `queryKey` or `mutationOptions` / `mutationKey`, bound to the client instance**, so route loaders can use `queryClient.ensureQueryData(...)` outside React. See [react-query](README.md#react-query).
 - **Each react-query client operation that takes input carries `schemas.input`, its input as self-contained JSON Schema**, for forms to read. See [react-query](README.md#react-query).
+- **A router module declares `inject` and `injectOnRequest` once for its endpoints**, in `endpointConfig`. See [Router injections](README.md#router-injections).
+- **A router's `endpoints` takes a callback of `import()`s**, so endpoints listed by hand can use the router's `endpoint`. See [Router injections](README.md#router-injections).
 - **Endpoints declare search parameters with `query`, on any method**, and react-query operations carry them as `schemas.query`. See [Queries and mutations](README.md#queries-and-mutations).
 - **Each OpenAPI operation carries `x-endpoint-kind` (`query` or `mutation`)**, for generators run against the document. See [Manual codegen](README.md#manual-codegen-with-openapi-spec-file).
 

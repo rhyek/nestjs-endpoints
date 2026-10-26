@@ -29,6 +29,16 @@ describe('skill rendering', () => {
     );
   });
 
+  // Agent Skills caps `description` at 1024 characters; a longer one may be
+  // cut short or rejected where `init` installs it.
+  test('keeps the description within 1024 characters', () => {
+    const description = renderSkill('1.2.3').match(
+      /^description: (.*)$/m,
+    )?.[1];
+    expect(description).toBeDefined();
+    expect(description!.length).toBeLessThanOrEqual(1024);
+  });
+
   it('replaces an existing banner rather than stacking them', () => {
     const once = renderSkill('1.0.0');
     // Re-rendering from the shipped template must not accumulate banners.

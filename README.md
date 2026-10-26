@@ -302,6 +302,63 @@ An endpoint maps onto the two tiers of DI you already know from vanilla NestJS:
 
   `decorated<T>(decorator)` pairs a NestJS parameter decorator with the TypeScript type you want visible on the handler.
 
+### Router injections
+
+A router module can declare `inject` and `injectOnRequest` once, in `endpointConfig`. `create()` returns the router with an `endpoint` builder, and each endpoint built with it receives the router's injections along with its own:
+
+```ts
+// src/workspace/router.module.ts
+export default EndpointRouterModule.create({
+  providers: [WorkspaceService, AuditService],
+  endpointConfig: {
+    inject: { workspace: WorkspaceService },
+    injectOnRequest: { user: decorated<User>(CurrentUser()) },
+  },
+});
+```
+
+```ts
+// src/workspace/rename.endpoint.ts
+import router from './router.module';
+
+export default router.endpoint.mutation({
+  input: z.object({ name: z.string() }),
+  inject: { audit: AuditService },
+  handler: ({ input, workspace, user, audit }) => {
+    /* … */
+  },
+});
+```
+
+A router module can also re-export the builder, so its endpoints write `endpoint.mutation(...)` with `import { endpoint } from './router.module'`:
+
+```ts
+// src/workspace/router.module.ts
+const router = EndpointRouterModule.create({
+  // …the options above
+});
+export const { endpoint } = router;
+export default router;
+```
+
+- The injections reach only the endpoints the router owns, its subfolders included, that are built with its `endpoint`: not one built with the package's `endpoint`, nor those of a [nested router](#nested-router-modules), which declares its own. An endpoint built with the `endpoint` of a router that declares injections fails at startup if another router owns it.
+- Declaring a key the router already injects, in either map, is a type error, `` `workspace` is already injected by its router ``, and throws when the endpoint is defined. The router's own key goes in one of its two maps: a key in both is a type error, `` `user` is in both inject and injectOnRequest ``, and `create()` throws.
+- What the router's `inject` names must resolve in the router's module, as an endpoint's own does: list it in the router's `providers`, or export it from a module the router `imports`.
+- An endpoint carries the injections however it is loaded. [Compiled on its own in a test](#integration-tests), it gets them too (list the providers the router's `inject` names in the testing module), and `invoke()` sees the router's `inject`.
+- A router that lists its endpoints by hand lists them with a callback, which it calls when it runs, once the router module has loaded. Each `import()` lists every endpoint the module exports, default or named:
+
+  ```ts
+  export default EndpointRouterModule.create({
+    endpointConfig: { inject: { workspace: WorkspaceService } },
+    endpoints: () => [
+      import('./list.endpoint.js'),
+      import('./find.endpoint.js'),
+    ],
+  });
+  ```
+
+- Nothing the router module imports statically, directly or through a provider, a guard or an endpoint in an `endpoints: [...]` array, may import its `endpoint`. That is an import cycle, and fails at load: Node reports `Cannot access 'router' before initialization`, naming the binding the importing file used; Vitest reports `Cannot read properties of undefined (reading 'endpoint')`, or `'query'` / `'mutation'` with the re-exported builder. Move what the router module needs out of that file, or list the endpoint with a callback.
+
 ## Endpoint router
 
 `EndpointRouterModule.create({...})` finds the `*.endpoint.ts` and `router.module.ts` files in its subtree, auto-registers them, and derives each endpoint's HTTP path using file-based routing.
@@ -413,6 +470,8 @@ export default EndpointRouterModule.create({
 ❯ curl -X POST 'http://localhost:3000/shop/recipes'
 [{"id":1,"name":"Pizza"}]
 ```
+
+A nested router does not inherit its parent's [router injections](#router-injections); it declares its own.
 
 ### Middleware, interceptors, and guards
 

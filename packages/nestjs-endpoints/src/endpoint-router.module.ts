@@ -14,9 +14,17 @@ import {
 } from '@nestjs/common';
 import {
   endpointFileRegex,
+  EndpointSetupFn,
   routerModuleFileRegex,
   settings,
 } from './consts.js';
+import {
+  createRouterEndpoint,
+  EndpointBuilders,
+  InjectOnRequestMap,
+  InjectProvidersMap,
+  WithoutKeys,
+} from './endpoint-fn.js';
 import { getCallsiteFile, moduleAls } from './helpers.js';
 import { LazyPromise } from './lazy-promise.js';
 import {
@@ -25,7 +33,7 @@ import {
   RegisteredManifest,
 } from './manifest/registry.js';
 import { MANIFEST_FILE_NAME } from './manifest/render.js';
-import { stripExtension } from './manifest/scan.js';
+import { isSameModule, stripExtension } from './manifest/scan.js';
 
 /**
  * Express 5 / path-to-regexp v8, used by every NestJS version this library
@@ -47,15 +55,52 @@ type RouterInterceptor = Type<NestInterceptor> | NestInterceptor;
 
 type RouterGuard = Type<CanActivate> | CanActivate;
 
+/**
+ * What a router's `endpoints` callback lists: an endpoint class, a promise
+ * of one, or a promise of a module, as `import()` of a file resolves to,
+ * which lists every endpoint the module exports.
+ */
+type ListedEndpoint = Type | Promise<object>;
+
 const ALL_ENDPOINTS_SYMBOL = Symbol.for('nestjs-endpoints:allEndpoints');
 
 function isMiddlewareOptions(m: unknown): m is RouterMiddlewareOptions {
   return m !== null && typeof m === 'object' && typeof m !== 'function';
 }
 
-type EndpointRouterModuleParams = NonNullable<
-  Parameters<typeof EndpointRouterModule._register>[2]
+type EndpointRouterModuleParams<
+  RouterInject extends InjectProvidersMap,
+  RouterInjectOnRequest extends InjectOnRequestMap,
+> = NonNullable<
+  Parameters<
+    typeof EndpointRouterModule._register<
+      RouterInject,
+      RouterInjectOnRequest
+    >
+  >[2]
 >;
+
+/**
+ * What `create()` returns: the module a router module exports by default,
+ * carrying the router's `endpoint` builders.
+ */
+export type EndpointRouter<
+  RouterInject extends InjectProvidersMap = undefined,
+  RouterInjectOnRequest extends InjectOnRequestMap = undefined,
+> = Promise<DynamicModule> & {
+  endpoint: EndpointBuilders<RouterInject, RouterInjectOnRequest>;
+};
+
+type ParentStore = NonNullable<ReturnType<typeof moduleAls.getStore>>;
+
+/**
+ * A nested router's file (without its extension) → the context of the
+ * router that discovered it, set before that router loads it. A router
+ * module can be evaluated before its parent runs (a spec imports it, or a
+ * file that imports it, first) or while another router runs, so the store
+ * `create()` sees is not always its parent's.
+ */
+const nestedRouterParents = new Map<string, ParentStore>();
 
 /**
  * Captures what must be read at the call itself — the calling file and the
@@ -66,19 +111,34 @@ type EndpointRouterModuleParams = NonNullable<
  */
 function createLazily(
   callsiteFile: string,
-  params: EndpointRouterModuleParams | undefined,
-): Promise<DynamicModule> {
+  params: EndpointRouterModuleParams<any, any> | undefined,
+): EndpointRouter<any, any> {
   const parentStore = moduleAls.getStore();
-  return new LazyPromise(() =>
-    EndpointRouterModule._register(callsiteFile, parentStore, params),
+  return Object.assign(
+    new LazyPromise(() =>
+      EndpointRouterModule._register(callsiteFile, parentStore, params),
+    ),
+    {
+      endpoint: createRouterEndpoint(
+        callsiteFile,
+        params?.endpointConfig?.inject,
+        params?.endpointConfig?.injectOnRequest,
+      ),
+    },
   );
 }
 
 @Module({})
 export class EndpointRouterModule {
-  static create(
-    params?: EndpointRouterModuleParams,
-  ): Promise<DynamicModule> {
+  static create<
+    RouterInject extends InjectProvidersMap = undefined,
+    RouterInjectOnRequest extends InjectOnRequestMap = undefined,
+  >(
+    params?: EndpointRouterModuleParams<
+      RouterInject,
+      RouterInjectOnRequest
+    >,
+  ): EndpointRouter<RouterInject, RouterInjectOnRequest> {
     return createLazily(getCallsiteFile(), params);
   }
 
@@ -86,17 +146,29 @@ export class EndpointRouterModule {
    * @deprecated Use `EndpointRouterModule.create()` instead. This alias
    * is kept for backwards compatibility and forwards to `create()`.
    */
-  static register(
-    params?: EndpointRouterModuleParams,
-  ): Promise<DynamicModule> {
+  static register<
+    RouterInject extends InjectProvidersMap = undefined,
+    RouterInjectOnRequest extends InjectOnRequestMap = undefined,
+  >(
+    params?: EndpointRouterModuleParams<
+      RouterInject,
+      RouterInjectOnRequest
+    >,
+  ): EndpointRouter<RouterInject, RouterInjectOnRequest> {
     return createLazily(getCallsiteFile(), params);
   }
 
-  static async _register(
+  // Generic only so that `create()` types the router's `endpoint` from
+  // `endpointConfig`.
+  static async _register<
+    RouterInject extends InjectProvidersMap = undefined,
+    RouterInjectOnRequest extends InjectOnRequestMap = undefined,
+  >(
     callsiteFile: string,
-    // Captured where `create()` was called. No default: reading it here, when
-    // the deferred work runs, could pick up whichever router awaited it.
-    parentStore: ReturnType<typeof moduleAls.getStore>,
+    // Captured where `create()` was called, for a router no parent
+    // discovered. Never read from the store here, when the deferred work
+    // runs: that could pick up whichever router awaited it.
+    capturedParentStore: ReturnType<typeof moduleAls.getStore>,
     params?: {
       /**
        * Directory (or directories) this router loads endpoints from. Relative
@@ -169,8 +241,19 @@ export class EndpointRouterModule {
        * Endpoints to register manually. Behaves similarly to the `controllers`
        * key on NestJS modules. The router's `basePath` is prepended to each
        * endpoint's path.
+       *
+       * A callback is called when the router runs, after its module has
+       * finished evaluating, so the endpoints it imports can be built with
+       * this router's `endpoint`. An `import()` lists every endpoint the
+       * module exports:
+       *
+       * @example
+       *   endpoints: () => [
+       *     import('./list.endpoint.js'),
+       *     import('./find.endpoint.js'),
+       *   ]
        */
-      endpoints?: Type[];
+      endpoints?: Type[] | (() => ListedEndpoint[]);
       /**
        * Middleware to apply to all routes under this router's `basePath`
        * (including endpoints from nested router modules). The last entry may
@@ -188,8 +271,28 @@ export class EndpointRouterModule {
        * router, including endpoints from nested router modules.
        */
       guards?: RouterGuard[];
+      /**
+       * Configures the `endpoint` builders this router returns
+       * (`router.endpoint.query(...)`). Endpoints built with them receive
+       * these injections along with their own; endpoints of nested routers
+       * do not, and those routers declare their own. A key goes in one of
+       * the two maps, not both.
+       */
+      endpointConfig?: {
+        /** Providers to inject, as the endpoint option of the same name. */
+        inject?: RouterInject;
+        /** Request-time parameters, as the endpoint option of the same name. */
+        injectOnRequest?: WithoutKeys<
+          RouterInjectOnRequest,
+          keyof RouterInject,
+          'is in both inject and injectOnRequest'
+        >;
+      };
     },
   ): Promise<DynamicModule> {
+    const parentStore =
+      nestedRouterParents.get(stripExtension(callsiteFile)) ??
+      capturedParentStore;
     const definedAtDir = path.dirname(callsiteFile);
     const resolveDir = (dir: string) => {
       if (!path.isAbsolute(dir)) {
@@ -323,28 +426,45 @@ export class EndpointRouterModule {
         }
       }
     }
-    await moduleAls.run(
-      {
-        parentBasePath: normalizedParentBasePath,
-        parentModuleDir: definedAtDir,
-        parentRootDirectories: rootDirectories,
-        parentNamespaceChain: effectiveNamespaceChain,
-      },
-      async () => {
-        for (const [, load] of endpointFilesNotImported) {
-          const endpoint = await loadDefault(load);
-          if (endpoint) {
-            endpoints.push(endpoint);
-          }
+    const ownStore: ParentStore = {
+      parentBasePath: normalizedParentBasePath,
+      parentModuleDir: definedAtDir,
+      parentRootDirectories: rootDirectories,
+      parentNamespaceChain: effectiveNamespaceChain,
+    };
+    for (const file of nestedRouterModuleFiles.keys()) {
+      nestedRouterParents.set(stripExtension(file), ownStore);
+    }
+    let listedEndpoints: Type[] = [];
+    await moduleAls.run(ownStore, async () => {
+      for (const [, load] of endpointFilesNotImported) {
+        const endpoint = await loadDefault(load);
+        if (endpoint) {
+          endpoints.push(endpoint);
         }
-        for (const load of nestedRouterModuleFiles.values()) {
-          const nestedModule = await loadDefault(load);
-          if (nestedModule) {
-            nestedModules.push(nestedModule);
-          }
+      }
+      for (const load of nestedRouterModuleFiles.values()) {
+        const nestedModule = await loadDefault(load);
+        if (nestedModule) {
+          nestedModules.push(nestedModule);
         }
-      },
-    );
+      }
+      // Imported here, inside this router's run, so each endpoint defined
+      // by a listed file is set up once, below, by this router.
+      listedEndpoints =
+        typeof params?.endpoints === 'function'
+          ? (
+              await Promise.all(
+                params
+                  .endpoints()
+                  .map((listed) =>
+                    resolveListedEndpoints(listed, callsiteFile),
+                  ),
+              )
+            ).flat()
+          : (params?.endpoints ?? []);
+    });
+    const setUp = new Set<EndpointSetupFn>();
     for (const { setupFn } of settings.endpoints.filter((e) =>
       endpointFilesNotImported.some(([f]) => isSameModule(f, e.file)),
     )) {
@@ -352,27 +472,24 @@ export class EndpointRouterModule {
         rootDirectories,
         basePath: effectiveBasePath,
         namespaceChain: effectiveNamespaceChain,
+        routerFile: callsiteFile,
       });
+      setUp.add(setupFn);
     }
-    if (params?.endpoints) {
-      for (const ep of params.endpoints) {
-        const epSetupFn = Reflect.getMetadata('endpoints:setupFn', ep) as
-          | ((s: {
-              rootDirectories: string[];
-              basePath: string;
-              namespaceChain: string[];
-            }) => void)
-          | undefined;
-        if (epSetupFn) {
-          epSetupFn({
-            rootDirectories,
-            basePath: effectiveBasePath,
-            namespaceChain: effectiveNamespaceChain,
-          });
-        }
-        if (!endpoints.includes(ep)) {
-          endpoints.push(ep);
-        }
+    for (const ep of listedEndpoints) {
+      const epSetupFn = Reflect.getMetadata('endpoints:setupFn', ep) as
+        EndpointSetupFn | undefined;
+      // A listed endpoint this router also discovered is set up already.
+      if (epSetupFn && !setUp.has(epSetupFn)) {
+        epSetupFn({
+          rootDirectories,
+          basePath: effectiveBasePath,
+          namespaceChain: effectiveNamespaceChain,
+          routerFile: callsiteFile,
+        });
+      }
+      if (!endpoints.includes(ep)) {
+        endpoints.push(ep);
       }
     }
     if (endpoints.length > 0) {
@@ -530,8 +647,27 @@ function findEndpoints(
   }
 }
 
-function isSameModule(a: string, b: string): boolean {
-  return stripExtension(a) === stripExtension(b);
+async function resolveListedEndpoints(
+  listed: ListedEndpoint,
+  routerFile: string,
+): Promise<Type[]> {
+  const resolved = await listed;
+  if (typeof resolved === 'function') {
+    return [resolved as Type];
+  }
+  // A module: its exports that are endpoints, default or named.
+  const exported = Object.values(resolved).filter(
+    (value): value is Type =>
+      typeof value === 'function' &&
+      Reflect.hasMetadata('endpoints:setupFn', value),
+  );
+  if (exported.length === 0) {
+    throw new Error(
+      `EndpointRouterModule.create() in ${routerFile}: \`endpoints\` lists ` +
+        'a module that exports no endpoint.',
+    );
+  }
+  return exported;
 }
 
 async function loadDefault(load: EndpointManifestLoader): Promise<any> {

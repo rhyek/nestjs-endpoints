@@ -31,7 +31,9 @@ import {
 } from './endpoints/user/user.service';
 import SecuredRouterModule from './secured/router.module';
 import ShopRouterModule from './shop/router.module';
+import TeamRouterModule from './team/router.module';
 import { VanillaController } from './vanilla.controller';
+import WorkspaceRouterModule from './workspace/router.module';
 // Deliberately last: routers do their discovery when Nest awaits them, so
 // the manifest only has to be imported somewhere in the app, in any order.
 import './endpoints.gen';
@@ -76,6 +78,8 @@ export class ZodErrorInterceptor implements NestInterceptor {
     ShopRouterModule,
     BlogRouterModule,
     SecuredRouterModule,
+    WorkspaceRouterModule,
+    TeamRouterModule,
     UserListModule,
   ],
   providers: [

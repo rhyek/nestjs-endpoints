@@ -18,6 +18,14 @@ export function stripExtension(file: string): string {
 }
 
 /**
+ * Whether two paths name the same module: a manifest's keys carry source
+ * extensions while a compiled app runs `.js` files.
+ */
+export function isSameModule(a: string, b: string): boolean {
+  return stripExtension(a) === stripExtension(b);
+}
+
+/**
  * Every endpoint and router-module file under `dir`, as POSIX paths relative
  * to it, sorted. These are the keys of an endpoint manifest.
  *

@@ -1,3 +1,4 @@
+import path from 'node:path';
 import {
   applyDecorators,
   Body,
@@ -24,7 +25,7 @@ import {
   ApiResponse,
 } from '@nestjs/swagger';
 import { z, ZodNull, ZodNullable, ZodType } from 'zod';
-import { settings } from './consts.js';
+import { EndpointSetupFn, settings } from './consts.js';
 import {
   ConvertedSchema,
   DESCRIPTOR_METADATA_KEY,
@@ -41,6 +42,7 @@ import {
   getHttpPathPascalName,
   moduleAls,
 } from './helpers.js';
+import { isSameModule } from './manifest/scan.js';
 import { convertObject, ObjectSchemaLike } from './object-parameters.js';
 import { JsonSchema, toJsonSchema } from './zod-to-openapi.js';
 
@@ -71,6 +73,11 @@ export function decorated<T = any>(
 ) {
   return new WithDecorator<T>(decorator);
 }
+
+export type InjectProvidersMap =
+  Record<string, Type<any> | WithDecorator<any>> | undefined;
+export type InjectOnRequestMap =
+  Record<string, WithDecorator<any>> | undefined;
 
 type MaybePromise<T> = T | Promise<T>;
 
@@ -181,10 +188,8 @@ type InvokeReturn<OS extends OutputSchemaUnion> = OS extends undefined
       : never;
 
 type HandlerMethod<
-  InjectProviders extends
-    Record<string, Type<any> | WithDecorator<any>> | undefined = undefined,
-  InjectOnRequestParameters extends
-    Record<string, WithDecorator<any>> | undefined = undefined,
+  InjectProviders extends InjectProvidersMap = undefined,
+  InjectOnRequestParameters extends InjectOnRequestMap = undefined,
   InputSchema extends Schema | SchemaDef | undefined = undefined,
   ParamsSchema extends Schema | SchemaDef | undefined = undefined,
   QuerySchema extends Schema | SchemaDef | undefined = undefined,
@@ -344,10 +349,8 @@ type InvokeMethod<
         ) => MaybePromise<InvokeReturn<OutputSchema>>;
 
 type EndpointControllerClass<
-  InjectProviders extends
-    Record<string, Type<any> | WithDecorator<any>> | undefined = undefined,
-  InjectOnRequestParameters extends
-    Record<string, WithDecorator<any>> | undefined = undefined,
+  InjectProviders extends InjectProvidersMap = undefined,
+  InjectOnRequestParameters extends InjectOnRequestMap = undefined,
   InputSchema extends Schema | SchemaDef | undefined = undefined,
   ParamsSchema extends Schema | SchemaDef | undefined = undefined,
   QuerySchema extends Schema | SchemaDef | undefined = undefined,
@@ -375,16 +378,44 @@ type EndpointControllerClass<
   >;
 }>;
 
+/** Both maps' entries, when either may be `undefined`. */
+type MergeInjections<A, B> = A extends undefined
+  ? B
+  : B extends undefined
+    ? A
+    : A & B;
+
+/** The keys a router injects, which its endpoints may not declare again. */
+type RouterInjectedKeys<RouterInject, RouterInjectOnRequest> =
+  | (RouterInject extends undefined ? never : keyof RouterInject)
+  | (RouterInjectOnRequest extends undefined
+      ? never
+      : keyof RouterInjectOnRequest);
+
+// A key `Map` may not declare is typed as a message naming it, so the error
+// reads as the cause. `NoInfer` keeps the maps inferred from what they
+// declare, not from the message.
+export type WithoutKeys<Map, Keys, Reason extends string> = Map & {
+  [K in keyof NoInfer<Map> & NoInfer<Keys>]: `\`${K & string}\` ${Reason}`;
+};
+
+type WithoutRouterKeys<Map, RouterInject, RouterInjectOnRequest> =
+  WithoutKeys<
+    Map,
+    RouterInjectedKeys<RouterInject, RouterInjectOnRequest>,
+    'is already injected by its router'
+  >;
+
 type EndpointOptions<
-  InjectProviders extends
-    Record<string, Type<any> | WithDecorator<any>> | undefined,
-  InjectOnRequestParameters extends
-    Record<string, WithDecorator<any>> | undefined,
+  InjectProviders extends InjectProvidersMap,
+  InjectOnRequestParameters extends InjectOnRequestMap,
   Method extends EndpointMethod,
   InputSchema extends Schema | SchemaDef | undefined,
   ParamsSchema extends ObjectSchemaUnion,
   QuerySchema extends ObjectSchemaUnion,
   OutputSchema extends OutputSchemaUnion,
+  RouterInject extends InjectProvidersMap = undefined,
+  RouterInjectOnRequest extends InjectOnRequestMap = undefined,
 > = {
   /**
    * HTTP method. Leave it out unless a caller other than the generated SDK
@@ -494,7 +525,11 @@ type EndpointOptions<
    * })
    * ```
    */
-  inject?: InjectProviders;
+  inject?: WithoutRouterKeys<
+    InjectProviders,
+    RouterInject,
+    RouterInjectOnRequest
+  >;
   /**
    * Inject parameters at request time (e.g. `@Req()`, `@Session()`).
    *
@@ -515,15 +550,27 @@ type EndpointOptions<
    * })
    * ```
    */
-  injectOnRequest?: InjectOnRequestParameters;
+  injectOnRequest?: WithoutRouterKeys<
+    InjectOnRequestParameters,
+    RouterInject,
+    RouterInjectOnRequest
+  >;
   /**
    * @deprecated Use `injectOnRequest` instead.
    */
-  injectMethod?: InjectOnRequestParameters;
+  injectMethod?: WithoutRouterKeys<
+    InjectOnRequestParameters,
+    RouterInject,
+    RouterInjectOnRequest
+  >;
   /**
    * @deprecated Use `injectOnRequest` instead.
    */
-  injectAtRequest?: InjectOnRequestParameters;
+  injectAtRequest?: WithoutRouterKeys<
+    InjectOnRequestParameters,
+    RouterInject,
+    RouterInjectOnRequest
+  >;
   /**
    * Method decorators.
    *
@@ -545,8 +592,8 @@ type EndpointOptions<
    */
   decorators?: MethodDecorator[];
   handler: HandlerMethod<
-    InjectProviders,
-    InjectOnRequestParameters,
+    MergeInjections<RouterInject, InjectProviders>,
+    MergeInjections<RouterInjectOnRequest, InjectOnRequestParameters>,
     InputSchema,
     ParamsSchema,
     QuerySchema,
@@ -554,11 +601,17 @@ type EndpointOptions<
   >;
 };
 
-type EndpointBuilder = <
-  InjectProviders extends
-    Record<string, Type<any> | WithDecorator<any>> | undefined = undefined,
-  InjectOnRequestParameters extends
-    Record<string, WithDecorator<any>> | undefined = undefined,
+/**
+ * `endpoint.query` / `endpoint.mutation`. A router's builder carries the
+ * router's `inject` and `injectOnRequest`, which its handlers receive with
+ * their own.
+ */
+export type EndpointBuilder<
+  RouterInject extends InjectProvidersMap = undefined,
+  RouterInjectOnRequest extends InjectOnRequestMap = undefined,
+> = <
+  InjectProviders extends InjectProvidersMap = undefined,
+  InjectOnRequestParameters extends InjectOnRequestMap = undefined,
   Method extends EndpointMethod = 'post',
   InputSchema extends Schema | SchemaDef | undefined = undefined,
   ParamsSchema extends ObjectSchemaUnion = undefined,
@@ -572,16 +625,55 @@ type EndpointBuilder = <
     InputSchema,
     ParamsSchema,
     QuerySchema,
-    OutputSchema
+    OutputSchema,
+    RouterInject,
+    RouterInjectOnRequest
   >,
 ) => EndpointControllerClass<
-  InjectProviders,
-  InjectOnRequestParameters,
+  MergeInjections<RouterInject, InjectProviders>,
+  MergeInjections<RouterInjectOnRequest, InjectOnRequestParameters>,
   InputSchema,
   ParamsSchema,
   QuerySchema,
   OutputSchema
 >;
+
+export type EndpointBuilders<
+  RouterInject extends InjectProvidersMap = undefined,
+  RouterInjectOnRequest extends InjectOnRequestMap = undefined,
+> = {
+  /**
+   * Defines an endpoint that reads. The generated react-query client gives
+   * it query helpers: `useX`, `queryKey`, `queryOptions`. It is a POST whose
+   * `input` is the JSON body unless it declares another `method`.
+   *
+   * ```ts
+   * export default endpoint.query({
+   *   input: z.object({ id: z.number() }),
+   *   output: userSchema,
+   *   inject: { users: UsersService },
+   *   handler: ({ input, users }) => users.find(input.id),
+   * });
+   * ```
+   */
+  query: EndpointBuilder<RouterInject, RouterInjectOnRequest>;
+  /**
+   * Defines an endpoint that changes something. The generated react-query
+   * client gives it mutation helpers: `useX`, `mutationKey`,
+   * `mutationOptions`. It is a POST whose `input` is the JSON body unless it
+   * declares another `method`.
+   *
+   * ```ts
+   * export default endpoint.mutation({
+   *   input: z.object({ name: z.string() }),
+   *   output: userSchema,
+   *   inject: { users: UsersService },
+   *   handler: ({ input, users }) => users.create(input.name),
+   * });
+   * ```
+   */
+  mutation: EndpointBuilder<RouterInject, RouterInjectOnRequest>;
+};
 
 /**
  * Defines an endpoint. Every endpoint is a POST whose `input` is the JSON
@@ -593,10 +685,7 @@ type EndpointBuilder = <
  * export default endpoint.mutation({ ... }); // useX, mutationKey, mutationOptions
  * ```
  */
-export const endpoint: {
-  query: EndpointBuilder;
-  mutation: EndpointBuilder;
-} = {
+export const endpoint: EndpointBuilders = {
   // The builders' generics only shape the types; `defineEndpoint` sees the
   // options as plain values.
   query: (params) =>
@@ -605,18 +694,91 @@ export const endpoint: {
     defineEndpoint('mutation', getCallsiteFile(), params as any),
 };
 
+/** An endpoint's `injectOnRequest`, or the deprecated name it gave it. */
+function injectOnRequestOf(params: {
+  injectOnRequest?: InjectOnRequestMap;
+  injectMethod?: InjectOnRequestMap;
+  injectAtRequest?: InjectOnRequestMap;
+}): InjectOnRequestMap {
+  return (
+    params.injectOnRequest ?? params.injectMethod ?? params.injectAtRequest
+  );
+}
+
+/**
+ * The builders a router hands out as its `endpoint`: the package's, with
+ * the router's injections added to each endpoint's own when it is defined.
+ * An endpoint built with them carries the injections however it is loaded,
+ * on its own in a test too.
+ */
+export function createRouterEndpoint(
+  routerFile: string,
+  inject: InjectProvidersMap,
+  injectOnRequest: InjectOnRequestMap,
+): EndpointBuilders<any, any> {
+  const inBoth = Object.keys(inject ?? {}).find((key) =>
+    Object.hasOwn(injectOnRequest ?? {}, key),
+  );
+  if (inBoth) {
+    throw new Error(
+      `EndpointRouterModule.create() in ${routerFile}: \`${inBoth}\` is in ` +
+        'both `inject` and `injectOnRequest`.',
+    );
+  }
+  const routerKeys = new Set(
+    Object.keys({ ...inject, ...injectOnRequest }),
+  );
+  if (routerKeys.size === 0) {
+    return endpoint;
+  }
+  // The returned builder calls `getCallsiteFile()` itself, at the depth the
+  // package's builders call it, so the endpoint's path is inferred from its
+  // own file.
+  const build =
+    (kind: EndpointKind): EndpointBuilder<any, any> =>
+    (params: any) => {
+      const file = getCallsiteFile();
+      const ownInjectOnRequest = injectOnRequestOf(params);
+      const redeclared = Object.keys({
+        ...params.inject,
+        ...ownInjectOnRequest,
+      }).find((key) => routerKeys.has(key));
+      if (redeclared) {
+        throw new Error(
+          `endpoint.${kind}() in ${file}: \`${redeclared}\` is already ` +
+            `injected by its router (${routerFile}).`,
+        );
+      }
+      // The merged `injectOnRequest` takes precedence over the deprecated
+      // names left in `params`.
+      return defineEndpoint(
+        kind,
+        file,
+        {
+          ...params,
+          inject: { ...inject, ...params.inject },
+          injectOnRequest: { ...injectOnRequest, ...ownInjectOnRequest },
+        },
+        routerFile,
+      );
+    };
+  return { query: build('query'), mutation: build('mutation') };
+}
+
 function defineEndpoint(
   kind: EndpointKind,
   file: string,
   params: EndpointOptions<
-    Record<string, Type<any> | WithDecorator<any>> | undefined,
-    Record<string, WithDecorator<any>> | undefined,
+    InjectProvidersMap,
+    InjectOnRequestMap,
     EndpointMethod,
     Schema | SchemaDef | undefined,
     ObjectSchemaUnion,
     ObjectSchemaUnion,
     OutputSchemaUnion
   >,
+  // The router whose `endpoint` built it; none for the package's builders.
+  builderRouterFile?: string,
 ): any {
   const {
     method: httpMethod = 'post',
@@ -625,8 +787,6 @@ function defineEndpoint(
     tags,
     output,
     inject,
-    injectMethod,
-    injectAtRequest,
     decorators,
     handler,
   } = params;
@@ -651,17 +811,28 @@ function defineEndpoint(
         'search parameters, or another `method`.',
     );
   }
-  let { injectOnRequest } = params;
+  const injectOnRequest = injectOnRequestOf(params);
   class cls {}
-  const setupFn = ({
+  const setupFn: EndpointSetupFn = ({
     rootDirectories,
     basePath,
     namespaceChain,
-  }: {
-    rootDirectories: string[];
-    basePath: string;
-    namespaceChain: string[];
+    routerFile,
   }) => {
+    // Before anything is applied: a listed endpoint may be set up again.
+    if (
+      builderRouterFile &&
+      routerFile &&
+      !isSameModule(builderRouterFile, routerFile)
+    ) {
+      const shown = (f: string) => path.relative(process.cwd(), f);
+      throw new Error(
+        `${shown(file)} is built with the endpoint of ` +
+          `${shown(builderRouterFile)} but is owned by ` +
+          `${shown(routerFile)}. Build it with the \`endpoint\` of the ` +
+          'router module that owns it.',
+      );
+    }
     const { httpPath, httpPathPascalName, httpPathSegments } = (() => {
       if (explicitPath) {
         const segments = [
@@ -728,7 +899,6 @@ function defineEndpoint(
     if (querySchema) {
       methodParamDecorators.push({ [queryKey]: Query() });
     }
-    injectOnRequest ??= injectMethod ?? injectAtRequest;
     if (injectOnRequest) {
       for (const [key, wd] of Object.entries(injectOnRequest)) {
         methodParamDecorators.push({
