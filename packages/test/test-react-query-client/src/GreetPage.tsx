@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
-import { useGreet } from '../../test-app-express-cjs/generated/react-query-client';
+import { useApiClient } from '../../test-app-express/generated/react-query-client';
 
 export function GreetPage() {
+  const apiClient = useApiClient();
   const [name, setName] = useState('');
-  const { data, error, status, refetch } = useGreet(
-    { name },
+  const { data, error, status, refetch } = apiClient.useGreet(
+    { body: { name } },
     {
       query: {
         enabled: !!name,
@@ -22,15 +23,15 @@ export function GreetPage() {
           onChange={(e) => setName(e.target.value)}
           placeholder="Enter your name"
         />
-        <button onClick={() => refetch()}>Greet</button>
+        <button type="button" onClick={() => refetch()}>
+          Greet
+        </button>
       </div>
 
       {status === 'pending' && name && <div>Loading...</div>}
 
       {error && (
-        <div>
-          Error: {(error.response?.data as { message: string }).message}
-        </div>
+        <div>Error: {(error.response?.data as { message: string } | undefined)?.message}</div>
       )}
 
       {data && <div data-testid="greeting">{data}</div>}

@@ -1,1 +1,1 @@
-export { setupCodegen } from './setup';
+export { setupCodegen } from './setup.js';

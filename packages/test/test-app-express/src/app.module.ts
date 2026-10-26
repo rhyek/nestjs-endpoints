@@ -1,0 +1,84 @@
+import {
+  CallHandler,
+  ExecutionContext,
+  Injectable,
+  Module,
+  NestInterceptor,
+  Type,
+} from '@nestjs/common';
+import { APP_INTERCEPTOR } from '@nestjs/core';
+import { EndpointsRouterModule, ZodValidationException } from 'nestjs-endpoints';
+import { Observable, catchError, throwError } from 'rxjs';
+import { ZodError } from 'zod';
+import { AuthModule } from './auth/auth.module';
+import BlogRouterModule from './blog/router.module';
+import { HelloService } from './endpoints/hello.service';
+import { RecipesManualEndpointsRouterModule } from './endpoints/recipes-manual/router.module';
+import {
+  AppointmentRepositoryToken,
+  IAppointmentRepository,
+} from './endpoints/user/appointment/appointment-repository.interface';
+import { AppointmentRepository } from './endpoints/user/appointment/appointment.repository';
+import { UserListModule } from './endpoints/user/list/user-list.module';
+import { UserRepository } from './endpoints/user/user.repository';
+import { UserRepositoryToken } from './endpoints/user/user.repository.token';
+import { IUserRepository, UserService } from './endpoints/user/user.service';
+import SecuredRouterModule from './secured/router.module';
+import ShopRouterModule from './shop/router.module';
+import TeamRouterModule from './team/router.module';
+import { VanillaController } from './vanilla.controller';
+import WorkspaceRouterModule from './workspace/router.module';
+// Deliberately last: routers do their discovery when Nest awaits them, so
+// the manifest only has to be imported somewhere in the app, in any order.
+import './endpoints.gen';
+
+@Injectable()
+export class ZodErrorInterceptor implements NestInterceptor {
+  intercept(_context: ExecutionContext, next: CallHandler): Observable<unknown> {
+    return next.handle().pipe(
+      catchError((error) => {
+        if (error instanceof ZodError) {
+          return throwError(() => new ZodValidationException(error));
+        }
+        return throwError(() => error);
+      }),
+    );
+  }
+}
+
+@Module({
+  imports: [
+    AuthModule,
+    EndpointsRouterModule.register({
+      rootDirectory: './endpoints',
+      imports: [AuthModule],
+      providers: [
+        UserService,
+        {
+          provide: UserRepositoryToken,
+          useClass: UserRepository as Type<IUserRepository>,
+        },
+        {
+          provide: AppointmentRepositoryToken,
+          useClass: AppointmentRepository as Type<IAppointmentRepository>,
+        },
+        HelloService,
+      ],
+    }),
+    RecipesManualEndpointsRouterModule,
+    ShopRouterModule,
+    BlogRouterModule,
+    SecuredRouterModule,
+    WorkspaceRouterModule,
+    TeamRouterModule,
+    UserListModule,
+  ],
+  providers: [
+    {
+      provide: APP_INTERCEPTOR,
+      useClass: ZodErrorInterceptor,
+    },
+  ],
+  controllers: [VanillaController],
+})
+export class AppModule {}

@@ -1,0 +1,1264 @@
+# nestjs-endpoints — agent guide
+
+`nestjs-endpoints` turns a single `endpoint.query({...})` or
+`endpoint.mutation({...})` call into a real NestJS controller. One file = one
+route = one handler (the REPR pattern). Input and output are Zod schemas, which
+give you runtime validation, an OpenAPI 3.1.1 document, and — optionally — a
+fully typed `axios` / `@tanstack/react-query` client SDK generated from those
+schemas.
+
+This guide is the complete reference. Read the section you need; the tables near
+the top answer most questions on their own.
+
+---
+
+## 0. Is this repo using nestjs-endpoints?
+
+Check, in order:
+
+1. `nestjs-endpoints` in the `dependencies` of a `package.json`.
+2. Files named `*.endpoint.ts` / `endpoint.ts`, or `router.module.ts`.
+3. A call to `setupCodegen(` or `setupOpenAPI(` in a `main.ts` / bootstrap file.
+
+If none of those appear, this library is not in play — don't apply this guide.
+
+**Everything below uses the current names.** These still work but are
+deprecated; never write new code with them, and prefer migrating when you touch
+surrounding code:
+
+| Deprecated | Use instead |
+| --- | --- |
+| `EndpointsRouterModule` | `EndpointRouterModule` |
+| `EndpointsRouterModule.register(...)` | `EndpointRouterModule.create(...)` |
+| `injectMethod`, `injectAtRequest` | `injectOnRequest` |
+
+---
+
+## 1. Requirements and hard constraints
+
+- Node.js >= 24, NestJS >= 12, TypeScript >= 6, Zod >= 4.1.
+- **ESM-only.** The consuming project needs `"type": "module"`. CommonJS is not
+  supported.
+- Peer deps: `@nestjs/common`, `@nestjs/core`, `@nestjs/swagger`, `zod`.
+  `@scalar/api-reference` is optional (docs viewer).
+- **Bundled builds (Webpack, esbuild bundling, `nest build --webpack`) are not
+  supported** for file-based routing: each endpoint's URL is derived from its
+  file's location on disk, which a bundle collapses into one file.
+- **File-based routing needs the endpoint manifest** `src/endpoints.gen.ts`,
+  imported once by the app (§5.6). `npx nestjs-endpoints init` creates it.
+- Output schemas must not be `null` or `.nullable()` at the top level (NestJS
+  will not send a bare `null` body). Wrap it: `z.object({ user: userSchema.nullable() })`.
+
+---
+
+## 2. Quick reference
+
+### 2.1 `endpoint.query({...})` / `endpoint.mutation({...})` options
+
+The two builders take the same options and serve the same way. The builder
+decides what the generated react-query client gives the operation: query
+helpers (`useFn(req)`, `queryKey`, `queryOptions`) for `endpoint.query()`,
+mutation helpers (`useFn()`, `mutationKey`, `mutationOptions`) for
+`endpoint.mutation()`. Use `endpoint.query()` for reads and
+`endpoint.mutation()` for writes.
+
+| Option | Type | Notes |
+| --- | --- | --- |
+| `method` | `'get' \| 'post' \| 'put' \| 'delete' \| 'patch'` | Default `'post'`. Set it only for a caller other than the generated client that needs another method, such as an OAuth callback or a download link that must be a `GET`. A delete or an update needs none: the generated client calls every method the same way. Any other value throws when the endpoint is defined. |
+| `path` | `string` | Explicit HTTP path. **Required for endpoints registered manually outside a router** (see §4.2). Omit to use file-based routing. |
+| `input` | Zod schema | The JSON body (`@Body()`). Not allowed with `method: 'get'`: a type error, and a throw when the endpoint is defined. |
+| `query` | Zod object | Search parameters (`@Query()`), on any method. |
+| `params` | Zod object | Path params. Keys must match the `:names` in the URL. |
+
+`query` and `params` take an object schema, bare, behind a transform or
+preprocess step, or given through `schema()`; anything else is a type error.
+| `output` | Zod schema, or `Record<number, Zod schema>` | Response validation + OpenAPI. Multi-status form requires `response(...)`. |
+| `inject` | `Record<string, Type \| decorated<T>(...)>` | Class-level providers (≡ constructor injection). |
+| `injectOnRequest` | `Record<string, decorated<T>(...)>` | Per-request values (≡ `@Req()`, `@Session()`, …). |
+| `decorators` | `MethodDecorator[]` | Per-endpoint decorators, e.g. `UseGuards(AuthGuard)`. |
+| `summary` | `string` | OpenAPI summary. |
+| `tags` | `string[]` | Extra OpenAPI tags (an automatic one is always added — §6.2). |
+| `handler` | function | Receives one object (§3.3). |
+
+Returns a **NestJS controller class**. Use it as a `controllers:` entry, an
+`endpoints:` entry, or let the router discover it via the file's default export.
+
+### 2.2 `EndpointRouterModule.create({...})` options
+
+Returns `Promise<DynamicModule>` — pass it straight into `imports:` or
+`export default` it from a `router.module.ts`. The promise also carries
+`endpoint`, the router's own builders (`router.endpoint.query(...)` /
+`router.endpoint.mutation(...)`; §3.5).
+
+| Option | Type | Notes |
+| --- | --- | --- |
+| `rootDirectory` | `string \| string[]` | Directory/directories to scan. Relative to the **calling file**. Default: the calling file's own directory. |
+| `basePath` | `string` | URL prefix for everything this router owns. Inferred when omitted (§5.2). `''` or `'/'` opts out. |
+| `namespace` | `boolean \| string` | SDK bucket segment. Does **not** affect URLs (§7). |
+| `description` | `string` | OpenAPI tag description + JSDoc on the generated SDK bucket. |
+| `endpoints` | `Type[] \| (() => (Type \| Promise<object>)[])` | Endpoints registered manually (they get this router's `basePath`). A callback runs when the router does, so the endpoints it `import()`s can use the router's `endpoint`; each `import()` lists every endpoint the module exports (§4.2). |
+| `middleware` | `(Type<NestMiddleware> \| Function)[]` | Optional trailing `{ exclude: string[] }` entry (paths relative to `basePath`). |
+| `interceptors` | `(Type<NestInterceptor> \| NestInterceptor)[]` | Applied controller-scoped to the whole subtree. |
+| `guards` | `(Type<CanActivate> \| CanActivate)[]` | Applied controller-scoped to the whole subtree. |
+| `endpointConfig` | `{ inject?, injectOnRequest? }` | Shaped as the endpoint options of the same names; added to each endpoint this router owns that is built with its `endpoint` (§3.5). |
+| `imports` / `exports` / `providers` | as in `@Module` | |
+
+### 2.3 File → URL
+
+Assume `rootDirectory: './endpoints'` and no `basePath`.
+
+| File | URL |
+| --- | --- |
+| `endpoints/greet.endpoint.ts` | `/greet` |
+| `endpoints/user/create.endpoint.ts` | `/user/create` |
+| `endpoints/user/_mutations/create/endpoint.ts` | `/user/create` |
+| `endpoints/shop/recipes/endpoint.ts` | `/shop/recipes` |
+| `endpoints/recipes/edit/$recipeId.endpoint.ts` | `/recipes/edit/:recipeId` |
+| `endpoints/recipes/$recipeId.view/endpoint.ts` | `/recipes/:recipeId/view` |
+| `endpoints/recipes/$recipeId.delete.endpoint.ts` | `/recipes/:recipeId/delete` |
+| `endpoints/recipes/$recipeId/check-ingredients.endpoint.ts` | `/recipes/:recipeId/check-ingredients` |
+| `endpoints/restaurant/$restaurantId/recipes/$recipeId.view/endpoint.ts` | `/restaurant/:restaurantId/recipes/:recipeId/view` |
+
+### 2.4 Generated client call conventions
+
+`fn` = axios method (returns a full `AxiosResponse`, so read `.data`).
+`useFn` = the paired React Query hook.
+
+Each operation takes one object grouping its request: `path` (path `params`),
+`query` (the endpoint's `query`) and `body` (its `input`). Its `headers` is
+typed `never`, since endpoints declare no header parameters; set request
+headers on `client.axios`.
+
+| Endpoint shape | axios | react-query |
+| --- | --- | --- |
+| `endpoint.query()`, nothing declared | `fn()` | `useFn(options?)` |
+| `endpoint.query()`, `input` | `fn({ body })` | `useFn({ body }, options?)` |
+| `endpoint.query()`, `query` only, every field `.optional()` or `.default()` | `fn()` or `fn({ query })` | `useFn()` or `useFn({ query })` |
+| `endpoint.query()`, `params` (path) | `fn({ path })` | `useFn({ path }, options?)` |
+| `endpoint.query()`, `params`, `query` and `input` | `fn({ path, query, body })` | `useFn({ path, query, body }, options?)` |
+| `endpoint.mutation()`, `input` | `fn({ body })` | `useFn().mutateAsync({ body })` |
+| …plus path `params` | `fn({ path, body })` | `useFn().mutateAsync({ path, body })` |
+| …path `params`, no `input` | `fn({ path })` | `useFn().mutateAsync({ path })` |
+
+The axios method's object also takes axios request config (`signal`,
+`timeout`, …); every hook takes a trailing optional
+`{ query?, mutation?, client? }` options object, which is a mutation hook's
+only argument: `useFn({ mutation: { onSuccess } })`.
+
+### 2.5 CLI
+
+Run with `npx nestjs-endpoints <command>` from the project root.
+
+| Command | What it does |
+| --- | --- |
+| `init` | One-time setup: writes the endpoint manifest `src/endpoints.gen.ts` (§5.6), marks `**/endpoints.gen.ts` as generated in `.gitattributes` (and `.prettierignore` if the project has one), installs the agent skill into `.claude/skills/` (mirrored into `.agents/` / `.cursor/` when present), and prints the import line to add to the app module. Safe to re-run. |
+| `init --refresh` | Only rewrites an installed, unedited, out-of-date skill; no-op otherwise. Never touches the manifest. For `postinstall` hooks. |
+| `generate` | Rewrites the endpoint manifest from the files on disk, only when its contents change. Put it in front of every script that starts the app (dev server, tests, codegen) so no process starts with an out-of-date manifest (§5.6). Also the fix when CI reports the manifest out of date. |
+| `help`, `--version` | Usage, and the installed version. |
+
+`init` and `generate` take:
+
+- `--dir <dir>` — the source directory the manifest covers (default `src`).
+- `--import-extension js|ts` — how the manifest's `import()` specifiers end:
+  `js` (default; tsc, tsx, swc, Vite) or `ts` (Node's native type stripping).
+  Without the flag, an existing manifest's setting is kept.
+
+---
+
+## 3. Writing an endpoint
+
+### 3.1 The minimum
+
+```ts
+// src/endpoints/articles/latest.endpoint.ts  →  POST /articles/latest
+import { endpoint } from 'nestjs-endpoints';
+
+export default endpoint.query({
+  handler: () => [{ id: 1, title: 'Hello' }],
+});
+```
+
+With no `output` schema there is no response validation and the OpenAPI
+operation has no typed response — the generated SDK will type it as `any`.
+**Always declare `output`** unless you have a reason not to.
+
+### 3.2 Input, query, params, output
+
+```ts
+// src/endpoints/user/create.endpoint.ts  →  POST /user/create
+import { endpoint, z } from 'nestjs-endpoints';
+import { DbService } from './db.service';
+
+export default endpoint.mutation({
+  input: z.object({
+    name: z.string(),
+    email: z.email(),
+  }),
+  output: z.object({
+    id: z.number(),
+  }),
+  inject: {
+    db: DbService,
+  },
+  handler: async ({ input, db }) => {
+    const user = await db.user.create(input);
+    // Extra keys are stripped by the output schema before the response is sent.
+    return { id: user.id, name: user.name };
+  },
+});
+```
+
+Rules that bite if you forget them:
+
+- **`input` is the JSON body; `query` is the search parameters.** Every
+  endpoint is a `POST` unless it sets `method`, so send reads' input in the
+  body too. A `GET` has no body: with `method: 'get'`, declare `query`, never
+  `input`.
+- **A request without a body reads as `{}`**, unless `input` accepts a missing
+  body (`.optional()`). On Fastify, a request that sends
+  `Content-Type: application/json` with no body is answered `400` before it
+  reaches the handler.
+- **Every endpoint answers `200`, a `POST` included,** unless its handler
+  returns another status with `response(status, body)` (§3.4).
+- **`query` and `params` arrive as strings** — use `z.coerce.number()`,
+  `z.stringbool()` (not `z.coerce.boolean()`, which reads `'false'` as
+  `true`), `z.coerce.date()`.
+- Input validation failure → `ZodValidationException` → HTTP **400** with
+  `{ statusCode, message: 'Validation failed', errors: ZodIssue[] }`.
+- Output validation failure → `ZodSerializationException` → HTTP **500**.
+- `z` is re-exported from `nestjs-endpoints`, so `import { endpoint, z } from
+  'nestjs-endpoints'` is the idiomatic single import. Importing `zod` directly
+  works too.
+
+```ts
+// src/endpoints/issues/list.endpoint.ts  →  POST /issues/list?page=2
+export default endpoint.query({
+  query: z.object({ page: z.coerce.number().default(1) }),
+  input: z.object({ status: z.enum(['open', 'closed']) }),
+  inject: { issues: IssuesRepository },
+  handler: ({ query, input, issues }) =>
+    issues.list(input.status, query.page),
+});
+// client.issuesList({ query: { page: 2 }, body: { status: 'open' } })
+```
+
+```ts
+// src/endpoints/auth/callback.endpoint.ts  →  GET /auth/callback?code=…&state=…
+export default endpoint.query({
+  method: 'get',
+  query: z.object({ code: z.string(), state: z.string() }),
+  inject: { auth: AuthService },
+  handler: ({ query, auth }) => auth.complete(query.code, query.state),
+});
+```
+
+Nested-object search parameters (`?add[a]=1&add[b]=2`) need the adapter
+configured for extended query parsing — see the NestJS
+[query-parameters docs](https://docs.nestjs.com/controllers#query-parameters).
+
+### 3.3 What the handler receives
+
+One object, with exactly these keys:
+
+| Key | Present when | Value |
+| --- | --- | --- |
+| `input` | `input` declared | Parsed output of the input schema. |
+| `rawInput` | `input` declared | The unvalidated body, before parsing. |
+| `query` | `query` declared | Parsed search parameters. |
+| `params` | `params` declared | Parsed path params. |
+| `schemas` | always | `{ input?, query?, params? }` — the Zod schemas themselves. |
+| `response` | always | `response(status, body)` — required for multi-status output. |
+| *(your keys)* | — | Everything from `inject` and `injectOnRequest`, by the name you gave it. |
+
+### 3.4 Multi-status output
+
+When `output` is a `Record<number, schema>`, the handler **must** return
+`response(status, body)`; the status you pass is type-checked against the map,
+and the body against that status's schema.
+
+```ts
+import { UseGuards } from '@nestjs/common';
+import { endpoint, schema, z } from 'nestjs-endpoints';
+
+export default endpoint.mutation({
+  summary: 'Create an appointment',
+  input: z.object({ userId: z.number(), date: z.coerce.date() }),
+  output: {
+    201: schema(
+      z.object({ id: z.number(), address: z.string() }),
+      { description: 'Appointment created' },
+    ),
+    400: z.union([
+      z.string(),
+      z.object({ message: z.string(), errorCode: z.string() }),
+    ]),
+  },
+  decorators: [UseGuards(AuthGuard)],
+  handler: async ({ input, response }) => {
+    if (await hasConflict(input.date)) {
+      return response(400, {
+        message: 'Appointment has conflict',
+        errorCode: 'APPOINTMENT_CONFLICT',
+      });
+    }
+    return response(201, await create(input));
+  },
+});
+```
+
+`schema(zodSchema, { description })` attaches an OpenAPI description to one
+status. It is accepted anywhere a schema is (`input`, `query`, `params`,
+`output`), but
+the description only surfaces for `output`.
+
+With a **single** `output` schema you just return the value; over HTTP
+`response(200, ...)` is equivalent. Note the two differ under `invoke()`: a
+handler that returns `response(200, x)` hands `invoke()` back the
+`EndpointResponse` wrapper, while returning `x` directly gives it the parsed
+body. Prefer the plain return for single-status endpoints.
+
+For error paths that aren't part of the contract, throw the normal NestJS
+exceptions (`NotFoundException`, `UnauthorizedException`, …) — they bypass output
+validation entirely.
+
+### 3.5 Dependency injection
+
+Two tiers, mapping one-to-one onto vanilla NestJS:
+
+```ts
+import { Inject, Req, Session } from '@nestjs/common';
+import type { Request } from 'express';
+import { decorated, endpoint } from 'nestjs-endpoints';
+
+export default endpoint.query({
+  // Class-level ≡ constructor(private readonly db: DbService) {}
+  inject: {
+    db: DbService,
+    // A non-class token needs `decorated<T>(...)` to carry the type.
+    repo: decorated<IUserRepository>(Inject(UserRepositoryToken)),
+  },
+  // Per-request ≡ handler(@Req() req: Request, @Session() session: Session)
+  injectOnRequest: {
+    req: decorated<Request>(Req()),
+    session: decorated<Session>(Session()),
+  },
+  handler: ({ db, repo, req, session }) => { /* … */ },
+});
+```
+
+`decorated<T>(decorator)` pairs any NestJS property/parameter decorator with the
+TypeScript type you want on the handler argument. Custom decorators
+(`createParamDecorator`) work: `decorated<User>(CurrentUser())`.
+
+Providers must be resolvable from the module the endpoint lands in — put them in
+the owning router's `providers`, or export them from a module in its `imports`.
+
+#### Router injections
+
+What every endpoint of a router needs goes on the router, once, in
+`endpointConfig`. `create()` returns the router with an `endpoint` builder, and
+each endpoint built with it receives the router's injections with its own:
+
+```ts
+// src/workspace/router.module.ts
+export default EndpointRouterModule.create({
+  providers: [WorkspaceService, AuditService],
+  endpointConfig: {
+    inject: { workspace: WorkspaceService },
+    injectOnRequest: { user: decorated<User>(CurrentUser()) },
+  },
+});
+
+// src/workspace/rename.endpoint.ts
+import router from './router.module';
+
+export default router.endpoint.mutation({
+  input: z.object({ name: z.string() }),
+  inject: { audit: AuditService },
+  handler: ({ input, workspace, user, audit }) => { /* … */ },
+});
+```
+
+Or the router module re-exports the builder, and its endpoints use
+`import { endpoint } from './router.module'` and `endpoint.mutation(...)`:
+
+```ts
+// src/workspace/router.module.ts
+const router = EndpointRouterModule.create({ /* …the options above */ });
+export const { endpoint } = router;
+export default router;
+```
+
+- The injections reach only the endpoints the router owns, its subfolders
+  included, that are built with its `endpoint`: not one built with the
+  package's `endpoint`, nor those of a nested router, which declares its own.
+  An endpoint built with the `endpoint` of a router that declares injections
+  fails at startup if another router owns it.
+- Declaring a key the router already injects (in either map) is a type error,
+  `` `workspace` is already injected by its router ``, and throws when the
+  endpoint is defined. A router key goes in one of the router's two maps: a key
+  in both is a type error, `` `user` is in both inject and injectOnRequest ``,
+  and `create()` throws.
+- The providers the router's `inject` names resolve as an endpoint's own do
+  (above).
+- The injections are part of the endpoint however it is loaded: compiled on
+  its own in a test (§10.3), it gets them (list the providers the router's
+  `inject` names in the testing module), and `invoke()` sees the router's
+  `inject`.
+- Nothing the router module imports statically, directly or through a
+  provider, guard or endpoint in an `endpoints: [...]` array, may import its
+  `endpoint`: that is an import cycle, which fails at load (§13). A router
+  that lists its endpoints by hand lists them with an `endpoints` callback
+  (§4.2).
+
+### 3.6 Per-endpoint decorators
+
+`decorators: MethodDecorator[]` is applied to the generated handler method. Use
+it for one-off `UseGuards`, `UseInterceptors`, `Header`, custom
+`SetMetadata`, etc. For anything that should cover a whole folder, put it on the
+router instead (§5.5) — that's the whole point of router-scoped guards.
+
+---
+
+## 4. The two routing styles
+
+### 4.1 File-based (idiomatic)
+
+`export default` the endpoint; a router discovers the file and derives the URL
+from its location.
+
+```ts
+// src/app.module.ts
+import { Module } from '@nestjs/common';
+import { EndpointRouterModule } from 'nestjs-endpoints';
+import { HealthService } from './health.service';
+import './endpoints.gen.js'; // the endpoint manifest (§5.6)
+
+@Module({
+  imports: [
+    EndpointRouterModule.create({
+      rootDirectory: './endpoints',
+      providers: [HealthService],
+    }),
+  ],
+})
+export class AppModule {}
+```
+
+### 4.2 Manual (explicit paths)
+
+Export the endpoint as a named const with an explicit `path`, then register it
+like any controller.
+
+```ts
+// src/health-check.ts
+export const healthCheck = endpoint.query({
+  path: '/status/health',
+  method: 'get', // a probe calls it with a GET
+  handler: () => ({ ok: true }),
+});
+
+// src/app.module.ts
+@Module({ controllers: [healthCheck] })
+export class AppModule {}
+```
+
+> **Always pass `path` for manually-registered endpoints.** An endpoint created
+> outside a router with no `path` falls back to deriving its URL from the file's
+> location **relative to `process.cwd()`** — which after compilation includes
+> `dist/`, producing routes like `/dist/endpoints/user/list/user-list-no-path`
+> and an SDK method named `distEndpointsUserListUserListNoPath`. This is almost
+> never what you want.
+
+Manually-created endpoints can also be handed to a router so they pick up its
+`basePath`, providers, guards and namespace:
+
+```ts
+export default EndpointRouterModule.create({
+  basePath: 'recipes-manual',
+  providers: [RecipesRepository],
+  endpoints: [createManualRecipeEndpoint],
+});
+```
+
+Endpoints built with the router's own `endpoint` (§3.5) are listed with a
+callback instead. The router calls it when it runs, once the router module has
+loaded, and each `import()` lists every endpoint the module exports, default or
+named. A static import of them from the router module is an import cycle.
+
+```ts
+export default EndpointRouterModule.create({
+  basePath: 'recipes-manual',
+  providers: [RecipesRepository],
+  endpointConfig: { inject: { recipes: RecipesRepository } },
+  endpoints: () => [
+    import('./create.endpoint.js'),
+    import('./list.endpoint.js'),
+  ],
+});
+```
+
+### 4.3 Mixing
+
+Both styles coexist in one app. A router scans its roots for file-based
+endpoints *and* registers anything in `endpoints:`; plain `@Controller()`
+classes elsewhere in the app keep working and show up in the OpenAPI document,
+but not in the generated SDK (§8).
+
+---
+
+## 5. The endpoint router
+
+`EndpointRouterModule.create()` walks its root directories — as listed in the
+endpoint manifest (§5.6) — auto-registers every endpoint file it finds, imports
+every nested router it finds, and gives each endpoint its HTTP path.
+
+### 5.1 Discovery rules
+
+- **Endpoint files**: basename matching `endpoint.(ts|js|mjs|mts)` — i.e.
+  `something.endpoint.ts` or exactly `endpoint.ts`. Everything else is ignored,
+  so services, DTOs, guards and tests can sit right next to the endpoint they
+  belong to. (Colocation is the intended style.)
+- **Nested routers**: any directory containing a `router.module.(ts|js|mjs|mts)`
+  is treated as a nested router at any depth. The parent imports it and **does
+  not scan inside it** — that subtree belongs to the child.
+- Directories whose name starts with `_` contribute nothing to the URL. Use
+  `_endpoints/`, `_mutations/` etc. to group files without changing routes.
+- Files are found through the endpoint manifest, not by reading directories, and
+  each URL is derived from the file's own location. Keep the compiled layout
+  identical to the source layout.
+
+### 5.2 How a path is built
+
+```
+basePath  +  (directories under the matching rootDirectory)  +  leaf
+```
+
+Segment expansion, applied to every folder name and to the filename's leaf:
+
+- Split on `.` → `$id.view` becomes two segments, `:id` and `view`.
+- A `$` prefix makes it a path parameter → `$recipeId` becomes `:recipeId`.
+- A leading `_` on a directory drops it entirely.
+- Filename leaf: `create.endpoint.ts` → `create`. A file named exactly
+  `endpoint.ts` contributes **no** leaf, so it maps to its folder's path.
+
+Every `:param` in the resulting URL must be declared in the endpoint's `params`
+schema, and every key of `params` must correspond to a `:param`.
+
+### 5.3 `basePath` inference
+
+| Where `create()` is called | Inferred `basePath` |
+| --- | --- |
+| A `router.module.*` file, top level | `/` + that file's folder name |
+| A `router.module.*` file, nested under a parent router | parent's `basePath` + the child's folder relative to the matching parent root (or, if outside it, relative to the parent module's folder) |
+| Anywhere else (`app.module.ts`, a feature module, …) | `'/'` |
+
+Pass `basePath` explicitly to override; pass `''` or `'/'` to mount at the root.
+
+```ts
+// src/blog/router.module.ts — folder is `blog`, but routes mount at /articles
+export default EndpointRouterModule.create({
+  rootDirectory: 'endpoints',
+  basePath: 'articles',
+});
+```
+
+### 5.4 Nested routers and multi-root
+
+```
+src/
+├── app.module.ts
+└── endpoints/
+    └── shop/
+        ├── homepage.endpoint.ts          → /shop/homepage
+        └── recipes/
+            ├── router.module.ts          ← owns this subtree
+            ├── repository.service.ts
+            ├── endpoint.ts               → /shop/recipes
+            └── create.endpoint.ts        → /shop/recipes/create
+```
+
+```ts
+// src/endpoints/shop/recipes/router.module.ts
+import { EndpointRouterModule } from 'nestjs-endpoints';
+import { RecipesRepository } from './repository.service';
+
+export default EndpointRouterModule.create({
+  providers: [RecipesRepository],
+  description: 'Recipe catalog and authoring.',
+});
+```
+
+A nested router does not inherit its parent's router injections (§3.5); it
+declares its own.
+
+`rootDirectory` also takes an array; each entry is scanned independently under
+the same `basePath`:
+
+```ts
+// src/shop/router.module.ts  → basePath inferred as `/shop`
+export default EndpointRouterModule.create({
+  // `endpoints/` holds this router's own endpoint files; the other three each
+  // contain a router.module.ts and are picked up as nested routers.
+  rootDirectory: ['endpoints', 'category', 'cart', 'recipes'],
+  providers: [ShopService],
+});
+```
+
+A router can also live inside a regular `@Module` when you need normal NestJS
+wiring around it:
+
+```ts
+@Module({
+  providers: [AuthService],
+  exports: [AuthService],
+  imports: [
+    EndpointRouterModule.create({ basePath: 'auth', providers: [AuthService] }),
+  ],
+})
+export class AuthModule {}
+```
+
+### 5.5 Middleware, interceptors, guards
+
+All three apply to **every endpoint in the router's subtree**, nested routers
+included. Module-scoped interceptors and guards are the main thing this library
+adds over vanilla NestJS, where your only options are global (`APP_GUARD`) or
+per-controller.
+
+```ts
+import { IncomingMessage, ServerResponse } from 'node:http';
+import { EndpointRouterModule } from 'nestjs-endpoints';
+
+export default EndpointRouterModule.create({
+  providers: [RecipesGuard],
+  middleware: [
+    RecipesMiddleware,                                    // class-based
+    (_req: IncomingMessage, _res: ServerResponse, next: () => void) => {
+      next();
+    },                                                    // functional
+    { exclude: ['list'] },                                // options — LAST entry only
+  ],
+  interceptors: [RecipesInterceptor],
+  guards: [RecipesGuard],
+});
+```
+
+- The options object must be the **last** array entry or `create()` throws.
+- `exclude` paths are resolved against the router's `basePath`
+  (`'list'` under `/recipes` excludes `/recipes/list`).
+- Guards/interceptors passed as classes must be resolvable — add them to
+  `providers` on the same router (or an imported module).
+
+### 5.6 The endpoint manifest
+
+`src/endpoints.gen.ts` lists every endpoint and router-module file under `src/`
+as a lazy `() => import('./…')`. Routers find and load files through it, so the
+loads happen in app code: Vitest transforms them (no `server.deps.inline`
+needed) and `node --watch` / `tsx watch` restart when it changes.
+
+- **Never edit it by hand, and commit it.** It is generated.
+- **Import it once**, anywhere in the app's import graph — the app module is the
+  natural place. Order does not matter, and importing it loads no endpoints.
+- **Generate it before the app starts.** A process can only load the files
+  its manifest listed when it started, so scripts that start the app run
+  `nestjs-endpoints generate` first:
+  `"test": "nestjs-endpoints generate && vitest run"`, and the same in front
+  of the dev server and codegen scripts. It writes only when the contents
+  change.
+- **The app checks it too.** In development (`NODE_ENV` unset or
+  `development`) the app rewrites it at startup and on every add / delete /
+  rename of an endpoint or router-module file while running; a watcher then
+  restarts the app with the new route set. Test runs rewrite it at startup
+  only, and when endpoint files were added that run fails with "Run the tests
+  again" (it loaded the old list). With `CI` set, an out-of-date manifest fails startup. With
+  `NODE_ENV=production` it is used as is.
+- **A new endpoint added while the app runs is served after a restart.** Under
+  a watcher that is automatic; without one, restart the app.
+- **Deleted endpoints never fail startup** — entries whose file is gone are
+  skipped.
+- Regenerate on demand: `npx nestjs-endpoints generate` (`--dir <dir>` for a
+  source directory other than `src/`; `--import-extension ts` once for Node's
+  native type stripping, which needs `.ts` specifiers).
+- Compiled apps (`nest start --watch` runs `dist/`) find the source manifest
+  through the emitted source map; keep `sourceMap` on.
+
+---
+
+## 6. OpenAPI
+
+### 6.1 `setupOpenAPI`
+
+Use this when you only want the spec (or want to drive your own generator).
+The document is for the docs viewer and other generators: `setupCodegen`
+generates its clients from the endpoints' Zod schemas, not from the document
+(§8). The document also covers plain Nest controllers, which the SDK does not.
+
+```ts
+import { NestFactory } from '@nestjs/core';
+import { setupOpenAPI } from 'nestjs-endpoints';
+
+const app = await NestFactory.create(AppModule);
+const { document, changed } = await setupOpenAPI(app, {
+  configure: (builder) => builder.setTitle('My API'),
+  outputFile: process.cwd() + '/openapi.json',   // string path or a Writable
+  ui: { path: 'docs' },                          // optional viewer
+});
+if (changed) {
+  // the file on disk differed and was rewritten
+}
+await app.listen(3000);
+```
+
+- `configure` receives `@nestjs/swagger`'s `DocumentBuilder`.
+- `outputFile` accepts a path (relative paths resolve against the calling file)
+  or a `Writable` stream. `changed` is `true` only when the content differed.
+- `ui: { path, options? }` mounts a viewer. If `@scalar/api-reference` is
+  installed it's used (nicer UI, sidebar groups); otherwise Swagger UI. `options`
+  is forwarded to whichever one is active.
+
+### 6.2 Tags and grouping
+
+Every operation gets one automatic tag:
+
+- the router's namespace chain joined with `/` (e.g. `shop/recipes`), or
+- if no namespace is declared, the URL prefix minus the leaf, with `:param`
+  segments dropped (e.g. `/recipes/1/view` → `recipes`).
+
+`tags: [...]` on an endpoint adds to that. A router's `description` becomes the
+OpenAPI tag description for its group. When two or more distinct top-level
+groups exist, an `x-tagGroups` extension is emitted so Scalar/ReDoc render
+sidebar headers.
+
+Each operation carries `x-endpoint-kind`: `query` for an `endpoint.query()`,
+`mutation` for an `endpoint.mutation()`. A generator run against the document
+(rather than `setupCodegen`) should choose query or mutation hooks from it,
+since most endpoints are `POST`s whatever their kind. An operation in a
+namespace also carries `x-namespace`, its namespace chain.
+
+### 6.3 Schema naming
+
+Component schemas are named from the operation: `UserCreateOutput`, and
+`UserCreate400Output` for non-200 statuses. A request body gets `UserCreateInput`.
+An endpoint's `query` becomes one query parameter per property; the generated
+client types the group as `<OperationId>Query` (`IssuesListQuery`). The object
+itself is a component only when it has a `.meta({ id })`. It must be an object
+schema (also with `.meta({ id })`, or behind a transform or preprocess step);
+anything else throws at startup, as does a `params` that is not one.
+
+### 6.4 `.transform()` in output schemas
+
+A `.transform()` produces a type zod-openapi often can't infer. Either use
+`.overwrite()` (same-type transforms) or annotate the result:
+
+```ts
+z.string().overwrite((s) => s.toUpperCase());
+
+z.date()
+  .transform((d) => d.toISOString())
+  .meta({ type: 'string', format: 'date-time' });
+```
+
+Dates convert to an ISO date-time or date in requests and an ISO date-time in
+responses. A `z.bigint()` needs `.meta({ type })` on the bigint itself, not on
+a wrapper such as `.optional()`, saying what travels (for example
+`z.coerce.bigint().meta({ type: 'string' }).optional()`); without it, startup
+throws.
+
+---
+
+## 7. Namespaces
+
+A namespace decides where an operation lands **in the generated SDK object**. It
+has **no effect on URLs**.
+
+```ts
+// src/endpoints/shop/router.module.ts
+export default EndpointRouterModule.create({ namespace: true });
+
+// src/endpoints/shop/recipes/router.module.ts
+export default EndpointRouterModule.create({ namespace: true });
+```
+
+```ts
+await client.shop.recipes.create({ body: { name: 'Pizza' } }); // axios
+const create = client.shop.recipes.useCreate();                // react-query
+```
+
+`namespace` accepts:
+
+| Value | Meaning |
+| --- | --- |
+| omitted / `false` | Contributes nothing; endpoints inherit the parent's chain. |
+| `true` | Mirrors `basePath`: the explicit `basePath` value if set, else the router's folder name — the folder-name fallback only applies when `create()` is called from a `router.module.*` file, so `true` from an `app.module.ts` with no `basePath` contributes nothing. |
+| `string` | That exact segment. |
+
+A folder with **no** `router.module.ts` contributes to the URL but not to the
+namespace chain — `shop/catering/book.endpoint.ts` under a namespaced `shop`
+router serves `/shop/catering/book` and lands at `client.shop.useCateringBook()`.
+
+### 7.1 How SDK names are derived
+
+1. The operation id is the PascalCase form of the URL with `:param` segments
+   removed: `/shop/recipes/edit/:recipeId` → `ShopRecipesEdit`.
+2. The axios method is that, lower-cased first letter; the hook is `use` +
+   PascalCase.
+3. The namespace chain's PascalCase prefix is stripped before the name is placed
+   in its bucket: `shopRecipesEdit` in bucket `shop.recipes` becomes `edit`.
+4. An endpoint in no namespace sits at the client's root under its full name:
+   `/orders/list` is `client.ordersList` and `client.useOrdersList`.
+
+Consequences worth knowing:
+
+- **Path params vanish from the name** — the typed `path` group conveys them:
+  `client.recipesEdit({ path: { recipeId }, body: { name } })`.
+- **Stripping is lenient.** If the flat name doesn't start with the full chain,
+  or stripping would leave nothing, the full flat name is kept. A bare
+  `endpoint.ts` inside `shop/recipes/` produces operation `ShopRecipes`, whose
+  entire name *is* the chain — so it lands at `client.shop.recipes.shopRecipes`.
+  **Give such files a real leaf name** (`list.endpoint.ts`) instead.
+- `axios` is reserved at the root of the client object.
+- Collisions are **fatal at codegen time** with an explicit message: two
+  operations resolving to the same bucket key, an operation colliding with a
+  nested bucket name, or a namespace segment colliding with `axios`. Fix by
+  renaming the endpoint file or the router namespace.
+
+---
+
+## 8. Codegen
+
+### 8.1 `setupCodegen`
+
+```ts
+import { NestFactory } from '@nestjs/core';
+import { setupCodegen } from 'nestjs-endpoints';
+
+const app = await NestFactory.create(AppModule);
+await setupCodegen(app, {
+  openapi: {
+    outputFile: process.cwd() + '/openapi.json',
+    configure: (b) => b.setTitle('Shop API'),
+    ui: { path: 'docs' },
+  },
+  clients: [
+    { type: 'axios', outputFile: process.cwd() + '/generated/axios-client.ts' },
+    {
+      type: 'react-query',
+      outputFile: process.cwd() + '/generated/react-query-client.tsx',
+    },
+  ],
+});
+await app.listen(3000);
+```
+
+The clients are generated from each endpoint's Zod schemas, so they cover
+endpoints only: routes of plain Nest controllers are in the OpenAPI document
+but not in the SDK. `openapi` is optional and takes the same options as
+`setupOpenAPI` (§6.1); when it is given, the document is built, written to its
+`outputFile` and served at its `ui.path`. Without it, no document is written or
+served. Kubb is the engine; the react-query client needs
+`@tanstack/react-query` >= 5.82 in the consuming app, plus `axios` and `react`.
+
+Per-client options:
+
+| Option | Notes |
+| --- | --- |
+| `type` | `'axios'` or `'react-query'`. |
+| `outputFile` | **Must include an extension** (`.ts` / `.tsx`) — the generated tree goes in a sibling directory named after it, so an extensionless path would collide. |
+| `namespaces` | `string[]` restricting the client to those top-level namespaces. Omit for full access; `[]` is rejected. |
+| `options` | react-query only: forwarded to `@kubb/plugin-react-query` (query keys, suspense/infinite generation, …). The `client` and `hooks` fields are managed for you. The builder decides an operation's kind, so `query.methods` and `mutation.methods` are ignored; `include`, `exclude`, and a `query: false` or `mutation: false` (top level or in an `override`) decide which operations get hooks and query or mutation options (§9.2). |
+
+`forceGenerate: true` (top level) wipes and regenerates every client.
+Otherwise a client regenerates when what it is generated from changes (its
+endpoints' schemas, its routers' `description`s, its `type`, `namespaces` and
+`options`, the nestjs-endpoints version), or when its wrapper file or sibling
+directory is missing. The wrapper's first line,
+`// nestjs-endpoints: <sha256>`, records the hash of those inputs.
+
+### 8.2 What gets written
+
+```
+generated/
+├── axios-client.ts            ← the ONLY file you import
+└── axios-client/              ← Kubb output; treat as build artifact
+    ├── client-runtime.ts
+    ├── clients/…
+    └── types/…
+```
+
+For react-query, the sibling directory also holds `hooks/`.
+**Import only from the top-level wrapper file.** The sibling tree is internal,
+is wiped and rewritten on every regeneration, and its per-operation hooks are
+unbound (they have no client).
+
+The wrapper exports:
+
+| Export | axios | react-query |
+| --- | --- | --- |
+| `createApiClient(config?)` | ✔ | ✔ |
+| `ApiClient` type | ✔ | ✔ |
+| `useApiClient()` | — | ✔ |
+| `ApiClientProvider` | — | ✔ |
+| operation types (`UserCreateInput`, …) | ✔ | ✔ |
+
+### 8.3 Per-client namespace filtering
+
+One server, several clients, each shipping only what it needs (types are pruned
+to match):
+
+```ts
+clients: [
+  { type: 'axios', outputFile: cwd + '/generated/backend.ts' },
+  {
+    type: 'react-query',
+    outputFile: cwd + '/generated/admin-client.tsx',
+    namespaces: ['auth', 'admin'],
+  },
+  {
+    type: 'react-query',
+    outputFile: cwd + '/generated/shop-client.tsx',
+    namespaces: ['auth', 'shop'],
+  },
+]
+```
+
+Note that filtering keeps only operations that **have** a namespace — un-namespaced
+operations are excluded from a filtered client.
+
+### 8.4 Running codegen
+
+Codegen runs during bootstrap, so it needs the app to be created. Two common
+setups:
+
+- Call `setupCodegen` in `main.ts` before `app.listen(...)` — regenerates on
+  every dev restart.
+- Keep a dedicated `src/codegen.ts` that creates the app, calls `setupCodegen`,
+  and exits — run it as a build/CI step so the server itself stays lean.
+
+---
+
+## 9. Using the generated client
+
+### 9.1 axios
+
+```ts
+import { createApiClient } from './generated/axios-client';
+
+const client = createApiClient({ baseURL: process.env.API_BASE_URL });
+// …or hand it an axios instance you already built:
+// const client = createApiClient(myAxiosInstance);
+
+// The underlying instance is always reachable:
+client.axios.defaults.headers.common['x-tenant'] = 't1';
+
+const { data: user } = await client.user.create({
+  body: { name: 'Tom', email: 'tom@x.com' },
+});
+```
+
+Methods resolve to the full `AxiosResponse` and **reject on non-2xx**, exactly
+like axios — so error handling is `try/catch` + `err.response.status`. Pass
+`throwOnError: false` to get the error response back instead. Set request
+headers on `client.axios`; an operation's `headers` is typed `never`.
+
+### 9.2 react-query
+
+```tsx
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { ApiClientProvider, createApiClient } from './generated/react-query-client';
+
+export function App() {
+  const queryClient = useMemo(() => new QueryClient(), []);
+  const apiClient = useMemo(
+    () => createApiClient({ baseURL: import.meta.env.VITE_API_BASE_URL }),
+    [],
+  );
+  return (
+    <QueryClientProvider client={queryClient}>
+      <ApiClientProvider client={apiClient}>
+        <Routes />
+      </ApiClientProvider>
+    </QueryClientProvider>
+  );
+}
+```
+
+```tsx
+import { useApiClient } from './generated/react-query-client';
+
+function Recipes() {
+  const client = useApiClient();
+
+  const list = client.shop.recipes.useList();
+  const create = client.shop.recipes.useCreate();
+  const edit = client.shop.recipes.useEdit();
+
+  const rename = async (recipeId: number, name: string) => {
+    await edit.mutateAsync({ path: { recipeId }, body: { name } });
+    await list.refetch();
+  };
+
+  // The imperative axios method sits on the same bucket:
+  const purge = () => client.shop.recipes.purge();
+
+  return <ul>{list.data?.map((r) => <li key={r.id}>{r.name}</li>)}</ul>;
+}
+```
+
+Notes:
+
+- Hooks return **unwrapped data** (`list.data` is the payload). The axios methods
+  on the same bucket return the full `AxiosResponse`.
+- Pass React Query options through the trailing argument:
+  `client.useGreet({ body: { name } }, { query: { enabled: !!name, retry: false } })`.
+- Errors are typed as `ResponseErrorConfig<Error>` — read
+  `error.response?.data`.
+- `useApiClient()` must be called under `<ApiClientProvider>`; it throws
+  otherwise. The object it returns is memoized per context value.
+- Suspense and infinite variants (opt in through `options`) are generated into
+  the internal tree but are **not** exposed on the client object. Don't import
+  them directly.
+
+#### Query options, mutation options and the input schemas
+
+Each operation's axios method also carries what TanStack Query and a form need,
+bound to the client instance it came from (its base URL and interceptors):
+
+| Property | On | What it is |
+| --- | --- | --- |
+| `queryKey(req)` | `endpoint.query()`s | The key the query is cached under. |
+| `queryOptions(req, config?)` | `endpoint.query()`s | Options for `useQuery`, `queryClient.ensureQueryData`, `prefetchQuery`, … No React context needed. |
+| `mutationKey()` | `endpoint.mutation()`s | The mutation's key. |
+| `mutationOptions(config?)` | `endpoint.mutation()`s | Options for `useMutation`. |
+| `schemas.input` | operations that declare `input` | The body as JSON Schema, every `$ref` resolved. |
+| `schemas.query` | operations that declare `query` with properties | The search parameters as JSON Schema, every `$ref` resolved. |
+
+`req` is the same grouped `{ path, query, body }` object the call takes; an
+operation without request data takes none, so `queryOptions(config?)`. An
+operation Kubb generates neither for (one `options.include` / `exclude` leaves
+out, or one that `query: false` / `mutation: false` turns off, in `options` or
+an `options.override`) has no hook and no options, only its call.
+
+A query's key is `[{ url, params? }, query?, body?]`: `url` is the path the app
+serves the endpoint at (global prefix and router `basePath` included) with its
+`:param` segments, and `params` the path params. The hook and `queryOptions`
+use the same key. `queryClient.invalidateQueries` matches keys by prefix, so
+`{ queryKey: [{ url: '/orders/list' }] }` invalidates every cached page and
+filter of that operation; `queryKey(req)` names one.
+
+Use `queryOptions` where hooks can't run, such as a route loader. Give it the
+same instance you put in `<ApiClientProvider>`:
+
+```ts
+import { api } from './api'; // export const api = createApiClient({ … })
+
+export const loader = ({ context }: { context: { queryClient: QueryClient } }) =>
+  context.queryClient.ensureQueryData(
+    api.user.find.queryOptions({ body: { id: 1 } }),
+  );
+```
+
+```tsx
+const client = useApiClient();
+const queryClient = useQueryClient();
+const create = useMutation({
+  ...client.user.create.mutationOptions(),
+  onSuccess: () =>
+    queryClient.invalidateQueries({
+      queryKey: client.user.find.queryKey({ body: { id: 1 } }),
+    }),
+});
+create.mutate({ body: { name: 'Tom', email: 'tom@x.com' } });
+```
+
+`schemas.input` is the endpoint's `input` schema converted to JSON Schema, the
+same conversion the client's body type is built from, and `schemas.query` its
+`query` schema, the one its query type is built from, both with every `$ref`
+resolved. `schemas.query` is the whole object schema, object-level keywords
+(`additionalProperties`, `description`) included. Path parameters are in
+neither; an operation without `input`, and without a `query` that has
+properties, has no `schemas`. They are plain JSON data, so they are in your
+bundle, a few KB per operation. Their type, `InputSchema<T>` (exported by the
+client, or, when your app has its own schema of that name, from
+`<output-dir>/client-runtime`), carries the request body or query
+type in an optional `'~type'` property that is never there at runtime, so a
+form library can infer the form's values from the schema alone. That type is the input side of the
+zod schema: a field with a default, or a `.nullish()` one, may be left out.
+
+---
+
+## 10. Testing
+
+### 10.1 e2e over HTTP (supertest)
+
+```ts
+const moduleFixture = await Test.createTestingModule({ imports: [AppModule] }).compile();
+const app = moduleFixture.createNestApplication();
+await app.init();
+
+await request(app.getHttpServer())
+  .post('/user/find')
+  .send({ id: 1 })
+  .expect(200)
+  .then((res) => expect(res.body).toMatchObject({ id: 1 }));
+```
+
+Replace a provider with Nest's own testing API:
+`Test.createTestingModule({ imports: [AppModule] }).overrideProvider(OrdersRepository).useValue(fake)`.
+
+### 10.2 e2e through the generated client
+
+Needs a real listener, so `await app.listen(0)` and read `app.getUrl()`:
+
+```ts
+const app = moduleFixture.createNestApplication();
+await app.init();
+await app.listen(0);
+const client = createApiClient({ baseURL: await app.getUrl() });
+
+await expect(client.userFind({ body: { id: 1 } })).resolves.toMatchObject({
+  data: { id: 1, email: 'john@hotmail.com' },
+});
+```
+
+### 10.3 Integration — call the handler directly with `invoke`
+
+Every endpoint class exposes `invoke`, which runs the same validation pipeline
+(input, query, params, output) without HTTP:
+
+```ts
+import userFindEndpoint from 'src/endpoints/user/find.endpoint';
+import recipesEditEndpoint from 'src/endpoints/recipes/edit/$recipeId.endpoint';
+
+const moduleFixture = await Test.createTestingModule({
+  controllers: [userFindEndpoint, recipesEditEndpoint],
+  providers: [DbService, RecipesRepository],
+}).compile();
+const app = moduleFixture.createNestApplication();
+await app.init();
+
+const userFind = app.get(userFindEndpoint);
+await expect(userFind.invoke({ id: 1 })).resolves.toMatchObject({ id: 1 });
+
+// With `input`, path and search parameters go in the second argument
+// (without it, in the first). Raw strings are coerced, exactly as they
+// would be over HTTP.
+const recipesEdit = app.get(recipesEditEndpoint);
+await recipesEdit.invoke({ name: 'Margherita' }, { params: { recipeId: '1' } });
+```
+
+Signatures:
+
+| Endpoint | Call |
+| --- | --- |
+| no `input`, `query` or `params` | `invoke()` |
+| `input` only | `invoke(rawInput)` |
+| `query` and/or `params`, no `input` | `invoke({ query, params })` |
+| `input` and `query` and/or `params` | `invoke(rawInput, { query, params })` |
+
+Validation failures throw `ZodValidationException`; `.getZodError()` gives you
+the `ZodError`. `invoke` returns the **validated body** for a single-status
+endpoint, and an `EndpointResponse { status, body }` for a multi-status one.
+
+### 10.4 One router without the app module
+
+Import the manifest alongside the router (or list it in Vitest's
+`setupFiles`). It loads nothing by itself, so only that router's subtree loads:
+
+```ts
+import '../src/endpoints.gen';
+import ShopRouterModule from '../src/shop/router.module';
+
+const moduleFixture = await Test.createTestingModule({
+  imports: [ShopRouterModule],
+}).compile();
+```
+
+---
+
+## 11. Exports
+
+```ts
+import {
+  endpoint,            // create an endpoint (returns a controller class)
+  decorated,           // pair a NestJS decorator with a TS type
+  schema,              // attach an OpenAPI description to a Zod schema
+  EndpointResponse,    // what `response(status, body)` returns
+  EndpointRouterModule,
+  setupOpenAPI,
+  setupCodegen,
+  ZodValidationException,    // 400 — input/query/params failed
+  ZodSerializationException, // 500 — output failed
+  ApiQueries,          // helper decorators, rarely needed directly
+  ApiParams,
+  registerEndpointManifest, // called by the generated endpoints.gen.ts only
+  z,                   // re-export of zod
+} from 'nestjs-endpoints';
+```
+
+---
+
+## 12. Recipes
+
+**Add an endpoint to an existing file-based router.** Create
+`<router-root>/<segments>/<name>.endpoint.ts`,
+`export default endpoint.query({...})` for a read or
+`endpoint.mutation({...})` for a write, declare `input`/`output`, add any provider it needs to the nearest
+`router.module.ts`'s `providers`. Nothing else to register: the endpoint
+manifest picks the file up when the app's scripts next run
+`nestjs-endpoints generate`, or a running dev server sees it (or run
+`npx nestjs-endpoints generate` yourself); commit the updated
+`src/endpoints.gen.ts`.
+Regenerate the client if one exists.
+
+**Add a path parameter.** Rename the file/folder to use `$name`
+(`edit/$recipeId.endpoint.ts`), add `params: z.object({ recipeId: z.coerce.number() })`,
+and read `params.recipeId` in the handler.
+
+**Carve out a subtree with its own providers/guards.** Drop a `router.module.ts`
+into the folder with `export default EndpointRouterModule.create({ providers, guards })`.
+The parent picks it up automatically; the `basePath` is inferred from the folder
+name.
+
+**Group files without changing URLs.** Prefix the folder with `_`.
+
+**Change a route without moving files.** Set `basePath` on the router, or `path`
+on the endpoint.
+
+**Reshape the client SDK.** Add `namespace: true` (or a string) to the routers
+whose folders should become buckets. URLs are unaffected.
+
+**Add a second, narrower front-end client.** Add another entry to
+`setupCodegen`'s `clients` with `namespaces: [...]`.
+
+---
+
+## 13. Troubleshooting
+
+| Symptom | Cause |
+| --- | --- |
+| Route 404s | Endpoint file isn't named `*.endpoint.ts` / `endpoint.ts`, or it sits under a folder owned by a nested `router.module.ts` you didn't expect, or it isn't `export default`ed. |
+| Route mounted at `/dist/...` or `/src/...` | Manually-registered endpoint with no `path` (§4.2). |
+| 400 "Validation failed" on search or path parameters | `query` and `params` values arrive as strings — use `z.coerce.*`. |
+| 400 `Body cannot be empty when content-type is set to 'application/json'` (Fastify) | A request with `Content-Type: application/json` and no body. Send `{}`, or leave the header off. |
+| `` a GET endpoint cannot declare `input` `` at startup | `method: 'get'` with `input`: a GET has no body. Use `query`, or drop `method`. |
+| 500 on a response that looks right | Output schema mismatch (`ZodSerializationException`). |
+| `Did not find schema for status code N` | `response(N, ...)` used with a status absent from the `output` map. |
+| Handler returns a value but nothing validates | Multi-status `output` requires `response(status, body)`. |
+| OpenAPI response type is `{}` or wrong | A `.transform()` in the output schema — use `.overwrite()` or `.meta({ type })`. |
+| `Two operations resolve to the same wrapper property` | Namespace/endpoint name collision — rename one (§7.1). |
+| SDK method keeps its full flat name inside its bucket (`client.shop.recipes.shopRecipes`) | A bare `endpoint.ts` whose path equals its namespace chain, so stripping would leave nothing — give the file a leaf name. |
+| `middleware options object must be the last entry` | The `{ exclude }` object isn't last in the `middleware` array. |
+| `useApiClient must be used within an <ApiClientProvider>` | Missing provider above the component. |
+| Nothing regenerates after an endpoint change | Codegen isn't running, or the route isn't in that client (a plain controller, or a namespace its `namespaces` leaves out). `forceGenerate: true` regenerates every client. |
+| Routes disappear in production | The build bundles the app; file-based routing needs real files on disk. |
+| `no endpoint manifest covers "<dir>"` | `src/endpoints.gen.ts` is missing or not imported. Run `npx nestjs-endpoints init`, then import it from the app module — or, in a test that imports a router module directly, from the test or Vitest `setupFiles` (§10.4). |
+| `endpoints.gen.ts is out of date` (CI) | Endpoint files were added/removed without the manifest being regenerated. Run `npx nestjs-endpoints generate` and commit it. |
+| `endpoints.gen.ts was out of date and has been regenerated … Run the tests again` | A test run found endpoint files the manifest didn't list. It has been rewritten; re-run (Vitest's watch mode does so on its own). Run `nestjs-endpoints generate` in front of the test script to avoid it. |
+| A new endpoint 404s until restart | Expected without a watcher: the manifest was updated, the running process predates the file. Restart, or run under `node --watch` / `tsx watch`. If the file existed before the app started, the start script is missing `nestjs-endpoints generate &&`. |
+| `Cannot access 'router' before initialization` (or `'endpoint'`: the binding the importing file used) at load; under Vitest, `Cannot read properties of undefined (reading 'endpoint')` (or `'query'` / `'mutation'`) | An import cycle: the router module statically imports, directly or through a provider, guard or listed endpoint, a file that imports its `endpoint`. Move what the router module needs out of that file, or list the endpoint with an `endpoints` callback (§4.2). |
+| `` `endpoints` lists a module that exports no endpoint `` | An `import()` in a router's `endpoints` callback resolves to a module without an endpoint export. Point it at the endpoint's file. |
+| `<endpoint file> is built with the endpoint of <router A> but is owned by <router B>` at startup | The endpoint is built with another router's `endpoint`: it imports another folder's router module, or another router lists it in `endpoints`. Build it with the `endpoint` of the router module that owns it; one listed in `endpoints` uses the package's `endpoint` (§3.5). |
+| `` `x` is already injected by its router `` (a type error, or thrown when the endpoint is defined) | The endpoint redeclares a key its router's `inject` / `injectOnRequest` already provides. Drop it from the endpoint. |
+| `` `x` is in both inject and injectOnRequest `` (a type error, or thrown by `create()`) | The router's `endpointConfig` declares the key in both maps. Keep it in one. |
+| `Cannot find the source of …endpoints.gen.js (no source map?)` | A compiled app without source maps can't locate the manifest to keep it in sync. Enable `sourceMap`, or run `npx nestjs-endpoints generate` after changing endpoint files. |

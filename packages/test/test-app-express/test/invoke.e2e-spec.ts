@@ -1,0 +1,147 @@
+import { Test, TestingModule } from '@nestjs/testing';
+import { ZodValidationException } from 'nestjs-endpoints';
+import { AuthService } from '../src/auth/auth.service';
+import oauthCallbackEndpoint from '../src/endpoints/oauth/callback.endpoint';
+import recipesEditEndpoint from '../src/endpoints/recipes/edit/$recipeId.endpoint';
+import { RecipesRepository } from '../src/endpoints/recipes/repository.service';
+import searchEndpoint from '../src/endpoints/search.endpoint';
+import userCreateEndpoint from '../src/endpoints/user/create.endpoint';
+import userFindEndpoint from '../src/endpoints/user/find.endpoint';
+import { userListNoPath as userListNoPathEndpoint } from '../src/endpoints/user/list/user-list-no-path.endpoint';
+import userPurgeEndpoint from '../src/endpoints/user/purge.endpoint';
+import { UserRepository } from '../src/endpoints/user/user.repository';
+import { UserRepositoryToken } from '../src/endpoints/user/user.repository.token';
+import { UserService } from '../src/endpoints/user/user.service';
+
+test('can test controllers directly without http pipeline', async () => {
+  const moduleFixture: TestingModule = await Test.createTestingModule({
+    controllers: [userListNoPathEndpoint, userCreateEndpoint, userPurgeEndpoint, userFindEndpoint],
+    providers: [
+      AuthService,
+      {
+        provide: UserRepositoryToken,
+        useClass: UserRepository,
+      },
+      UserService,
+    ],
+  }).compile();
+  const app = moduleFixture.createNestApplication();
+  app.useLogger(false);
+  await app.init();
+  const userRepository = app.get<UserRepository>(UserRepositoryToken);
+  const userListNoPath = app.get(userListNoPathEndpoint);
+  const userCreate = app.get(userCreateEndpoint);
+  const userPurge = app.get(userPurgeEndpoint);
+  const userFind = app.get(userFindEndpoint);
+  expect(userRepository.findAll()).toEqual([]);
+  await expect(userListNoPath.invoke()).resolves.toEqual([]);
+  try {
+    await userCreate.invoke({
+      email: 'john@example.com',
+    } as any);
+    throw new Error('Should not reach here');
+  } catch (error) {
+    expect(error).toBeInstanceOf(ZodValidationException);
+    const zodError = (error as ZodValidationException).getZodError();
+    expect(zodError).toMatchObject({
+      issues: [
+        {
+          expected: 'string',
+          code: 'invalid_type',
+          path: ['name'],
+          message: 'Invalid input: expected string, received undefined',
+        },
+      ],
+    });
+  }
+  const created = await userCreate.invoke({
+    name: 'John',
+    email: 'john@example.com',
+  });
+  expect(created).toEqual({ id: 1 });
+  // Type-level gate: an endpoint with a single `output` schema resolves to
+  // the parsed body, not an `EndpointResponse` wrapper. `tscheck` fails if
+  // that regresses, which `.resolves.toEqual()` alone would not catch.
+  const createdId: number = created.id;
+  expect(createdId).toBe(1);
+  expect(userRepository.findAll()).toEqual([{ id: 1, name: 'John', email: 'john@example.com' }]);
+  await expect(userListNoPath.invoke()).resolves.toEqual([
+    { id: 1, name: 'John', email: 'john@example.com' },
+  ]);
+  await expect(userFind.invoke({ id: 1 })).resolves.toEqual({
+    id: 1,
+    name: 'John',
+    email: 'john@example.com',
+  });
+  await expect(userPurge.invoke()).resolves.toEqual(undefined);
+  await expect(userListNoPath.invoke()).resolves.toEqual([]);
+});
+
+test('invoke threads path params through the second arg', async () => {
+  const moduleFixture: TestingModule = await Test.createTestingModule({
+    controllers: [recipesEditEndpoint],
+    providers: [RecipesRepository],
+  }).compile();
+  const app = moduleFixture.createNestApplication();
+  app.useLogger(false);
+  await app.init();
+  const repo = app.get(RecipesRepository);
+  repo.add('Pizza');
+
+  const recipesEdit = app.get(recipesEditEndpoint);
+  // Path param strings get coerced by the Zod schema, just like an HTTP call.
+  await expect(
+    recipesEdit.invoke({ name: 'Margherita' }, { params: { recipeId: '1' } }),
+  ).resolves.toEqual({ id: 1, name: 'Margherita' });
+
+  // Validation errors on params should surface as ZodValidationException.
+  try {
+    await recipesEdit.invoke({ name: 'X' }, { params: { recipeId: 'nope' } });
+    throw new Error('Should not reach here');
+  } catch (error) {
+    expect(error).toBeInstanceOf(ZodValidationException);
+    const issues = (error as ZodValidationException).getZodError().issues;
+    expect(issues).toMatchObject([{ path: ['recipeId'] }]);
+  }
+});
+
+test('invoke threads search params through the last arg', async () => {
+  const moduleFixture: TestingModule = await Test.createTestingModule({
+    controllers: [oauthCallbackEndpoint, searchEndpoint],
+  }).compile();
+  const app = moduleFixture.createNestApplication();
+  app.useLogger(false);
+  await app.init();
+
+  // Search param strings get coerced by the Zod schema, as over HTTP.
+  const oauthCallback = app.get(oauthCallbackEndpoint);
+  await expect(
+    oauthCallback.invoke({
+      query: { code: 'abc', state: 'xyz', expiresIn: '3600' },
+    }),
+  ).resolves.toEqual({ code: 'abc', state: 'xyz', expiresIn: 3600 });
+
+  // With an `input`, the body comes first and the search params after it.
+  const search = app.get(searchEndpoint);
+  await expect(search.invoke({ term: 'pizza' }, { query: { page: '3' } })).resolves.toEqual({
+    term: 'pizza',
+    tags: [],
+    page: 3,
+  });
+
+  // Every search param is optional, so the options may be left out.
+  await expect(search.invoke({ term: 'pizza' })).resolves.toEqual({
+    term: 'pizza',
+    tags: [],
+    page: 1,
+  });
+
+  try {
+    await search.invoke({ term: 'pizza' }, { query: { page: 0 } });
+    throw new Error('Should not reach here');
+  } catch (error) {
+    expect(error).toBeInstanceOf(ZodValidationException);
+    const issues = (error as ZodValidationException).getZodError().issues;
+    expect(issues).toMatchObject([{ path: ['page'] }]);
+  }
+});

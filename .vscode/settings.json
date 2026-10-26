@@ -1,16 +1,16 @@
 {
-  "eslint.enable": true,
-  "eslint.format.enable": true,
-  "eslint.useFlatConfig": true,
-  "editor.formatOnType": false, // required
+  "editor.formatOnType": false,
   "editor.formatOnPaste": true,
   "editor.formatOnSave": true,
-  "editor.formatOnSaveMode": "file", // required to format on save
-  "eslint.rules.customizations": [
-    { "rule": "prettier/*", "severity": "off" }
-  ],
+  "editor.formatOnSaveMode": "file",
+  "editor.codeActionsOnSave": {
+    "source.fixAll.oxc": "explicit"
+  },
   "[typescript]": {
-    "editor.defaultFormatter": "dbaeumer.vscode-eslint"
+    "editor.defaultFormatter": "oxc.oxc-vscode"
+  },
+  "[typescriptreact]": {
+    "editor.defaultFormatter": "oxc.oxc-vscode"
   },
   "typescript.preferences.importModuleSpecifier": "relative"
 }

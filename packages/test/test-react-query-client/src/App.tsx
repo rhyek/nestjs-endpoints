@@ -1,7 +1,9 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import React, { useMemo } from 'react';
-import { createApiClient } from '../../test-app-express-cjs/generated/react-query-client';
-import { ApiClientProvider } from '../../test-app-express-cjs/generated/react-query-client';
+import {
+  ApiClientProvider,
+  createApiClient,
+} from '../../test-app-express/generated/react-query-client';
 import { UserPage } from './UserPage';
 
 interface AppProps {
@@ -20,9 +22,7 @@ export function App({ children }: AppProps = {}) {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <ApiClientProvider client={apiClient}>
-        {children ?? <UserPage />}
-      </ApiClientProvider>
+      <ApiClientProvider client={apiClient}>{children ?? <UserPage />}</ApiClientProvider>
     </QueryClientProvider>
   );
 }

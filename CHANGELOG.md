@@ -1,5 +1,63 @@
 # Changelog
 
+## 4.0.0 (2026-09-05)
+
+### Features
+
+- **File-based routing works under Vitest with no extra config, and `node --watch` / `tsx watch` serve new endpoint files without a manual restart.** See [the endpoint manifest](README.md#the-endpoint-manifest).
+- **`npx nestjs-endpoints generate` rewrites the endpoint manifest; run it in front of the scripts that start your app**, and `init` now creates it. See [the endpoint manifest](README.md#the-endpoint-manifest).
+- **`npx nestjs-endpoints init` installs a coding-agent skill** pointing at the full library guide the package now ships at `docs/agents.md`.
+- **Each react-query client operation carries its `queryOptions` / `queryKey` or `mutationOptions` / `mutationKey`, bound to the client instance**, so route loaders can use `queryClient.ensureQueryData(...)` outside React. See [react-query](README.md#react-query).
+- **Each react-query client operation that takes input carries `schemas.input`, its input as self-contained JSON Schema**, for forms to read. See [react-query](README.md#react-query).
+- **A router module declares `inject` and `injectOnRequest` once for its endpoints**, in `endpointConfig`. See [Router injections](README.md#router-injections).
+- **A router's `endpoints` takes a callback of `import()`s**, so endpoints listed by hand can use the router's `endpoint`. See [Router injections](README.md#router-injections).
+- **Endpoints declare search parameters with `query`, on any method**, and react-query operations carry them as `schemas.query`. See [Queries and mutations](README.md#queries-and-mutations).
+- **Each OpenAPI operation carries `x-endpoint-kind` (`query` or `mutation`)**, for generators run against the document. See [Manual codegen](README.md#manual-codegen-with-openapi-spec-file).
+
+### Fixes
+
+- **`invoke()` on an endpoint with a single `output` schema is now typed as the parsed body**, matching what it has always returned at runtime; it previously claimed to return an `EndpointResponse` wrapper, so `const { id } = await create.invoke(...)` failed to compile. The per-status `output` map form still resolves to the `EndpointResponse` union.
+- **Router middleware no longer emits `LegacyRouteConverter` deprecation warnings on NestJS 12.**
+- **File-based routing now works when the project path contains a space**, and on Windows.
+- **A `.nullish().default(...)` field wrapped in `z.preprocess(...)` is no longer marked `required`** in the generated OpenAPI document, matching the same field declared without `preprocess`.
+- **`ApiQueries` / `ApiParams` accept `z.preprocess(...)` schemas under zod 4.6.**
+- **Generated clients no longer include an unused `.kubb/` directory.**
+- **A shared schema used in both requests and responses appears in the OpenAPI document once per shape, as `<id>` and `<id>Output`.**
+
+### Breaking changes
+
+- **`endpoint()` is replaced by `endpoint.query()` and `endpoint.mutation()`, which decide whether the react-query client gives an operation query or mutation hooks.** Rename each `endpoint(` to the builder for its kind. See [Queries and mutations](README.md#queries-and-mutations).
+- **Endpoints are POSTs by default, and `input` is always the JSON body.** Send a read's input as the body, or add `method: 'get'` to an endpoint that must stay a GET and declare its input as `query`.
+- **A react-query client's `query.methods` and `mutation.methods` options are ignored; the builder decides an operation's kind.**
+- **`params` must be a Zod object schema, as `query` is.** Declare it as `z.object({ … })`, one key per path parameter.
+- **This package is now ESM-only.** Set `"type": "module"` in your project; CommonJS is no longer supported.
+- **NestJS >= 12 is required.** Run `nest upgrade` to migrate.
+- **Node.js >= 24 is required.**
+- **TypeScript >= 6 is required.**
+- **File-based routing needs the endpoint manifest.** Run `npx nestjs-endpoints init`, then add `import './endpoints.gen.js';` to your app module, and commit `src/endpoints.gen.ts`.
+- **Generated client methods and hooks take one object that groups the request into `path`, `query` and `body`**, as in `client.recipesEdit({ path: { recipeId }, body: { name } })`. See [Codegen](README.md#codegen-optional).
+- **Generated per-operation type names changed** (`ShopRecipesEditMutationResponse` is now `ShopRecipesEditStatus200`, for example); schema types keep their names.
+- **A `z.bigint()` in an endpoint schema needs `.meta({ type })`.** _(Breaking: it throws at startup without one.)_
+- **A `.meta({ id })` that names two different schemas in requests, or two in responses, throws at startup.** _(Breaking: give one of them a different id.)_
+- **Generated clients cover endpoints only.** _(Breaking: routes from plain Nest controllers leave the SDK.)_
+- **`setupCodegen` writes the OpenAPI document only when `openapi` is given.** _(Breaking: no default file is written.)_
+- **Request headers are set on the client's axios instance (`client.axios`), not per call.**
+- **A react-query client's `options` are now [`@kubb/plugin-react-query` 5's](https://kubb.dev/extensions/kubb-labs/plugin-react-query/options).**
+- **The react-query client requires `@tanstack/react-query` >= 5.82.**
+
+## 3.0.0 (2026-04-19)
+
+### Features
+
+- **Namespaces**: `namespace?: boolean | string` on `EndpointRouterModule.create()` nests generated SDK hooks/methods into an `api` object that mirrors the router hierarchy (`api.shop.recipes.useCreate(...)`).
+- **Namespace-filtered clients**: `setupCodegen` accepts `namespaces?: string[]` per client — each filtered client ships only operations and schemas belonging to the listed top-level namespaces.
+- **Built-in docs viewer**: `openapi.ui?: { path, options? }` mounts an API reference at `path` using the same doc the codegen consumes. Uses [Scalar](https://scalar.com) when `@scalar/api-reference` is installed (optional peer dep); falls back to Swagger UI otherwise.
+- **Path parameters in file-based routing**: a `$`-prefixed segment becomes a `:param` (TanStack Router-style), and `.` inside one filename or folder splits into multiple URL segments. `recipes/edit/$recipeId.endpoint.ts` → `PATCH /recipes/edit/:recipeId`; `recipes/$recipeId.view/endpoint.ts` → `GET /recipes/:recipeId/view`; multiple params per route are supported. Path params are validated with a new `params` Zod schema option on `endpoint(...)` (e.g. `params: z.object({ recipeId: z.coerce.number() })`); the generated SDK drops `:param` segments from the method name — the typed positional argument conveys it (`client.recipesEdit(recipeId, body)`).
+
+### Breaking changes
+
+- **Generated client surface**: each output file now exports `createApiClient` (and, for react-query, `useApiClient` + `ApiClientProvider`) at the top level — no more `api` namespace object. The value returned by `createApiClient(...)` and (for react-query) `useApiClient()` is one and the same: a namespaced client that mirrors the router hierarchy, with both axios methods and React Query hooks living side by side on every bucket — `client.shop.recipes.create(...)` next to `client.shop.recipes.useCreate(...)`. Per-operation hooks (`useUserCreate`, etc.) are no longer reachable as bare top-level imports; use the client. The raw orval output is still generated as a sibling `*.flat.ts[x]` file but is an internal artifact — don't import from it.
+
 ## 2.3.0 (2026-04-18)
 
 ### Features

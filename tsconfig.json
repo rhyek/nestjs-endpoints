@@ -15,5 +15,5 @@
     "esModuleInterop": true,
     "skipLibCheck": true
   },
-  "include": ["./eslint.config.js"]
+  "include": ["./oxlint.config.ts", "./oxfmt.config.ts"]
 }

@@ -6,32 +6,31 @@ pnpm --filter "nestjs-endpoints" test run
 
 pnpm --filter "./packages/test/*" exec rm -rf generated
 
-pnpm --filter "./packages/test/*" --filter "!test-app-express-cjs" --filter "!test-react-query-client" exec sh -c "\
-  rsync -ar ../test-app-express-cjs/src/ ./src/ && \
-  rsync -ar ../test-app-express-cjs/test/ ./test/ --exclude=create-app.ts
+# `test-app-express` is the canonical app: it owns every endpoint fixture and
+# spec. The other adapter apps receive them by rsync, keeping only their own
+# adapter-specific `create-app.ts`.
+# `--delete` keeps the mirrors exact. Without it rsync only ever adds, so a
+# file deleted or renamed in the canonical app lingers in the other apps and
+# fails their `tscheck` long after the change that orphaned it.
+pnpm --filter "./packages/test/*" --filter "!test-app-express" --filter "!test-react-query-client" exec sh -c "\
+  rsync -ar --delete ../test-app-express/src/ ./src/ --exclude=.gitkeep && \
+  rsync -ar --delete ../test-app-express/test/ ./test/ --exclude=create-app.ts
 "
-
-cp ./packages/test/test-app-express-cjs/test/create-app.ts ./packages/test/test-app-express-esm/test/create-app.ts
-cp ./packages/test/test-app-fastify-cjs/test/create-app.ts ./packages/test/test-app-fastify-esm/test/create-app.ts
 
 pnpm --filter "./packages/test/*" run codegen
 pnpm -r run tscheck
 
 pnpm --filter "test-app-*" run test:e2e --no-cache
 
-# Function to test a specific module type (cjs or esm)
-test_real_run() {
-  local type=$1
-  
-  cd $__dirname/../packages/test/test-app-express-$type
-  # enable job control so we get a new process group for the server
-  set -m
-  pnpm start &
-  SERVER_PID=$!
-  set +m
+# The built app, booted the way a consumer would, for the specs that call it
+# over HTTP. `pnpm start` runs in its own process group (job control), and
+# the EXIT trap kills that group however the script ends: a failing spec
+# exits through `set -e` before any explicit stop, and would leave the
+# server holding its port.
+SERVER_PID=
 
-  wget -qO- https://raw.githubusercontent.com/eficode/wait-for/v2.2.3/wait-for | sh -s -- http://localhost:3000/test/status --timeout=10 -- echo $type success
-
+stop_server() {
+  [[ -n "$SERVER_PID" ]] || return 0
   # Get the process group ID and ensure it's a valid number before using it
   PGID=$(ps -o pgid= -p $SERVER_PID | tr -d ' ')
   if [[ -n "$PGID" && "$PGID" =~ ^[0-9]+$ ]]; then
@@ -40,39 +39,28 @@ test_real_run() {
     # Fallback to killing just the server process if we can't get the group
     kill -9 $SERVER_PID 2>/dev/null || true
   fi
-  
   wait $SERVER_PID 2>/dev/null || true
+  SERVER_PID=
 }
+trap stop_server EXIT
 
-# Test CJS module
-test_real_run cjs
-
-# Test ESM module
-test_real_run esm
-
-test_react_query_client() {
-  cd $__dirname/../packages/test/test-app-express-cjs
+start_server() {
+  cd $__dirname/../packages/test/test-app-express
   # enable job control so we get a new process group for the server
-
   set -m
   pnpm start &
   SERVER_PID=$!
   set +m
 
-  wget -qO- https://raw.githubusercontent.com/eficode/wait-for/v2.2.3/wait-for | sh -s -- http://localhost:3000/test/status --timeout=10 -- echo $type success
-
-  cd $__dirname/../packages/test/test-react-query-client
-  pnpm test run
-
-  # Get the process group ID and ensure it's a valid number before using it
-  PGID=$(ps -o pgid= -p $SERVER_PID | tr -d ' ')
-  if [[ -n "$PGID" && "$PGID" =~ ^[0-9]+$ ]]; then
-    kill -9 -- -$PGID
-  else
-    # Fallback to killing just the server process if we can't get the group
-    kill -9 $SERVER_PID 2>/dev/null || true
-  fi
-  
-  wait $SERVER_PID 2>/dev/null || true
+  wget -qO- https://raw.githubusercontent.com/eficode/wait-for/v2.2.3/wait-for | sh -s -- http://localhost:3000/test/status --timeout=10 -- echo success
 }
-test_react_query_client
+
+# Cover the real ESM runtime path rather than the bundler-resolved one the
+# e2e suites exercise.
+start_server
+stop_server
+
+start_server
+cd $__dirname/../packages/test/test-react-query-client
+pnpm test run
+stop_server

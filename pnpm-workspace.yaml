@@ -1,5 +1,52 @@
 packages:
   - 'packages/*'
   - 'packages/test/*'
+  # Self-contained, copy-pasteable showcases live under examples/ and
+  # are intentionally excluded from this workspace.
+  - '!examples/**'
+  - 'synced-utils/*'
+
+# The compiled library resolves @nestjs/core from the root node_modules while each
+# test app resolves its own. pnpm keys a package's physical instance on its resolved
+# peers, so if these drift apart the workspace ends up with two @nestjs/core copies
+# and DI tokens like HttpAdapterHost stop being identical.
+#
+# This is the only home pnpm reads: `pnpm.overrides` in package.json is ignored
+# from pnpm 10 on.
 overrides:
-  'reflect-metadata': '0.1.14'
+  'reflect-metadata': '0.2.2'
+  'rxjs': '7.8.2'
+
+# pnpm 11 replaced `onlyBuiltDependencies` / `ignoredBuiltDependencies` with a
+# single `allowBuilds` map. Anything unlisted counts as unreviewed and fails the
+# install, so every package with a build script is decided here explicitly: the
+# two that compile or fetch a native binary run; the telemetry, donation and
+# version-switcher postinstalls do not.
+allowBuilds:
+  '@swc/core': true
+  esbuild: true
+  '@scarf/scarf': false
+  es5-ext: false
+  vue-demi: false
+
+# Kubb 5 ships several releases a day, so a current set of its packages rarely
+# clears pnpm's one-day release-age gate. Excluded by exact version: bumping
+# Kubb means updating these lines alongside the pins.
+minimumReleaseAgeExclude:
+  - '@kubb/adapter-oas@5.11.0'
+  - '@kubb/ast@5.11.0'
+  - '@kubb/cli@5.11.0'
+  - '@kubb/core@5.11.0'
+  - '@kubb/kit@5.11.0'
+  - '@kubb/mcp@5.11.0'
+  - '@kubb/parser-md@5.11.0'
+  - '@kubb/parser-ts@5.11.0'
+  - '@kubb/plugin-barrel@5.11.0'
+  - '@kubb/plugin-client@5.5.15'
+  - '@kubb/plugin-react-query@5.5.3'
+  - '@kubb/plugin-ts@5.0.14'
+  - '@kubb/plugin-zod@5.4.12'
+  - '@kubb/renderer-jsx@5.11.0'
+  - '@kubb/studio@5.11.0'
+  - kubb@5.11.0
+  - unplugin-kubb@5.11.0

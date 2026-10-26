@@ -1,31 +1,25 @@
 import React, { useEffect, useState } from 'react';
-import {
-  useApiClient,
-  useUserCreate,
-  useUserGet,
-} from '../../test-app-express-cjs/generated/react-query-client';
+import { useApiClient } from '../../test-app-express/generated/react-query-client';
 
 export function UserPage() {
-  const { data, error, status, refetch } = useUserGet(
-    {
-      id: 1,
-    },
+  const apiClient = useApiClient();
+  const { data, error, status, refetch } = apiClient.useUserGet(
+    { body: { id: 1 } },
     {
       query: {
         retry: false,
       },
     },
   );
-  const { mutateAsync: createUser } = useUserCreate();
+  const { mutateAsync: createUser } = apiClient.useUserCreate();
 
-  const apiClient = useApiClient();
   const [purged, setPurged] = useState(false);
   useEffect(() => {
     void (async () => {
       await apiClient.userPurge();
       setPurged(true);
     })();
-  }, []);
+  }, [apiClient]);
 
   return (
     <div>
@@ -34,10 +28,7 @@ export function UserPage() {
       ) : (
         <>
           {error && (
-            <div>
-              Error:{' '}
-              {(error.response?.data as { message: string }).message}
-            </div>
+            <div>Error: {(error.response?.data as { message: string } | undefined)?.message}</div>
           )}
           {data && (
             <div>
@@ -50,9 +41,10 @@ export function UserPage() {
 
       <div>
         <button
+          type="button"
           onClick={async () => {
             await createUser({
-              data: {
+              body: {
                 name: 'John Doe',
                 email: 'john.doe@example.com',
               },
