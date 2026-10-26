@@ -12,12 +12,7 @@ import {
   UseGuards,
   UseInterceptors,
 } from '@nestjs/common';
-import {
-  endpointFileRegex,
-  EndpointSetupFn,
-  routerModuleFileRegex,
-  settings,
-} from './consts.js';
+import { endpointFileRegex, EndpointSetupFn, routerModuleFileRegex, settings } from './consts.js';
 import {
   createRouterEndpoint,
   EndpointBuilders,
@@ -72,12 +67,7 @@ type EndpointRouterModuleParams<
   RouterInject extends InjectProvidersMap,
   RouterInjectOnRequest extends InjectOnRequestMap,
 > = NonNullable<
-  Parameters<
-    typeof EndpointRouterModule._register<
-      RouterInject,
-      RouterInjectOnRequest
-    >
-  >[2]
+  Parameters<typeof EndpointRouterModule._register<RouterInject, RouterInjectOnRequest>>[2]
 >;
 
 /**
@@ -115,9 +105,7 @@ function createLazily(
 ): EndpointRouter<any, any> {
   const parentStore = moduleAls.getStore();
   return Object.assign(
-    new LazyPromise(() =>
-      EndpointRouterModule._register(callsiteFile, parentStore, params),
-    ),
+    new LazyPromise(() => EndpointRouterModule._register(callsiteFile, parentStore, params)),
     {
       endpoint: createRouterEndpoint(
         callsiteFile,
@@ -134,10 +122,7 @@ export class EndpointRouterModule {
     RouterInject extends InjectProvidersMap = undefined,
     RouterInjectOnRequest extends InjectOnRequestMap = undefined,
   >(
-    params?: EndpointRouterModuleParams<
-      RouterInject,
-      RouterInjectOnRequest
-    >,
+    params?: EndpointRouterModuleParams<RouterInject, RouterInjectOnRequest>,
   ): EndpointRouter<RouterInject, RouterInjectOnRequest> {
     return createLazily(getCallsiteFile(), params);
   }
@@ -150,10 +135,7 @@ export class EndpointRouterModule {
     RouterInject extends InjectProvidersMap = undefined,
     RouterInjectOnRequest extends InjectOnRequestMap = undefined,
   >(
-    params?: EndpointRouterModuleParams<
-      RouterInject,
-      RouterInjectOnRequest
-    >,
+    params?: EndpointRouterModuleParams<RouterInject, RouterInjectOnRequest>,
   ): EndpointRouter<RouterInject, RouterInjectOnRequest> {
     return createLazily(getCallsiteFile(), params);
   }
@@ -291,8 +273,7 @@ export class EndpointRouterModule {
     },
   ): Promise<DynamicModule> {
     const parentStore =
-      nestedRouterParents.get(stripExtension(callsiteFile)) ??
-      capturedParentStore;
+      nestedRouterParents.get(stripExtension(callsiteFile)) ?? capturedParentStore;
     const definedAtDir = path.dirname(callsiteFile);
     const resolveDir = (dir: string) => {
       if (!path.isAbsolute(dir)) {
@@ -319,8 +300,7 @@ export class EndpointRouterModule {
         // the legacy `rootDirectory: './endpoints'` + nested-router
         // pattern. Otherwise, use path.relative between module files.
         const matchingRoot = parentStore.parentRootDirectories.find(
-          (r) =>
-            definedAtDir === r || definedAtDir.startsWith(r + path.sep),
+          (r) => definedAtDir === r || definedAtDir.startsWith(r + path.sep),
         );
         let suffix: string;
         if (matchingRoot) {
@@ -329,10 +309,7 @@ export class EndpointRouterModule {
               ? path.basename(definedAtDir)
               : path.relative(matchingRoot, definedAtDir);
         } else {
-          suffix = path.relative(
-            parentStore.parentModuleDir,
-            definedAtDir,
-          );
+          suffix = path.relative(parentStore.parentModuleDir, definedAtDir);
         }
         suffix = suffix.split(path.sep).join('/');
         const segments = [
@@ -354,15 +331,21 @@ export class EndpointRouterModule {
     const parentNamespaceChain = parentStore?.parentNamespaceChain ?? [];
     const ownNamespaceSegment = ((): string | null => {
       const ns = params?.namespace;
-      if (ns === undefined || ns === false) return null;
-      if (typeof ns === 'string') return ns;
+      if (ns === undefined || ns === false) {
+        return null;
+      }
+      if (typeof ns === 'string') {
+        return ns;
+      }
       // `true`: mirror whatever drove `basePath`. When `basePath` is
       // set explicitly, use its trimmed value so the SDK shape tracks
       // the URL the consumer chose. Otherwise fall back to folder-name
       // inference (same rule as `basePath` inference).
       if (params?.basePath !== undefined) {
         const trimmed = params.basePath.replace(/^\/+|\/+$/g, '');
-        if (trimmed) return trimmed;
+        if (trimmed) {
+          return trimmed;
+        }
       }
       if (routerModuleFileRegex.test(path.basename(callsiteFile))) {
         return path.basename(definedAtDir);
@@ -374,36 +357,25 @@ export class EndpointRouterModule {
       : parentNamespaceChain;
     let endpoints: Type[] = [];
     // Discovered file → the loader of the manifest it was discovered in.
-    const nestedRouterModuleFiles = new Map<
-      string,
-      EndpointManifestLoader
-    >();
+    const nestedRouterModuleFiles = new Map<string, EndpointManifestLoader>();
     const endpointFiles = new Map<string, EndpointManifestLoader>();
     for (const root of rootDirectories) {
       const manifest = findManifestCovering(root);
       if (!manifest) {
         // A router that only lists its endpoints has nothing to discover.
-        if (params?.endpoints && params.rootDirectory === undefined)
+        if (params?.endpoints && params.rootDirectory === undefined) {
           continue;
+        }
         throw new Error(missingManifestMessage(root));
       }
-      findEndpoints(
-        manifest,
-        root,
-        nestedRouterModuleFiles,
-        endpointFiles,
-        callsiteFile,
-      );
+      findEndpoints(manifest, root, nestedRouterModuleFiles, endpointFiles, callsiteFile);
     }
     const endpointFilesNotImported = [...endpointFiles].filter(([f]) =>
       settings.endpoints.every((e) => !isSameModule(e.file, f)),
     );
     const nestedModules: (DynamicModule | Promise<DynamicModule>)[] = [];
 
-    const normalizedParentBasePath = effectiveBasePath.replace(
-      /^\/+|\/+$/g,
-      '',
-    );
+    const normalizedParentBasePath = effectiveBasePath.replace(/^\/+|\/+$/g, '');
     if (params?.description) {
       // Tag name tracks the same key endpoints will be tagged with
       // below (namespace chain if set, else the basePath). Without
@@ -413,9 +385,7 @@ export class EndpointRouterModule {
           ? effectiveNamespaceChain.join('/')
           : normalizedParentBasePath;
       if (tagName) {
-        const existing = settings.openapi.tags.find(
-          (t) => t.name === tagName,
-        );
+        const existing = settings.openapi.tags.find((t) => t.name === tagName);
         if (existing) {
           existing.description = params.description;
         } else {
@@ -455,11 +425,7 @@ export class EndpointRouterModule {
         typeof params?.endpoints === 'function'
           ? (
               await Promise.all(
-                params
-                  .endpoints()
-                  .map((listed) =>
-                    resolveListedEndpoints(listed, callsiteFile),
-                  ),
+                params.endpoints().map((listed) => resolveListedEndpoints(listed, callsiteFile)),
               )
             ).flat()
           : (params?.endpoints ?? []);
@@ -477,8 +443,7 @@ export class EndpointRouterModule {
       setUp.add(setupFn);
     }
     for (const ep of listedEndpoints) {
-      const epSetupFn = Reflect.getMetadata('endpoints:setupFn', ep) as
-        EndpointSetupFn | undefined;
+      const epSetupFn = Reflect.getMetadata('endpoints:setupFn', ep) as EndpointSetupFn | undefined;
       // A listed endpoint this router also discovered is set up already.
       if (epSetupFn && !setUp.has(epSetupFn)) {
         epSetupFn({
@@ -494,23 +459,16 @@ export class EndpointRouterModule {
     }
     if (endpoints.length > 0) {
       endpoints = endpoints.filter((e) => {
-        return Reflect.getMetadataKeys(e).some(
-          (k) => k === 'endpoints:path',
-        );
+        return Reflect.getMetadataKeys(e).some((k) => k === 'endpoints:path');
       });
     }
 
     // Resolve nested modules to collect their endpoint classes (for
     // interceptor application). Nested modules are still passed along as
     // the original (possibly Promise) values via imports.
-    const resolvedNestedModules = await Promise.all(
-      nestedModules.map((m) => Promise.resolve(m)),
-    );
+    const resolvedNestedModules = await Promise.all(nestedModules.map((m) => Promise.resolve(m)));
     const nestedAllEndpoints: Type[] = resolvedNestedModules.flatMap(
-      (m) =>
-        (m as unknown as Record<symbol, Type[] | undefined>)[
-          ALL_ENDPOINTS_SYMBOL
-        ] ?? [],
+      (m) => (m as unknown as Record<symbol, Type[] | undefined>)[ALL_ENDPOINTS_SYMBOL] ?? [],
     );
     const allEndpoints: Type[] = [...endpoints, ...nestedAllEndpoints];
 
@@ -563,7 +521,9 @@ export class EndpointRouterModule {
 
     class RouterModule extends EndpointRouterModule implements NestModule {
       configure(consumer: MiddlewareConsumer) {
-        if (middlewareHandlers.length === 0) return;
+        if (middlewareHandlers.length === 0) {
+          return;
+        }
         let applied = consumer.apply(...middlewareHandlers);
         if (excludeRoutes && excludeRoutes.length > 0) {
           applied = applied.exclude(...excludeRoutes);
@@ -580,9 +540,7 @@ export class EndpointRouterModule {
       providers: params?.providers,
       controllers: endpoints,
     };
-    (dynamicModule as unknown as Record<symbol, Type[]>)[
-      ALL_ENDPOINTS_SYMBOL
-    ] = allEndpoints;
+    (dynamicModule as unknown as Record<symbol, Type[]>)[ALL_ENDPOINTS_SYMBOL] = allEndpoints;
 
     return dynamicModule;
   }
@@ -618,39 +576,25 @@ function findEndpoints(
   // nested router — regardless of depth. The only exception is the
   // caller's own router module file (avoids self-registration when a
   // `rootDirectory` entry happens to resolve to the caller's own folder).
-  const routerFile = [...entries.keys()].find((f) =>
-    routerModuleFileRegex.test(f),
-  );
+  const routerFile = [...entries.keys()].find((f) => routerModuleFileRegex.test(f));
   if (routerFile) {
     const routerFilePath = path.join(dir, routerFile);
     if (!isSameModule(routerFilePath, callerRouterModuleFile)) {
-      nestedRouterModuleFiles.set(
-        routerFilePath,
-        manifest.loaders.get(routerFilePath)!,
-      );
+      nestedRouterModuleFiles.set(routerFilePath, manifest.loaders.get(routerFilePath)!);
       return;
     }
   }
   for (const [f, isDirectory] of entries) {
     const file = path.join(dir, f);
     if (isDirectory) {
-      findEndpoints(
-        manifest,
-        file,
-        nestedRouterModuleFiles,
-        endpointFiles,
-        callerRouterModuleFile,
-      );
+      findEndpoints(manifest, file, nestedRouterModuleFiles, endpointFiles, callerRouterModuleFile);
     } else if (endpointFileRegex.test(f)) {
       endpointFiles.set(file, manifest.loaders.get(file)!);
     }
   }
 }
 
-async function resolveListedEndpoints(
-  listed: ListedEndpoint,
-  routerFile: string,
-): Promise<Type[]> {
+async function resolveListedEndpoints(listed: ListedEndpoint, routerFile: string): Promise<Type[]> {
   const resolved = await listed;
   if (typeof resolved === 'function') {
     return [resolved as Type];
@@ -658,8 +602,7 @@ async function resolveListedEndpoints(
   // A module: its exports that are endpoints, default or named.
   const exported = Object.values(resolved).filter(
     (value): value is Type =>
-      typeof value === 'function' &&
-      Reflect.hasMetadata('endpoints:setupFn', value),
+      typeof value === 'function' && Reflect.hasMetadata('endpoints:setupFn', value),
   );
   if (exported.length === 0) {
     throw new Error(

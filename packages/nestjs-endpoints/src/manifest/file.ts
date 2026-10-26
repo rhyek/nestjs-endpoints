@@ -1,11 +1,7 @@
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
-import {
-  DEFAULT_IMPORT_EXTENSION,
-  ImportExtension,
-  renderManifest,
-} from './render.js';
+import { DEFAULT_IMPORT_EXTENSION, ImportExtension, renderManifest } from './render.js';
 
 /**
  * Writes the manifest unless the file already says exactly that — a needless
@@ -22,10 +18,7 @@ export function writeManifest(
   if (fs.existsSync(file) && fs.readFileSync(file, 'utf8') === content) {
     return false;
   }
-  const temp = path.join(
-    path.dirname(file),
-    `.${path.basename(file)}.${crypto.randomUUID()}.tmp`,
-  );
+  const temp = path.join(path.dirname(file), `.${path.basename(file)}.${crypto.randomUUID()}.tmp`);
   fs.writeFileSync(temp, content);
   try {
     fs.renameSync(temp, file);
@@ -43,13 +36,8 @@ export function writeManifest(
  */
 export function readImportExtension(file: string): ImportExtension {
   try {
-    const match = /importExtension:\s*["'](js|ts)["']/.exec(
-      fs.readFileSync(file, 'utf8'),
-    );
-    return (
-      (match?.[1] as ImportExtension | undefined) ??
-      DEFAULT_IMPORT_EXTENSION
-    );
+    const match = /importExtension:\s*["'](js|ts)["']/.exec(fs.readFileSync(file, 'utf8'));
+    return (match?.[1] as ImportExtension | undefined) ?? DEFAULT_IMPORT_EXTENSION;
   } catch {
     return DEFAULT_IMPORT_EXTENSION;
   }

@@ -19,9 +19,7 @@ export default defineConfig({
       deps: { external: [/\/packages\/nestjs-endpoints\/dist\//] },
     },
     root: path.resolve(import.meta.dirname, '../../../'),
-    include: [
-      `${path.resolve(import.meta.dirname, 'test')}/**/*.e2e-spec.ts`,
-    ],
+    include: [`${path.resolve(import.meta.dirname, 'test')}/**/*.e2e-spec.ts`],
   },
   plugins: [
     // This is required to build the test files with SWC

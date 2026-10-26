@@ -8,11 +8,7 @@ import type { EndpointDescriptor } from '../../descriptors.js';
 import { convertObject } from '../../object-parameters.js';
 import { mergeSharedSchemas } from '../../shared-schemas.js';
 import { toJsonSchema } from '../../zod-to-openapi.js';
-import {
-  adapterEndpoints,
-  buildInputNode,
-  schemaToNode,
-} from './adapter.js';
+import { adapterEndpoints, buildInputNode, schemaToNode } from './adapter.js';
 
 const at = { operationId: 'Op', pointer: '#' };
 
@@ -26,12 +22,7 @@ const inputDate = {
 };
 
 test('string with format, pattern and length', () => {
-  expect(
-    schemaToNode(
-      { type: 'string', pattern: '^a', minLength: 1, maxLength: 5 },
-      at,
-    ),
-  ).toEqual({
+  expect(schemaToNode({ type: 'string', pattern: '^a', minLength: 1, maxLength: 5 }, at)).toEqual({
     kind: 'Schema',
     type: 'string',
     primitive: 'string',
@@ -39,28 +30,32 @@ test('string with format, pattern and length', () => {
     min: 1,
     max: 5,
   });
-  expect(
-    schemaToNode({ type: 'string', format: 'email', minLength: 3 }, at),
-  ).toEqual({
+  expect(schemaToNode({ type: 'string', format: 'email', minLength: 3 }, at)).toEqual({
     kind: 'Schema',
     type: 'email',
     primitive: 'string',
     format: 'email',
     min: 3,
   });
-  expect(
-    schemaToNode({ type: 'string', format: 'uri' }, at),
-  ).toMatchObject({ type: 'url', format: 'uri' });
-  expect(
-    schemaToNode({ type: 'string', format: 'date-time' }, at),
-  ).toMatchObject({ type: 'datetime', offset: false, local: false });
-  expect(
-    schemaToNode({ type: 'string', format: 'date' }, at),
-  ).toMatchObject({ type: 'date', representation: 'string' });
+  expect(schemaToNode({ type: 'string', format: 'uri' }, at)).toMatchObject({
+    type: 'url',
+    format: 'uri',
+  });
+  expect(schemaToNode({ type: 'string', format: 'date-time' }, at)).toMatchObject({
+    type: 'datetime',
+    offset: false,
+    local: false,
+  });
+  expect(schemaToNode({ type: 'string', format: 'date' }, at)).toMatchObject({
+    type: 'date',
+    representation: 'string',
+  });
   // A format Kubb has no type for stays a string and keeps its format.
-  expect(
-    schemaToNode({ type: 'string', format: 'cuid', pattern: '^c' }, at),
-  ).toMatchObject({ type: 'string', format: 'cuid', pattern: '^c' });
+  expect(schemaToNode({ type: 'string', format: 'cuid', pattern: '^c' }, at)).toMatchObject({
+    type: 'string',
+    format: 'cuid',
+    pattern: '^c',
+  });
 });
 
 test('a type array with null is a nullable type', () => {
@@ -97,9 +92,7 @@ test('integer with bounds', () => {
     exclusiveMinimum: -1,
     multipleOf: 2,
   });
-  expect(
-    schemaToNode({ type: 'integer', format: 'int64' }, at),
-  ).toMatchObject({ type: 'integer' });
+  expect(schemaToNode({ type: 'integer', format: 'int64' }, at)).toMatchObject({ type: 'integer' });
 });
 
 test('object properties carry their required and optional flags', () => {
@@ -141,9 +134,10 @@ test('object properties carry their required and optional flags', () => {
       },
     ],
   });
-  expect(
-    (node as { properties: { schema: object }[] }).properties[0].schema,
-  ).not.toHaveProperty('optional', true);
+  expect((node as { properties: { schema: object }[] }).properties[0].schema).not.toHaveProperty(
+    'optional',
+    true,
+  );
 });
 
 test('additionalProperties and propertyNames make a record', () => {
@@ -167,12 +161,12 @@ test('additionalProperties and propertyNames make a record', () => {
       primitive: 'number',
     },
   });
-  expect(
-    schemaToNode({ type: 'object', additionalProperties: {} }, at),
-  ).toMatchObject({ additionalProperties: { type: 'unknown' } });
-  expect(
-    schemaToNode({ type: 'object', additionalProperties: false }, at),
-  ).toMatchObject({ additionalProperties: false });
+  expect(schemaToNode({ type: 'object', additionalProperties: {} }, at)).toMatchObject({
+    additionalProperties: { type: 'unknown' },
+  });
+  expect(schemaToNode({ type: 'object', additionalProperties: false }, at)).toMatchObject({
+    additionalProperties: false,
+  });
 });
 
 test('items make an array, prefixItems a tuple', () => {
@@ -229,16 +223,12 @@ test('items make an array, prefixItems a tuple', () => {
 });
 
 test('anyOf and oneOf make a union, allOf an intersection', () => {
-  expect(
-    schemaToNode({ anyOf: [{ type: 'string' }, { type: 'number' }] }, at),
-  ).toMatchObject({
+  expect(schemaToNode({ anyOf: [{ type: 'string' }, { type: 'number' }] }, at)).toMatchObject({
     type: 'union',
     strategy: 'any',
     members: [{ type: 'string' }, { type: 'number' }],
   });
-  expect(
-    schemaToNode({ oneOf: [{ type: 'string' }, { type: 'null' }] }, at),
-  ).toMatchObject({
+  expect(schemaToNode({ oneOf: [{ type: 'string' }, { type: 'null' }] }, at)).toMatchObject({
     type: 'union',
     strategy: 'one',
     members: [{ type: 'string' }, { type: 'null' }],
@@ -270,16 +260,14 @@ test('enum and const', () => {
     primitive: 'string',
     enumValues: ['a', 'b'],
   });
-  expect(schemaToNode({ type: 'number', enum: [1, 2] }, at)).toMatchObject(
-    {
-      type: 'enum',
-      primitive: 'number',
-      namedEnumValues: [
-        { name: '1', value: 1, primitive: 'number' },
-        { name: '2', value: 2, primitive: 'number' },
-      ],
-    },
-  );
+  expect(schemaToNode({ type: 'number', enum: [1, 2] }, at)).toMatchObject({
+    type: 'enum',
+    primitive: 'number',
+    namedEnumValues: [
+      { name: '1', value: 1, primitive: 'number' },
+      { name: '2', value: 2, primitive: 'number' },
+    ],
+  });
   expect(schemaToNode({ type: 'string', const: 'a' }, at)).toEqual({
     kind: 'Schema',
     type: 'enum',
@@ -308,18 +296,16 @@ test('not: {} is never, {} is unknown', () => {
 });
 
 test('$ref is a ref node with the schema name', () => {
-  expect(
-    schemaToNode({ ...ref('Address'), description: 'Where' }, at),
-  ).toEqual({
+  expect(schemaToNode({ ...ref('Address'), description: 'Where' }, at)).toEqual({
     kind: 'Schema',
     type: 'ref',
     name: 'Address',
     ref: '#/components/schemas/Address',
     description: 'Where',
   });
-  expect(() =>
-    schemaToNode({ $ref: 'https://example.com/schema' }, at),
-  ).toThrow(/https:\/\/example\.com\/schema.*"Op"/);
+  expect(() => schemaToNode({ $ref: 'https://example.com/schema' }, at)).toThrow(
+    /https:\/\/example\.com\/schema.*"Op"/,
+  );
 });
 
 test('discriminator is ignored', () => {
@@ -338,10 +324,7 @@ test('discriminator is ignored', () => {
       },
     ],
   };
-  const node = schemaToNode(
-    { ...union, discriminator: { propertyName: 't' } },
-    at,
-  );
+  const node = schemaToNode({ ...union, discriminator: { propertyName: 't' } }, at);
   expect(node).toEqual(schemaToNode(union, at));
   expect(node).toMatchObject({
     type: 'union',
@@ -355,12 +338,11 @@ test('the input date is one string, nullable when nested', () => {
     type: 'string',
     primitive: 'string',
   });
-  expect(
-    schemaToNode({ description: 'When', ...inputDate }, at),
-  ).toMatchObject({ type: 'string', description: 'When' });
-  expect(
-    schemaToNode({ oneOf: [inputDate, { type: 'null' }] }, at),
-  ).toMatchObject({
+  expect(schemaToNode({ description: 'When', ...inputDate }, at)).toMatchObject({
+    type: 'string',
+    description: 'When',
+  });
+  expect(schemaToNode({ oneOf: [inputDate, { type: 'null' }] }, at)).toMatchObject({
     type: 'union',
     members: [{ type: 'string' }, { type: 'null' }],
   });
@@ -384,10 +366,7 @@ test('union members of one unconstrained primitive collapse', () => {
     members: [{ type: 'string' }, { type: 'number' }],
   });
   expect(
-    schemaToNode(
-      { oneOf: [{ type: 'string', minLength: 1 }, { type: 'string' }] },
-      at,
-    ),
+    schemaToNode({ oneOf: [{ type: 'string', minLength: 1 }, { type: 'string' }] }, at),
   ).toMatchObject({
     type: 'union',
     members: [{ type: 'string', min: 1 }, { type: 'string' }],
@@ -425,9 +404,7 @@ test('unsupported keyword throws with operation and pointer', () => {
       { type: 'object', properties: { x: { if: {} } } },
       { operationId: 'UserCreate', pointer: '#' },
     ),
-  ).toThrow(
-    'Unsupported JSON Schema keyword "if" in operation "UserCreate" at #/properties/x',
-  );
+  ).toThrow('Unsupported JSON Schema keyword "if" in operation "UserCreate" at #/properties/x');
   expect(() =>
     schemaToNode(
       {
@@ -438,10 +415,7 @@ test('unsupported keyword throws with operation and pointer', () => {
     ),
   ).toThrow('"patternProperties" in operation "Op" at #/properties/a~1b');
   expect(() =>
-    schemaToNode(
-      { type: 'array', items: { dependentSchemas: {}, title: 'T' } },
-      at,
-    ),
+    schemaToNode({ type: 'array', items: { dependentSchemas: {}, title: 'T' } }, at),
   ).toThrow('"dependentSchemas" in operation "Op" at #/items');
 });
 
@@ -468,9 +442,9 @@ test('annotation keywords are carried, or ignored where the AST has no field', (
     writeOnly: true,
   });
   // `examples` wins over the singular `example`, as in an OpenAPI document.
-  expect(
-    schemaToNode({ type: 'number', example: 1, examples: [2] }, at),
-  ).toMatchObject({ examples: [2] });
+  expect(schemaToNode({ type: 'number', example: 1, examples: [2] }, at)).toMatchObject({
+    examples: [2],
+  });
 });
 
 test('z.base64() converts despite its contentEncoding', () => {
@@ -519,8 +493,9 @@ function descriptorOf(
   if (parts.params) {
     const converted = convertObject(parts.params);
     params = { json: converted.schema, components: converted.components };
-    for (const p of converted.parameters)
+    for (const p of converted.parameters) {
       paramSchemas.set(p.name, p.schema);
+    }
   }
   const pathParams =
     parts.pathParams ??
@@ -762,14 +737,9 @@ test('only reachable shared schemas are included', () => {
   ];
   const shared = mergeSharedSchemas(ops);
   const input = buildInputNode({ descriptors: ops.slice(0, 2), shared });
-  expect(input.schemas.map((s) => s.name).sort()).toEqual([
-    'AInput',
-    'AOutput',
-    'BFilters',
-    'Nested',
-    'Slug',
-    'Used',
-  ]);
+  expect(
+    input.schemas.map((s) => s.name).sort((a, b) => String(a).localeCompare(String(b))),
+  ).toEqual(['AInput', 'AOutput', 'BFilters', 'Nested', 'Slug', 'Used']);
   // A ref to a named schema carries the schema it resolves to.
   const aInput = schemaNamed(input, 'AInput') as {
     properties: { schema: unknown }[];
@@ -813,29 +783,22 @@ test('an unknown keyword in a shared schema names an operation using it', () => 
         renamed: new Map(),
       },
     }),
-  ).toThrow(
-    '"foo" in operation "UserCreate" at #/components/schemas/UserCreateInput/properties/a',
-  );
+  ).toThrow('"foo" in operation "UserCreate" at #/components/schemas/UserCreateInput/properties/a');
 });
 
 /**
  * Runs Kubb with the adapter, plugin-ts and plugin-client; returns each
  * file by its name, the clients under `clients/`.
  */
-async function printTypes(
-  input: InputNode,
-): Promise<Record<string, string>> {
-  const dir = await mkdtemp(
-    path.join(os.tmpdir(), 'nestjs-endpoints-adapter-'),
-  );
+async function printTypes(input: InputNode): Promise<Record<string, string>> {
+  const dir = await mkdtemp(path.join(os.tmpdir(), 'nestjs-endpoints-adapter-'));
   try {
-    const [{ createKubb }, kit, { pluginTs }, { pluginClient }] =
-      await Promise.all([
-        import('kubb'),
-        import('kubb/kit'),
-        import('@kubb/plugin-ts'),
-        import('@kubb/plugin-client'),
-      ]);
+    const [{ createKubb }, kit, { pluginTs }, { pluginClient }] = await Promise.all([
+      import('kubb'),
+      import('kubb/kit'),
+      import('@kubb/plugin-ts'),
+      import('@kubb/plugin-client'),
+    ]);
     const outDir = path.join(dir, 'out');
     const build = createKubb({
       root: dir,
@@ -848,10 +811,7 @@ async function printTypes(
         format: false,
         lint: false,
       },
-      plugins: [
-        pluginTs(),
-        pluginClient({ importPath: '../client-runtime' }),
-      ],
+      plugins: [pluginTs(), pluginClient({ importPath: '../client-runtime' })],
     });
     try {
       await build.build();
@@ -864,10 +824,7 @@ async function printTypes(
       ['clients', 'clients/'],
     ]) {
       for (const file of await readdir(path.join(outDir, subdir))) {
-        files[prefix + file] = await readFile(
-          path.join(outDir, subdir, file),
-          'utf8',
-        );
+        files[prefix + file] = await readFile(path.join(outDir, subdir, file), 'utf8');
       }
     }
     return files;
@@ -882,63 +839,57 @@ const banner = `/**
 */
 `;
 
-test(
-  'Kubb prints the types and clients from the AST',
-  { timeout: 60_000 },
-  async () => {
-    const profile = z.object({
-      name: z.string().trim().min(1),
-      nickname: z.string().nullish(),
-      theme: z.enum(['light', 'dark', 'system']).default('system'),
-      address: z
-        .object({ street: z.string(), city: z.string() })
-        .meta({ id: 'ProfileAddress' })
-        .nullable(),
-      tags: z.array(z.string()).default([]),
-    });
-    const files = await printTypes(
-      inputNodeOf([
-        descriptorOf('ProfileUpdate', {
-          input: profile,
-          outputs: { 200: profile },
-        }),
-        descriptorOf('UserFind', {
-          kind: 'query',
-          method: 'get',
-          query: z.object({ id: z.number(), at: z.date().optional() }),
-          outputs: {
-            200: z.object({
-              id: z.int(),
-              name: z.string(),
-              nickname: z.string().meta({ example: 'Ada' }),
-            }),
-          },
-        }),
-        descriptorOf('RecipesView', {
-          method: 'get',
-          path: '/recipes/{recipeId}/view',
-          params: z.object({ recipeId: z.number() }),
-        }),
-        descriptorOf('UserAppointmentCreate', {
-          path: '/user/appointment/create',
-          summary: 'Create an appointment',
-          input: z.object({
-            date: z.coerce.date(),
-            until: z.date().nullable(),
+test('Kubb prints the types and clients from the AST', { timeout: 60_000 }, async () => {
+  const profile = z.object({
+    name: z.string().trim().min(1),
+    nickname: z.string().nullish(),
+    theme: z.enum(['light', 'dark', 'system']).default('system'),
+    address: z
+      .object({ street: z.string(), city: z.string() })
+      .meta({ id: 'ProfileAddress' })
+      .nullable(),
+    tags: z.array(z.string()).default([]),
+  });
+  const files = await printTypes(
+    inputNodeOf([
+      descriptorOf('ProfileUpdate', {
+        input: profile,
+        outputs: { 200: profile },
+      }),
+      descriptorOf('UserFind', {
+        kind: 'query',
+        method: 'get',
+        query: z.object({ id: z.number(), at: z.date().optional() }),
+        outputs: {
+          200: z.object({
+            id: z.int(),
+            name: z.string(),
+            nickname: z.string().meta({ example: 'Ada' }),
           }),
-          outputs: {
-            201: z.object({ date: z.date() }),
-            400: z.union([
-              z.string(),
-              z.object({ message: z.string(), errorCode: z.string() }),
-            ]),
-          },
+        },
+      }),
+      descriptorOf('RecipesView', {
+        method: 'get',
+        path: '/recipes/{recipeId}/view',
+        params: z.object({ recipeId: z.number() }),
+      }),
+      descriptorOf('UserAppointmentCreate', {
+        path: '/user/appointment/create',
+        summary: 'Create an appointment',
+        input: z.object({
+          date: z.coerce.date(),
+          until: z.date().nullable(),
         }),
-      ]),
-    );
+        outputs: {
+          201: z.object({ date: z.date() }),
+          400: z.union([z.string(), z.object({ message: z.string(), errorCode: z.string() })]),
+        },
+      }),
+    ]),
+  );
 
-    // As printed from today's OpenAPI document.
-    expect(files['ProfileUpdateInput.ts']).toBe(`${banner}
+  // As printed from today's OpenAPI document.
+  expect(files['ProfileUpdateInput.ts']).toBe(`${banner}
 import type { ProfileAddress } from './ProfileAddress'
 
 export const profileUpdateInputThemeEnum = {
@@ -969,13 +920,13 @@ export type ProfileUpdateInput = {
     tags?: string[];
 };
 `);
-    expect(files['ProfileAddress.ts']).toBe(`${banner}
+  expect(files['ProfileAddress.ts']).toBe(`${banner}
 export type ProfileAddress = {
     street: string;
     city: string;
 };
 `);
-    expect(files['ProfileUpdate.ts']).toBe(`${banner}
+  expect(files['ProfileUpdate.ts']).toBe(`${banner}
 import type { ProfileUpdateInput } from './ProfileUpdateInput'
 import type { ProfileUpdateOutput } from './ProfileUpdateOutput'
 
@@ -999,42 +950,37 @@ export type ProfileUpdateResponses = {
 */
 export type ProfileUpdateResponse = ProfileUpdateStatus200;
 `);
-    expect(files['UserFind.ts']).toContain(`export type UserFindQuery = {
+  expect(files['UserFind.ts']).toContain(`export type UserFindQuery = {
     id: number;
     at?: string;
 };`);
-    // Integers print as `number`, as JSON carries them.
-    expect(files['UserFindOutput.ts']).toContain(`id: number;`);
-    // A `.meta({ example })` field prints the type it would without it.
-    expect(files['UserFindOutput.ts']).toMatch(
-      /\n {4}name: string;\n[\s\S]*\n {4}nickname: string;\n/,
-    );
-    expect(files['RecipesView.ts'])
-      .toContain(`export type RecipesViewPath = {
+  // Integers print as `number`, as JSON carries them.
+  expect(files['UserFindOutput.ts']).toContain(`id: number;`);
+  // A `.meta({ example })` field prints the type it would without it.
+  expect(files['UserFindOutput.ts']).toMatch(
+    /\n {4}name: string;\n[\s\S]*\n {4}nickname: string;\n/,
+  );
+  expect(files['RecipesView.ts']).toContain(`export type RecipesViewPath = {
     recipeId: number;
 };`);
-    expect(files['RecipesView.ts']).toContain(
-      `export type RecipesViewStatus200 = unknown;`,
-    );
-    // The input date is `string` either way, and `string | null` when
-    // nullable; the output date is a date-time string.
-    expect(files['UserAppointmentCreateInput.ts']).toContain(
-      `export type UserAppointmentCreateInput = {
+  expect(files['RecipesView.ts']).toContain(`export type RecipesViewStatus200 = unknown;`);
+  // The input date is `string` either way, and `string | null` when
+  // nullable; the output date is a date-time string.
+  expect(files['UserAppointmentCreateInput.ts']).toContain(
+    `export type UserAppointmentCreateInput = {
     date: string;
     until: (string | null);
 };`,
-    );
-    expect(files['UserAppointmentCreate201Output.ts']).toContain(
-      `date: string;`,
-    );
-    expect(files['UserAppointmentCreate400Output.ts']).toContain(
-      `export type UserAppointmentCreate400Output = (string | {
+  );
+  expect(files['UserAppointmentCreate201Output.ts']).toContain(`date: string;`);
+  expect(files['UserAppointmentCreate400Output.ts']).toContain(
+    `export type UserAppointmentCreate400Output = (string | {
     message: string;
     errorCode: string;
 });`,
-    );
-    // The request functions, as printed from today's document.
-    expect(files['clients/userAppointmentCreate.ts']).toBe(`${banner}
+  );
+  // The request functions, as printed from today's document.
+  expect(files['clients/userAppointmentCreate.ts']).toBe(`${banner}
 import type { Options, RequestResult } from '../client-runtime'
 import type { UserAppointmentCreateOptions, UserAppointmentCreateResponses } from '../types/UserAppointmentCreate'
 import { client } from '../client-runtime'
@@ -1049,7 +995,7 @@ export function userAppointmentCreate<ThrowOnError extends boolean = true>(optio
   return request({ method: 'POST', url: '/user/appointment/create', ...config, throwOnError: config.throwOnError ?? true }) as Promise<RequestResult<UserAppointmentCreateResponses, ThrowOnError>>
 }
 `);
-    expect(files['clients/recipesView.ts']).toContain(`/**
+  expect(files['clients/recipesView.ts']).toContain(`/**
  * {@link /recipes/:recipeId/view}
  */
 export function recipesView<ThrowOnError extends boolean = true>(options: Options<RecipesViewOptions, ThrowOnError>): Promise<RequestResult<RecipesViewResponses, ThrowOnError>> {
@@ -1057,8 +1003,7 @@ export function recipesView<ThrowOnError extends boolean = true>(options: Option
 
   return request({ method: 'GET', url: '/recipes/{recipeId}/view', ...config, throwOnError: config.throwOnError ?? true }) as Promise<RequestResult<RecipesViewResponses, ThrowOnError>>
 }`);
-  },
-);
+});
 
 test('a body omits readOnly keys, a response writeOnly ones', () => {
   const [op] = inputNodeOf([
@@ -1093,9 +1038,9 @@ test('oneOf and anyOf together make one union of both', () => {
     strategy: 'one',
     members: [{ type: 'string' }, { type: 'number' }, { type: 'boolean' }],
   });
-  expect(() =>
-    schemaToNode({ oneOf: [{ type: 'string' }], anyOf: [{ if: {} }] }, at),
-  ).toThrow('"if" in operation "Op" at #/anyOf/0');
+  expect(() => schemaToNode({ oneOf: [{ type: 'string' }], anyOf: [{ if: {} }] }, at)).toThrow(
+    '"if" in operation "Op" at #/anyOf/0',
+  );
 });
 
 test('a typeless schema maps its constraints, or throws', () => {
@@ -1120,12 +1065,7 @@ test('a typeless schema maps its constraints, or throws', () => {
     'minProperties',
     'maxProperties',
   ]) {
-    expect(() =>
-      schemaToNode(
-        { type: 'object', properties: { x: { [keyword]: 1 } } },
-        at,
-      ),
-    ).toThrow(
+    expect(() => schemaToNode({ type: 'object', properties: { x: { [keyword]: 1 } } }, at)).toThrow(
       `"${keyword}" needs a "type" in operation "Op" at #/properties/x`,
     );
   }
@@ -1147,15 +1087,11 @@ test('a whole body that is a shared id names its enums after the body', async ()
   const put = input.operations.find((o) => o.operationId === 'PutUser')!;
   expect(put.requestBody?.content?.[0].keysToOmit).toEqual(['id']);
   const files = await printTypes(input);
-  expect(files['GetUserOutput.ts']).toContain(
-    'export const getUserOutputRoleEnum',
-  );
+  expect(files['GetUserOutput.ts']).toContain('export const getUserOutputRoleEnum');
   // `User` differs between directions only by the `additionalProperties:
   // false` zod adds to outputs, so it has no `UserOutput` twin.
   expect(files['UserOutput.ts']).toBeUndefined();
-  expect(files['PutUserInput.ts']).toContain(
-    'export const putUserInputRoleEnum',
-  );
+  expect(files['PutUserInput.ts']).toContain('export const putUserInputRoleEnum');
   expect(files['User.ts']).toContain('export const userRoleEnum');
   expect(files['PutUserInput.ts']).toContain(`export type PutUserInput = {
     readonly id: number;

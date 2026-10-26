@@ -2,28 +2,17 @@ import { renderManifest } from './render.js';
 
 describe('renderManifest', () => {
   test('js: specifiers carry the compiled extension', () => {
-    const out = renderManifest(
-      ['a.endpoint.ts', 'b/router.module.mts', 'c.endpoint.js'],
-      'js',
-    );
+    const out = renderManifest(['a.endpoint.ts', 'b/router.module.mts', 'c.endpoint.js'], 'js');
     expect(out).toContain('importExtension: "js"');
-    expect(out).toContain(
-      '"a.endpoint.ts": () => import("./a.endpoint.js"),',
-    );
-    expect(out).toContain(
-      '"b/router.module.mts": () => import("./b/router.module.mjs"),',
-    );
-    expect(out).toContain(
-      '"c.endpoint.js": () => import("./c.endpoint.js"),',
-    );
+    expect(out).toContain('"a.endpoint.ts": () => import("./a.endpoint.js"),');
+    expect(out).toContain('"b/router.module.mts": () => import("./b/router.module.mjs"),');
+    expect(out).toContain('"c.endpoint.js": () => import("./c.endpoint.js"),');
   });
 
   test('ts: specifiers are the files as written', () => {
     const out = renderManifest(['a.endpoint.ts'], 'ts');
     expect(out).toContain('importExtension: "ts"');
-    expect(out).toContain(
-      '"a.endpoint.ts": () => import("./a.endpoint.ts"),',
-    );
+    expect(out).toContain('"a.endpoint.ts": () => import("./a.endpoint.ts"),');
   });
 
   test('quotes file names that need it', () => {

@@ -77,39 +77,28 @@ describe('getEndpointHttpPath ($-segment path params)', () => {
   // these tests.
   const root = path.join('/tmp', 'app', 'endpoints');
   const endpointPath = (rel: string) => path.join(root, rel);
-  const subject = (rel: string) =>
-    getEndpointHttpPath([root], '', endpointPath(rel)).httpPath;
+  const subject = (rel: string) => getEndpointHttpPath([root], '', endpointPath(rel)).httpPath;
 
   test('folder leaf $param: recipes/edit/$recipeId.endpoint.ts', () => {
-    expect(subject('recipes/edit/$recipeId.endpoint.ts')).toBe(
-      'recipes/edit/:recipeId',
-    );
+    expect(subject('recipes/edit/$recipeId.endpoint.ts')).toBe('recipes/edit/:recipeId');
   });
 
   test('nested $param folder: recipes/$recipeId/check.endpoint.ts', () => {
-    expect(subject('recipes/$recipeId/check.endpoint.ts')).toBe(
-      'recipes/:recipeId/check',
-    );
+    expect(subject('recipes/$recipeId/check.endpoint.ts')).toBe('recipes/:recipeId/check');
   });
 
   test('folder with .suffix: recipes/$recipeId.view/endpoint.ts', () => {
-    expect(subject('recipes/$recipeId.view/endpoint.ts')).toBe(
-      'recipes/:recipeId/view',
-    );
+    expect(subject('recipes/$recipeId.view/endpoint.ts')).toBe('recipes/:recipeId/view');
   });
 
   test('file with .suffix: recipes/$recipeId.delete.endpoint.ts', () => {
-    expect(subject('recipes/$recipeId.delete.endpoint.ts')).toBe(
-      'recipes/:recipeId/delete',
-    );
+    expect(subject('recipes/$recipeId.delete.endpoint.ts')).toBe('recipes/:recipeId/delete');
   });
 
   test('multi-param: restaurant/$restaurantId/recipes/$recipeId.view/endpoint.ts', () => {
-    expect(
-      subject(
-        'restaurant/$restaurantId/recipes/$recipeId.view/endpoint.ts',
-      ),
-    ).toBe('restaurant/:restaurantId/recipes/:recipeId/view');
+    expect(subject('restaurant/$restaurantId/recipes/$recipeId.view/endpoint.ts')).toBe(
+      'restaurant/:restaurantId/recipes/:recipeId/view',
+    );
   });
 
   test('non-$ segments are unchanged', () => {
@@ -139,13 +128,9 @@ describe('getEndpointHttpPath ($-segment path params)', () => {
     const multi = getEndpointHttpPath(
       [root],
       '',
-      endpointPath(
-        'restaurant/$restaurantId/recipes/$recipeId.view/endpoint.ts',
-      ),
+      endpointPath('restaurant/$restaurantId/recipes/$recipeId.view/endpoint.ts'),
     );
-    expect(multi.httpPath).toBe(
-      'restaurant/:restaurantId/recipes/:recipeId/view',
-    );
+    expect(multi.httpPath).toBe('restaurant/:restaurantId/recipes/:recipeId/view');
     expect(multi.httpPathPascalName).toBe('RestaurantRecipesView');
   });
 });

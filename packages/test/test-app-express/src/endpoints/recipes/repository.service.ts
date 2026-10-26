@@ -32,9 +32,12 @@ export class RecipesRepository {
 
   update(id: number, patch: { name?: string; ingredients?: string[] }) {
     const recipe = this.find(id);
-    if (patch.name !== undefined) recipe.name = patch.name;
-    if (patch.ingredients !== undefined)
+    if (patch.name !== undefined) {
+      recipe.name = patch.name;
+    }
+    if (patch.ingredients !== undefined) {
       recipe.ingredients = patch.ingredients;
+    }
     return recipe;
   }
 

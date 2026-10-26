@@ -42,20 +42,16 @@ export function toJsonSchema(
           delete jsonSchema.anyOf;
         }
         const type = ctx.zodSchema._zod.def.type;
-        if (
-          type !== 'bigint' &&
-          z.globalRegistry.get(ctx.zodSchema)?.type !== undefined
-        ) {
+        if (type !== 'bigint' && z.globalRegistry.get(ctx.zodSchema)?.type !== undefined) {
           typedWrappers.add(ctx.path.slice(wrapperSegments).join('.'));
         }
         if (type === 'date') {
           // Only the keys that shape the type are replaced; a description,
           // examples or deprecation set on the date itself stays.
-          for (const key of dateTypeKeys) delete jsonSchema[key];
-          Object.assign(
-            jsonSchema,
-            structuredClone(ctx.io === 'input' ? inputDate : outputDate),
-          );
+          for (const key of dateTypeKeys) {
+            delete jsonSchema[key];
+          }
+          Object.assign(jsonSchema, structuredClone(ctx.io === 'input' ? inputDate : outputDate));
         } else if (type === 'bigint') {
           const path = ctx.path.slice(wrapperSegments).join('.');
           const metaType = z.globalRegistry.get(ctx.zodSchema)?.type;
@@ -71,17 +67,12 @@ export function toJsonSchema(
     },
   });
   if (untypedBigints.size > 0) {
-    const list = (paths: string[]) =>
-      paths.map((p) => p || '(root)').join(', ');
+    const list = (paths: string[]) => paths.map((p) => p || '(root)').join(', ');
     const bare = [...untypedBigints].filter((p) => !typedWrappers.has(p));
-    const wrapped = [...untypedBigints].filter((p) =>
-      typedWrappers.has(p),
-    );
+    const wrapped = [...untypedBigints].filter((p) => typedWrappers.has(p));
     const messages: string[] = [];
     if (bare.length) {
-      messages.push(
-        `bigint cannot travel as JSON at ${list(bare)}; give it .meta({ type })`,
-      );
+      messages.push(`bigint cannot travel as JSON at ${list(bare)}; give it .meta({ type })`);
     }
     if (wrapped.length) {
       messages.push(
@@ -96,21 +87,20 @@ export function toJsonSchema(
   };
 }
 
-export function zodToOpenApi(params: {
-  schema: ZodType;
-  schemaType: SchemaIo;
-  ref?: string;
-}): any {
-  const { schema: openApiSchema, components: schemaComponents } =
-    toJsonSchema(params.schema, params.schemaType, params.ref);
+export function zodToOpenApi(params: { schema: ZodType; schemaType: SchemaIo; ref?: string }): any {
+  const { schema: openApiSchema, components: schemaComponents } = toJsonSchema(
+    params.schema,
+    params.schemaType,
+    params.ref,
+  );
   return { openApiSchema, schemaComponents };
 }
 
 /** Adds `components` to the OpenAPI document's `components.schemas`. */
-export function registerComponents(
-  components: Record<string, JsonSchema>,
-) {
-  if (Object.keys(components).length === 0) return;
+export function registerComponents(components: Record<string, JsonSchema>) {
+  if (Object.keys(components).length === 0) {
+    return;
+  }
   settings.openapi.components.schemas = {
     ...settings.openapi.components.schemas,
     ...components,

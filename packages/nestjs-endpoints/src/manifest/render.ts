@@ -29,10 +29,7 @@ function importSpecifier(key: string, importExtension: ImportExtension) {
 }
 
 /** The source of an endpoint manifest listing `files` (sorted, relative). */
-export function renderManifest(
-  files: readonly string[],
-  importExtension: ImportExtension,
-): string {
+export function renderManifest(files: readonly string[], importExtension: ImportExtension): string {
   // JSON.stringify quotes keys and specifiers: file names routinely carry
   // `$` (path params), and may carry quotes or backslashes.
   const entries = files.map(

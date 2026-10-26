@@ -15,9 +15,7 @@ beforeEach(() => {
 test('writeManifest replaces the file and leaves no temp file behind', () => {
   fs.writeFileSync(file, 'old');
   writeManifest(file, ['a.endpoint.ts'], 'ts');
-  expect(fs.readFileSync(file, 'utf8')).toBe(
-    renderManifest(['a.endpoint.ts'], 'ts'),
-  );
+  expect(fs.readFileSync(file, 'utf8')).toBe(renderManifest(['a.endpoint.ts'], 'ts'));
   expect(fs.readdirSync(dir)).toEqual(['endpoints.gen.ts']);
 });
 

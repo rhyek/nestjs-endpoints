@@ -17,11 +17,7 @@ import type {
 } from '@kubb/ast';
 import type { Adapter } from 'kubb/kit';
 import type { EndpointDescriptor } from '../../descriptors.js';
-import {
-  reachableSchemas,
-  rewriteOutputRefs,
-  type SharedSchemas,
-} from '../../shared-schemas.js';
+import { reachableSchemas, rewriteOutputRefs, type SharedSchemas } from '../../shared-schemas.js';
 import type { JsonSchema } from '../../zod-to-openapi.js';
 
 /**
@@ -82,15 +78,7 @@ const acceptedKeywords = new Set([
   '$ref',
 ]);
 
-const jsonTypes = new Set([
-  'string',
-  'number',
-  'integer',
-  'boolean',
-  'null',
-  'object',
-  'array',
-]);
+const jsonTypes = new Set(['string', 'number', 'integer', 'boolean', 'null', 'object', 'array']);
 
 /** Formats with a dedicated node type, besides the date family and int64. */
 const formatTypes: Record<string, SchemaNode['type']> = {
@@ -126,13 +114,7 @@ const typelessKeywords = [
   'additionalProperties',
 ];
 
-const numericFormats = new Set([
-  'int32',
-  'int64',
-  'uint64',
-  'float',
-  'double',
-]);
+const numericFormats = new Set(['int32', 'int64', 'uint64', 'float', 'double']);
 
 /** Kubb's PascalCase, so derived names match the ones it derives. */
 function pascalCase(text: string): string {
@@ -166,9 +148,7 @@ function escapePointer(token: string) {
 
 /** Drops `undefined` fields, so nodes hold only what the schema says. */
 function compact<T extends object>(value: T): T {
-  return Object.fromEntries(
-    Object.entries(value).filter(([, v]) => v !== undefined),
-  ) as T;
+  return Object.fromEntries(Object.entries(value).filter(([, v]) => v !== undefined)) as T;
 }
 
 type Context = {
@@ -182,17 +162,12 @@ type Context = {
 function at(ctx: Context, ...tokens: (string | number)[]): Context {
   return {
     ...ctx,
-    pointer: [
-      ctx.pointer,
-      ...tokens.map((t) => escapePointer(String(t))),
-    ].join('/'),
+    pointer: [ctx.pointer, ...tokens.map((t) => escapePointer(String(t)))].join('/'),
   };
 }
 
 function fail(ctx: Context, message: string): never {
-  throw new Error(
-    `${message} in operation "${ctx.operationId}" at ${ctx.pointer}`,
-  );
+  throw new Error(`${message} in operation "${ctx.operationId}" at ${ctx.pointer}`);
 }
 
 function check(schema: JsonSchema, ctx: Context) {
@@ -207,27 +182,19 @@ function check(schema: JsonSchema, ctx: Context) {
       fail(ctx, `Unsupported JSON Schema type ${JSON.stringify(type)}`);
     }
   }
-  if (
-    schema.not !== undefined &&
-    !(isObject(schema.not) && Object.keys(schema.not).length === 0)
-  ) {
+  if (schema.not !== undefined && !(isObject(schema.not) && Object.keys(schema.not).length === 0)) {
     fail(ctx, 'Unsupported JSON Schema keyword "not" (only `not: {}`)');
   }
   if (
     schema.$ref !== undefined &&
     !(typeof schema.$ref === 'string' && schema.$ref.startsWith(refPrefix))
   ) {
-    fail(
-      ctx,
-      `Unsupported $ref ${JSON.stringify(schema.$ref)} (only ${refPrefix}…)`,
-    );
+    fail(ctx, `Unsupported $ref ${JSON.stringify(schema.$ref)} (only ${refPrefix}…)`);
   }
 }
 
 function omit(schema: JsonSchema, keys: string[]): JsonSchema {
-  return Object.fromEntries(
-    Object.entries(schema).filter(([key]) => !keys.includes(key)),
-  );
+  return Object.fromEntries(Object.entries(schema).filter(([key]) => !keys.includes(key)));
 }
 
 function isObject(value: unknown): value is JsonSchema {
@@ -240,11 +207,7 @@ function isNullable(schema: JsonSchema) {
 }
 
 function primitiveOf(value: unknown): 'string' | 'number' | 'boolean' {
-  return typeof value === 'number'
-    ? 'number'
-    : typeof value === 'boolean'
-      ? 'boolean'
-      : 'string';
+  return typeof value === 'number' ? 'number' : typeof value === 'boolean' ? 'boolean' : 'string';
 }
 
 const structuralKeywords = new Set([
@@ -260,47 +223,40 @@ const structuralKeywords = new Set([
 /** Folds an `allOf` of keyword-only fragments into its parent. */
 function flattenAllOf(schema: JsonSchema): JsonSchema {
   const allOf = schema.allOf as JsonSchema[] | undefined;
-  if (!allOf?.length) return schema;
-  if (
-    allOf.some(
-      (s) =>
-        '$ref' in s ||
-        Object.keys(s).some((k) => structuralKeywords.has(k)),
-    )
-  ) {
+  if (!allOf?.length) {
+    return schema;
+  }
+  if (allOf.some((s) => '$ref' in s || Object.keys(s).some((k) => structuralKeywords.has(k)))) {
     return schema;
   }
   const merged = omit(schema, ['allOf']);
   for (const fragment of allOf) {
-    for (const [key, value] of Object.entries(fragment))
+    for (const [key, value] of Object.entries(fragment)) {
       merged[key] ??= value;
+    }
   }
   return merged;
 }
 
-const scalarTypes = new Set([
-  'string',
-  'number',
-  'integer',
-  'bigint',
-  'boolean',
-]);
+const scalarTypes = new Set(['string', 'number', 'integer', 'bigint', 'boolean']);
 
 /** Drops multi-value enum members a plain scalar member already covers. */
 function simplifyUnion(members: SchemaNode[]): SchemaNode[] {
-  const scalars = new Set(
-    members.filter((m) => scalarTypes.has(m.type)).map((m) => m.type),
-  );
-  if (!scalars.size) return members;
+  const scalars = new Set(members.filter((m) => scalarTypes.has(m.type)).map((m) => m.type));
+  if (!scalars.size) {
+    return members;
+  }
   return members.filter((member) => {
     const node = narrowSchema(member, 'enum');
-    if (!node?.primitive) return true;
-    if (
-      (node.namedEnumValues?.length ?? node.enumValues?.length ?? 0) <= 1
-    ) {
+    if (!node?.primitive) {
       return true;
     }
-    if (scalars.has(node.primitive)) return false;
+    if ((node.namedEnumValues?.length ?? node.enumValues?.length ?? 0) <= 1) {
+      return true;
+    }
+    if (scalars.has(node.primitive)) {
+      return false;
+    }
     return !(
       (node.primitive === 'integer' || node.primitive === 'number') &&
       (scalars.has('integer') || scalars.has('number'))
@@ -335,11 +291,13 @@ const constraintKeys = [
 function plainPrimitive(member: SchemaNode): string | undefined {
   const node = member as Record<string, unknown>;
   const primitive = plainTypes[member.type];
-  if (!primitive || node.nullable) return undefined;
-  if (constraintKeys.some((key) => node[key] !== undefined))
+  if (!primitive || node.nullable) {
     return undefined;
-  return node.representation === undefined ||
-    node.representation === 'string'
+  }
+  if (constraintKeys.some((key) => node[key] !== undefined)) {
+    return undefined;
+  }
+  return node.representation === undefined || node.representation === 'string'
     ? primitive
     : undefined;
 }
@@ -350,8 +308,7 @@ function collapsePrimitives(members: SchemaNode[]): SchemaNode[] {
   const collapsed: SchemaNode[] = [];
   for (const member of members) {
     const primitive = plainPrimitive(member);
-    const first =
-      primitive === undefined ? undefined : firstOf.get(primitive);
+    const first = primitive === undefined ? undefined : firstOf.get(primitive);
     if (primitive === undefined) {
       collapsed.push(member);
     } else if (first === undefined) {
@@ -372,27 +329,22 @@ function numericBounds(schema: JsonSchema) {
     min: schema.minimum as number | undefined,
     max: schema.maximum as number | undefined,
     exclusiveMinimum:
-      typeof schema.exclusiveMinimum === 'number'
-        ? schema.exclusiveMinimum
-        : undefined,
+      typeof schema.exclusiveMinimum === 'number' ? schema.exclusiveMinimum : undefined,
     exclusiveMaximum:
-      typeof schema.exclusiveMaximum === 'number'
-        ? schema.exclusiveMaximum
-        : undefined,
+      typeof schema.exclusiveMaximum === 'number' ? schema.exclusiveMaximum : undefined,
     multipleOf: schema.multipleOf as number | undefined,
   };
 }
 
 function parse(schema: JsonSchema, ctx: Context): SchemaNode {
   if (!isObject(schema)) {
-    fail(
-      ctx,
-      `Expected a JSON Schema object, got ${JSON.stringify(schema)}`,
-    );
+    fail(ctx, `Expected a JSON Schema object, got ${JSON.stringify(schema)}`);
   }
   check(schema, ctx);
   const flattened = flattenAllOf(schema);
-  if (flattened !== schema) return parse(flattened, ctx);
+  if (flattened !== schema) {
+    return parse(flattened, ctx);
+  }
 
   const nullable = isNullable(schema) || undefined;
   const base = {
@@ -403,8 +355,7 @@ function parse(schema: JsonSchema, ctx: Context): SchemaNode {
     deprecated: schema.deprecated as boolean | undefined,
     readOnly: schema.readOnly as boolean | undefined,
     writeOnly: schema.writeOnly as boolean | undefined,
-    default:
-      schema.default === null && nullable ? undefined : schema.default,
+    default: schema.default === null && nullable ? undefined : schema.default,
     examples: Array.isArray(schema.examples)
       ? schema.examples
       : schema.example !== undefined
@@ -419,7 +370,9 @@ function parse(schema: JsonSchema, ctx: Context): SchemaNode {
     : schema.type;
   const types = Array.isArray(schema.type) ? schema.type : [];
 
-  if (schema.not !== undefined) return node({ type: 'never' });
+  if (schema.not !== undefined) {
+    return node({ type: 'never' });
+  }
 
   if (typeof schema.$ref === 'string') {
     const resolved = ctx.resolve?.(schema.$ref);
@@ -463,18 +416,14 @@ function parse(schema: JsonSchema, ctx: Context): SchemaNode {
     }
     const members = allOf.map((s, i) => parse(s, at(ctx, 'allOf', i)));
     if (schema.properties) {
-      members.push(
-        parse(omit(schema, ['allOf']), { ...ctx, name: undefined }),
-      );
+      members.push(parse(omit(schema, ['allOf']), { ...ctx, name: undefined }));
     }
     return node({ type: 'intersection', members });
   }
 
   // A schema with both keeps the members of both, as one union.
   const unionOf = (['oneOf', 'anyOf'] as const).flatMap((keyword) =>
-    ((schema[keyword] ?? []) as JsonSchema[]).map(
-      (s, i) => [s, at(ctx, keyword, i)] as const,
-    ),
+    ((schema[keyword] ?? []) as JsonSchema[]).map((s, i) => [s, at(ctx, keyword, i)] as const),
   );
   if (unionOf.length) {
     const members = unionOf.map(([s, memberCtx]) => parse(s, memberCtx));
@@ -489,10 +438,11 @@ function parse(schema: JsonSchema, ctx: Context): SchemaNode {
             type: 'union',
             strategy: schema.oneOf ? 'one' : 'any',
             members: simplified,
-            discriminatorPropertyName:
-              inferDiscriminatorPropertyName(members),
+            discriminatorPropertyName: inferDiscriminatorPropertyName(members),
           });
-    if (!schema.properties) return union;
+    if (!schema.properties) {
+      return union;
+    }
     const rest = omit(schema, ['oneOf', 'anyOf', 'discriminator']);
     return node({
       type: 'intersection',
@@ -501,7 +451,9 @@ function parse(schema: JsonSchema, ctx: Context): SchemaNode {
   }
 
   if ('const' in schema && schema.const !== undefined) {
-    if (schema.const === null) return node({ type: 'null' });
+    if (schema.const === null) {
+      return node({ type: 'null' });
+    }
     return node({
       type: 'enum',
       primitive: primitiveOf(schema.const),
@@ -512,9 +464,7 @@ function parse(schema: JsonSchema, ctx: Context): SchemaNode {
   if (types.filter((t) => t !== 'null').length > 1) {
     return node({
       type: 'union',
-      members: types
-        .filter((t) => t !== 'null')
-        .map((t) => parse({ ...schema, type: t }, ctx)),
+      members: types.filter((t) => t !== 'null').map((t) => parse({ ...schema, type: t }, ctx)),
     });
   }
 
@@ -576,25 +526,19 @@ function parse(schema: JsonSchema, ctx: Context): SchemaNode {
   ) {
     return string();
   }
-  if (
-    !type &&
-    (schema.minimum !== undefined || schema.maximum !== undefined)
-  ) {
+  if (!type && (schema.minimum !== undefined || schema.maximum !== undefined)) {
     return numeric('number');
   }
 
   const enumValues = schema.enum as unknown[] | undefined;
   if (enumValues?.length) {
     const values = [
-      ...new Set(
-        enumValues.filter((v) => v !== null) as (
-          string | number | boolean
-        )[],
-      ),
+      ...new Set(enumValues.filter((v) => v !== null) as (string | number | boolean)[]),
     ];
-    if (values.length === 0) return node({ type: 'null' });
-    const enumNullable =
-      nullable || enumValues.includes(null) || undefined;
+    if (values.length === 0) {
+      return node({ type: 'null' });
+    }
+    const enumNullable = nullable || enumValues.includes(null) || undefined;
     const primitive =
       type === 'boolean'
         ? 'boolean'
@@ -603,15 +547,13 @@ function parse(schema: JsonSchema, ctx: Context): SchemaNode {
           : 'string';
     const fields = {
       nullable: enumNullable,
-      default:
-        schema.default === null && enumNullable
-          ? undefined
-          : schema.default,
+      default: schema.default === null && enumNullable ? undefined : schema.default,
       type: 'enum',
       primitive,
     };
-    if (primitive === 'string')
+    if (primitive === 'string') {
       return node({ ...fields, enumValues: values });
+    }
     return node({
       ...fields,
       namedEnumValues: values.map((value) => ({
@@ -622,11 +564,7 @@ function parse(schema: JsonSchema, ctx: Context): SchemaNode {
     });
   }
 
-  if (
-    type === 'object' ||
-    schema.properties ||
-    schema.additionalProperties
-  ) {
+  if (type === 'object' || schema.properties || schema.additionalProperties) {
     return parseObject(schema, ctx, node);
   }
 
@@ -636,9 +574,7 @@ function parse(schema: JsonSchema, ctx: Context): SchemaNode {
     return node({
       type: 'tuple',
       primitive: 'array',
-      items: prefixItems.map((s, i) =>
-        parse(s, { ...at(ctx, 'prefixItems', i), name: undefined }),
-      ),
+      items: prefixItems.map((s, i) => parse(s, { ...at(ctx, 'prefixItems', i), name: undefined })),
       rest:
         items === false
           ? undefined
@@ -662,22 +598,29 @@ function parse(schema: JsonSchema, ctx: Context): SchemaNode {
     return node({
       type: 'array',
       primitive: 'array',
-      items: items
-        ? [parse(items, { ...at(ctx, 'items'), name: itemName })]
-        : [],
+      items: items ? [parse(items, { ...at(ctx, 'items'), name: itemName })] : [],
       min: schema.minItems,
       max: schema.maxItems,
     });
   }
 
-  if (type === 'string') return string();
-  if (type === 'number' || type === 'integer') return numeric(type);
-  if (type === 'boolean')
+  if (type === 'string') {
+    return string();
+  }
+  if (type === 'number' || type === 'integer') {
+    return numeric(type);
+  }
+  if (type === 'boolean') {
     return node({ type: 'boolean', primitive: 'boolean' });
-  if (type === 'null') return node({ type: 'null' });
+  }
+  if (type === 'null') {
+    return node({ type: 'null' });
+  }
   // Only a schema with nothing to say about the value is unknown.
   const lost = typelessKeywords.find((k) => k in schema);
-  if (lost) fail(ctx, `JSON Schema keyword "${lost}" needs a "type"`);
+  if (lost) {
+    fail(ctx, `JSON Schema keyword "${lost}" needs a "type"`);
+  }
   return node({ type: 'unknown' });
 }
 
@@ -687,45 +630,37 @@ function parseObject(
   node: (extras: Record<string, unknown>) => SchemaNode,
 ): SchemaNode {
   const required = Array.isArray(schema.required) ? schema.required : [];
-  const properties = Object.entries(
-    (schema.properties ?? {}) as Record<string, JsonSchema>,
-  ).map(([prop, propSchema]) => {
-    const parsed = parse(propSchema, {
-      ...at(ctx, 'properties', prop),
-      name: childName(ctx.name, prop),
-    });
-    // An inline enum on a property gets a name of its own, which plugin-ts
-    // prints as a const and a `…Key` type; a boolean enum stays inline.
-    const named = narrowSchema(parsed, 'enum')
-      ? {
-          ...parsed,
-          name:
-            parsed.primitive === 'boolean'
-              ? null
-              : enumName(ctx.name, prop),
-        }
-      : parsed;
-    return factory.createProperty({
-      name: prop,
-      schema: compact({
-        ...named,
-        nullable:
-          named.type === 'null'
-            ? undefined
-            : isNullable(propSchema) || undefined,
-      }),
-      required: required.includes(prop),
-    });
-  });
+  const properties = Object.entries((schema.properties ?? {}) as Record<string, JsonSchema>).map(
+    ([prop, propSchema]) => {
+      const parsed = parse(propSchema, {
+        ...at(ctx, 'properties', prop),
+        name: childName(ctx.name, prop),
+      });
+      // An inline enum on a property gets a name of its own, which plugin-ts
+      // prints as a const and a `…Key` type; a boolean enum stays inline.
+      const named = narrowSchema(parsed, 'enum')
+        ? {
+            ...parsed,
+            name: parsed.primitive === 'boolean' ? null : enumName(ctx.name, prop),
+          }
+        : parsed;
+      return factory.createProperty({
+        name: prop,
+        schema: compact({
+          ...named,
+          nullable: named.type === 'null' ? undefined : isNullable(propSchema) || undefined,
+        }),
+        required: required.includes(prop),
+      });
+    },
+  );
   const additional = schema.additionalProperties;
   return node({
     type: 'object',
     primitive: 'object',
     properties,
     additionalProperties:
-      additional === true ||
-      additional === false ||
-      additional === undefined
+      additional === true || additional === false || additional === undefined
         ? additional
         : isObject(additional) && Object.keys(additional).length === 0
           ? factory.createSchema({ type: 'unknown' })
@@ -754,10 +689,7 @@ export function schemaToNode(
  * An operation's own schemas (input, parameters, responses), whose `$ref`s
  * lead to the shared schemas it uses; output refs point at renamed twins.
  */
-export function rootsOf(
-  d: EndpointDescriptor,
-  renamed: SharedSchemas['renamed'],
-) {
+export function rootsOf(d: EndpointDescriptor, renamed: SharedSchemas['renamed']) {
   return [
     d.input?.json,
     d.params?.json,
@@ -773,35 +705,34 @@ function sortByRefs(schemas: Record<string, JsonSchema>) {
   const sorted: string[] = [];
   const visited = new Set<string>();
   const visit = (name: string, stack: Set<string>) => {
-    if (visited.has(name) || stack.has(name)) return;
+    if (visited.has(name) || stack.has(name)) {
+      return;
+    }
     stack.add(name);
     for (const dep of Object.keys(
       reachableSchemas([schemas[name]], { schemas, renamed: new Map() }),
     )) {
-      if (dep in schemas) visit(dep, stack);
+      if (dep in schemas) {
+        visit(dep, stack);
+      }
     }
     stack.delete(name);
     visited.add(name);
     sorted.push(name);
   };
-  for (const name of Object.keys(schemas)) visit(name, new Set());
+  for (const name of Object.keys(schemas)) {
+    visit(name, new Set());
+  }
   return sorted;
 }
 
 /** `schema` with its `$ref`s followed, its own keywords kept over the target's. */
-function unalias(
-  schema: JsonSchema,
-  named: Record<string, JsonSchema>,
-): JsonSchema {
+function unalias(schema: JsonSchema, named: Record<string, JsonSchema>): JsonSchema {
   const seen = new Set<string>();
   let current = schema;
   while (typeof current.$ref === 'string') {
     const target = current.$ref.slice(refPrefix.length);
-    if (
-      !current.$ref.startsWith(refPrefix) ||
-      seen.has(target) ||
-      !named[target]
-    ) {
+    if (!current.$ref.startsWith(refPrefix) || seen.has(target) || !named[target]) {
       return current;
     }
     seen.add(target);
@@ -823,9 +754,7 @@ function flaggedKeys(
     typeof schema.$ref === 'string'
       ? { ...named[schema.$ref.slice(refPrefix.length)], ...schema }
       : schema;
-  const keys = Object.entries(
-    (target.properties ?? {}) as Record<string, JsonSchema>,
-  )
+  const keys = Object.entries((target.properties ?? {}) as Record<string, JsonSchema>)
     .filter(([, p]) => p && !('$ref' in p) && p[flag])
     .map(([k]) => k);
   return keys.length ? keys : null;
@@ -847,7 +776,9 @@ export function buildInputNode(params: {
   for (const d of descriptors) {
     const reached = reachableSchemas(rootsOf(d, shared.renamed), shared);
     for (const [name, schema] of Object.entries(reached)) {
-      if (owners.has(name)) continue;
+      if (owners.has(name)) {
+        continue;
+      }
       owners.set(name, d.operationId);
       named[name] = schema;
     }
@@ -864,13 +795,13 @@ export function buildInputNode(params: {
   const resolving = new Set<string>();
   const resolverFor = (operationId: string) => (ref: string) => {
     const name = ref.slice(refPrefix.length);
-    if (resolving.has(name)) return null;
+    if (resolving.has(name)) {
+      return null;
+    }
     if (!resolved.has(name)) {
       const schema = named[name];
       if (!schema) {
-        throw new Error(
-          `Operation "${operationId}" refers to ${ref}, which no endpoint defines`,
-        );
+        throw new Error(`Operation "${operationId}" refers to ${ref}, which no endpoint defines`);
       }
       resolving.add(name);
       try {
@@ -932,12 +863,8 @@ export function buildInputNode(params: {
         required,
       });
     const parameters = [
-      ...d.pathParams.map((p) =>
-        parameter('path', p.name, p.schema, true),
-      ),
-      ...(d.query?.parameters ?? []).map((q) =>
-        parameter('query', q.name, q.schema, q.required),
-      ),
+      ...d.pathParams.map((p) => parameter('path', p.name, p.schema, true)),
+      ...(d.query?.parameters ?? []).map((q) => parameter('query', q.name, q.schema, q.required)),
     ];
 
     const requestBody = d.input
@@ -947,10 +874,7 @@ export function buildInputNode(params: {
             factory.createContent({
               contentType: jsonContentType,
               schema: optionality(
-                parse(
-                  d.input.json,
-                  ctx('#/input', `${operationName}Request`),
-                ),
+                parse(d.input.json, ctx('#/input', `${operationName}Request`)),
                 true,
               ),
               keysToOmit: flaggedKeys(d.input.json, named, 'readOnly'),
@@ -971,10 +895,7 @@ export function buildInputNode(params: {
                   contentType: jsonContentType,
                   schema: parse(
                     json,
-                    ctx(
-                      `#/outputs/${o.status}`,
-                      `${operationName}Status${o.status}`,
-                    ),
+                    ctx(`#/outputs/${o.status}`, `${operationName}Status${o.status}`),
                   ),
                   keysToOmit: flaggedKeys(json, named, 'writeOnly'),
                 }),
@@ -1006,10 +927,7 @@ export function buildInputNode(params: {
         parameters,
         requestBody,
         responses,
-        extensions:
-          d.namespaceChain.length > 0
-            ? { 'x-namespace': d.namespaceChain }
-            : undefined,
+        extensions: d.namespaceChain.length > 0 ? { 'x-namespace': d.namespaceChain } : undefined,
       }),
     );
   });
@@ -1027,10 +945,7 @@ export function buildInputNode(params: {
 }
 
 /** A Kubb adapter whose source is the `InputNode` built above. */
-export function adapterEndpoints(
-  kit: typeof import('kubb/kit'),
-  input: InputNode,
-): Adapter {
+export function adapterEndpoints(kit: typeof import('kubb/kit'), input: InputNode): Adapter {
   return kit.defineExtension({
     kind: 'adapter',
     meta: { name: 'nestjs-endpoints' },

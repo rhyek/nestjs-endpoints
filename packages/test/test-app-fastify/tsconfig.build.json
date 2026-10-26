@@ -3,14 +3,7 @@
   "compilerOptions": {
     "rootDir": "./src"
   },
-  "exclude": [
-    "node_modules",
-    "test",
-    "dist",
-    "generated",
-    "**/*spec.ts",
-    "vitest.config.ts"
-  ],
+  "exclude": ["node_modules", "test", "dist", "generated", "**/*spec.ts", "vitest.config.ts"],
   "tsc-alias": {
     "resolveFullPaths": true
   }

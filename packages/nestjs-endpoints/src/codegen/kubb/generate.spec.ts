@@ -9,17 +9,12 @@ import { generateReactQueryClient } from './generate.js';
 let dir: string;
 
 beforeEach(async () => {
-  dir = await mkdtemp(
-    path.join(os.tmpdir(), 'nestjs-endpoints-generate-'),
-  );
+  dir = await mkdtemp(path.join(os.tmpdir(), 'nestjs-endpoints-generate-'));
 });
 afterEach(() => rm(dir, { recursive: true, force: true }));
 
 function descriptor(
-  fields: Pick<
-    EndpointDescriptor,
-    'operationId' | 'kind' | 'method' | 'path'
-  >,
+  fields: Pick<EndpointDescriptor, 'operationId' | 'kind' | 'method' | 'path'>,
 ): EndpointDescriptor {
   return {
     pathParams: [],
@@ -81,19 +76,13 @@ test("the hooks, their options and customOptions' hook options follow each opera
   const read = (file: string) => readFile(path.join(dir, file), 'utf8');
 
   const hooks = await read('client/hooks/index.ts');
-  expect(hooks).toContain(
-    'export { itemsListQueryKey, itemsListQueryOptions, useItemsList }',
-  );
+  expect(hooks).toContain('export { itemsListQueryKey, itemsListQueryOptions, useItemsList }');
   expect(hooks).toContain(
     'export { itemsRemoveMutationKey, itemsRemoveMutationOptions, useItemsRemove }',
   );
   expect(hooks).not.toMatch(/itemsCount|ItemsCount/);
-  expect(await read('client/hooks/useItemsList.ts')).toContain(
-    'useQuery(',
-  );
-  expect(await read('client/hooks/useItemsRemove.ts')).toContain(
-    'useMutation<',
-  );
+  expect(await read('client/hooks/useItemsList.ts')).toContain('useQuery(');
+  expect(await read('client/hooks/useItemsRemove.ts')).toContain('useMutation<');
 
   const hookOptions = await read('client/hooks/HookOptions.ts');
   expect(hookOptions).toContain('itemsListQueryOptions');
@@ -103,7 +92,5 @@ test("the hooks, their options and customOptions' hook options follow each opera
   expect(hookOptions).not.toMatch(/itemsCount/i);
 
   // The wrapper refers to the helpers Kubb generated, and no others.
-  expect(await read('client.tsx')).toContain(
-    'itemsCount: bindClient(_ops.itemsCount, _request),',
-  );
+  expect(await read('client.tsx')).toContain('itemsCount: bindClient(_ops.itemsCount, _request),');
 }, 60_000);

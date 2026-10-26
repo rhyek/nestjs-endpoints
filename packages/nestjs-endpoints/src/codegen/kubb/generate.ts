@@ -5,19 +5,10 @@ import type { SharedSchemas } from '../../shared-schemas.js';
 import { hashHeader } from '../hash.js';
 import { adapterEndpoints, buildInputNode } from './adapter.js';
 import { emitPlugin } from './emit-plugin.js';
-import {
-  buildSchemasModuleSource,
-  collectInputSchemas,
-} from './input-schemas.js';
+import { buildSchemasModuleSource, collectInputSchemas } from './input-schemas.js';
 import { kindOverrides } from './operation-kind.js';
-import {
-  AXIOS_CLIENT_RUNTIME_SOURCE,
-  REACT_QUERY_CLIENT_RUNTIME_SOURCE,
-} from './runtime.js';
-import {
-  buildAxiosWrapperSource,
-  buildReactQueryWrapperSource,
-} from './wrapper.js';
+import { AXIOS_CLIENT_RUNTIME_SOURCE, REACT_QUERY_CLIENT_RUNTIME_SOURCE } from './runtime.js';
+import { buildAxiosWrapperSource, buildReactQueryWrapperSource } from './wrapper.js';
 
 /**
  * Options forwarded to `@kubb/plugin-react-query` (the public `options` field on
@@ -26,18 +17,12 @@ import {
  * are managed by nestjs-endpoints and omitted.
  */
 export type ReactQueryPluginOptions = OmitEach<
-  NonNullable<
-    Parameters<
-      typeof import('@kubb/plugin-react-query').pluginReactQuery
-    >[0]
-  >,
+  NonNullable<Parameters<typeof import('@kubb/plugin-react-query').pluginReactQuery>[0]>,
   'client' | 'hooks'
 >;
 
 /** `Omit` applied to each member of a union (the plugin options are one). */
-type OmitEach<T, K extends PropertyKey> = T extends unknown
-  ? Omit<T, K>
-  : never;
+type OmitEach<T, K extends PropertyKey> = T extends unknown ? Omit<T, K> : never;
 
 /**
  * The sibling directory that holds the Kubb-generated tree + runtime for a
@@ -58,13 +43,12 @@ function resolveLayout(outputFile: string) {
 
 /** Load Kubb and the plugins every client uses. */
 async function loadKubb() {
-  const [{ createKubb }, kit, { pluginTs }, { pluginClient }] =
-    await Promise.all([
-      import('kubb'),
-      import('kubb/kit'),
-      import('@kubb/plugin-ts'),
-      import('@kubb/plugin-client'),
-    ]);
+  const [{ createKubb }, kit, { pluginTs }, { pluginClient }] = await Promise.all([
+    import('kubb'),
+    import('kubb/kit'),
+    import('@kubb/plugin-ts'),
+    import('@kubb/plugin-client'),
+  ]);
   return { createKubb, kit, pluginTs, pluginClient };
 }
 

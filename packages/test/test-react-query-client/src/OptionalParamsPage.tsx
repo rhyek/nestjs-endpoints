@@ -13,9 +13,7 @@ export function OptionalParamsPage() {
     <div>
       {status === 'pending' && <div>Loading...</div>}
       {error && <div>Error</div>}
-      {data && (
-        <div data-testid="optional-result">{JSON.stringify(data)}</div>
-      )}
+      {data && <div data-testid="optional-result">{JSON.stringify(data)}</div>}
     </div>
   );
 }

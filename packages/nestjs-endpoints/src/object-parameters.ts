@@ -16,9 +16,7 @@ export type ObjectSchemaLike =
 function unwrapObject(zodObject: ObjectSchemaLike): z.ZodObject {
   if (zodObject instanceof ZodPipe) {
     return (
-      zodObject.def.in instanceof ZodTransform
-        ? zodObject.def.out
-        : zodObject.def.in
+      zodObject.def.in instanceof ZodTransform ? zodObject.def.out : zodObject.def.in
     ) as z.ZodObject;
   }
   return zodObject;
@@ -47,20 +45,18 @@ export function convertObject(
   parameters: ObjectParameter[];
   components: Record<string, JsonSchema>;
 } {
-  const { schema, components } = toJsonSchema(
-    unwrapObject(zodObject),
-    'input',
-  );
+  const { schema, components } = toJsonSchema(unwrapObject(zodObject), 'input');
   let object = schema;
   const seen = new Set<string>();
   while (typeof object.$ref === 'string' && !seen.has(object.$ref)) {
     seen.add(object.$ref);
     const name = object.$ref.slice(refPrefix.length);
-    if (!object.$ref.startsWith(refPrefix) || !components[name]) break;
+    if (!object.$ref.startsWith(refPrefix) || !components[name]) {
+      break;
+    }
     object = components[name];
   }
-  const properties = object.properties as
-    Record<string, JsonSchema> | undefined;
+  const properties = object.properties as Record<string, JsonSchema> | undefined;
   if (object.type !== 'object' || !properties) {
     throw new Error(
       `${at} must be an object schema, so that its properties can be ` +
@@ -80,8 +76,6 @@ export function convertObject(
 }
 
 /** One entry per property of an object schema, from a single conversion. */
-export function objectParameters(
-  zodObject: ObjectSchemaLike,
-): ObjectParameter[] {
+export function objectParameters(zodObject: ObjectSchemaLike): ObjectParameter[] {
   return convertObject(zodObject).parameters;
 }

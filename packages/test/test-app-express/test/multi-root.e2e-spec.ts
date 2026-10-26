@@ -28,13 +28,8 @@ describe('multi-root + folder-inferred basePath', () => {
   test('sibling dir with its own router.module.ts is treated as a nested router', async () => {
     const { app, req } = await setup();
     try {
-      await req
-        .post('/shop/category/list')
-        .expect(200, [{ id: 1, name: 'books' }]);
-      await req
-        .post('/shop/cart/add')
-        .send({ item: 'ABC' })
-        .expect(200, { added: 'ABC' });
+      await req.post('/shop/category/list').expect(200, [{ id: 1, name: 'books' }]);
+      await req.post('/shop/cart/add').send({ item: 'ABC' }).expect(200, { added: 'ABC' });
     } finally {
       await app.close();
     }
@@ -51,9 +46,7 @@ describe('multi-root + folder-inferred basePath', () => {
         .post('/shop/recipes/create')
         .send({ name: 'Pizza' })
         .expect(200, { id: 1, name: 'Pizza' });
-      await req
-        .post('/shop/recipes')
-        .expect(200, [{ id: 1, name: 'Pizza' }]);
+      await req.post('/shop/recipes').expect(200, [{ id: 1, name: 'Pizza' }]);
     } finally {
       await app.close();
     }
@@ -76,14 +69,8 @@ describe('multi-root + folder-inferred basePath', () => {
     // resolve correctly.
     const { app, req } = await setup();
     try {
-      await req
-        .post('/greet')
-        .send({ name: 'Jo' })
-        .expect(200, 'Hello, Jo!');
-      await req
-        .post('/user/create')
-        .send({ name: 'X', email: 'x@y.com' })
-        .expect(200, { id: 1 });
+      await req.post('/greet').send({ name: 'Jo' }).expect(200, 'Hello, Jo!');
+      await req.post('/user/create').send({ name: 'X', email: 'x@y.com' }).expect(200, { id: 1 });
     } finally {
       await app.close();
     }

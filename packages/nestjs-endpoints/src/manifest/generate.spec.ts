@@ -21,9 +21,7 @@ describe('generateManifest', () => {
     expect(keys).toEqual(['shop/stats.endpoint.ts']);
     expect(written).toBe(true);
     expect(generateManifest({ dir: src }).written).toBe(false);
-    expect(fs.readFileSync(file, 'utf8')).toContain(
-      'import("./shop/stats.endpoint.js")',
-    );
+    expect(fs.readFileSync(file, 'utf8')).toContain('import("./shop/stats.endpoint.js")');
   });
 
   test('leaves an unchanged manifest untouched, so watchers do not react', () => {
@@ -36,31 +34,24 @@ describe('generateManifest', () => {
   test('keeps the import extension unless told otherwise', () => {
     generateManifest({ dir: src, importExtension: 'ts' });
     generateManifest({ dir: src });
-    expect(readImportExtension(path.join(src, 'endpoints.gen.ts'))).toBe(
-      'ts',
-    );
+    expect(readImportExtension(path.join(src, 'endpoints.gen.ts'))).toBe('ts');
     generateManifest({ dir: src, importExtension: 'js' });
-    expect(readImportExtension(path.join(src, 'endpoints.gen.ts'))).toBe(
-      'js',
-    );
+    expect(readImportExtension(path.join(src, 'endpoints.gen.ts'))).toBe('js');
   });
 
   test('a missing directory is an error', () => {
-    expect(() =>
-      generateManifest({ dir: path.join(cwd, 'nope') }),
-    ).toThrow(/Source directory not found/);
+    expect(() => generateManifest({ dir: path.join(cwd, 'nope') })).toThrow(
+      /Source directory not found/,
+    );
   });
 });
 
 describe('markGenerated', () => {
-  const read = (name: string) =>
-    fs.readFileSync(path.join(cwd, name), 'utf8');
+  const read = (name: string) => fs.readFileSync(path.join(cwd, name), 'utf8');
 
   test('creates .gitattributes, and leaves prettier alone when unused', () => {
     expect(markGenerated(cwd)).toEqual([path.join(cwd, '.gitattributes')]);
-    expect(read('.gitattributes')).toBe(
-      '**/endpoints.gen.ts linguist-generated\n',
-    );
+    expect(read('.gitattributes')).toBe('**/endpoints.gen.ts linguist-generated\n');
     expect(fs.existsSync(path.join(cwd, '.prettierignore'))).toBe(false);
   });
 
@@ -69,9 +60,7 @@ describe('markGenerated', () => {
     fs.writeFileSync(path.join(cwd, '.prettierignore'), 'dist\n');
     markGenerated(cwd);
     expect(markGenerated(cwd)).toEqual([]);
-    expect(read('.gitattributes')).toBe(
-      '* text=auto\n**/endpoints.gen.ts linguist-generated\n',
-    );
+    expect(read('.gitattributes')).toBe('* text=auto\n**/endpoints.gen.ts linguist-generated\n');
     expect(read('.prettierignore')).toBe('dist\n**/endpoints.gen.ts\n');
   });
 });

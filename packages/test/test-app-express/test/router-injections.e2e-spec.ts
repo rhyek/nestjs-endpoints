@@ -1,11 +1,7 @@
 import path from 'node:path';
 import { Headers, INestApplication } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
-import {
-  decorated,
-  endpoint,
-  EndpointRouterModule,
-} from 'nestjs-endpoints';
+import { decorated, endpoint, EndpointRouterModule } from 'nestjs-endpoints';
 import request from 'supertest';
 import ts from 'typescript';
 import { AppModule } from '../src/app.module';
@@ -31,20 +27,15 @@ describe('inject and injectOnRequest on a router module', () => {
   // Imported once the app is built: an endpoint file evaluated outside any
   // router keeps the default path it is given then.
   const membersList = async () =>
-    (await import('../src/workspace/endpoints/members/list.endpoint'))
-      .default;
+    (await import('../src/workspace/endpoints/members/list.endpoint')).default;
 
   test('a router injects into the endpoints it owns, with their own injections', async () => {
-    await req
-      .post('/workspace/whoami')
-      .set('x-tenant', 't1')
-      .set('user-agent', 'ua')
-      .expect(200, {
-        workspace: 'acme',
-        tenant: 't1',
-        agent: 'ua',
-        audit: 'audited',
-      });
+    await req.post('/workspace/whoami').set('x-tenant', 't1').set('user-agent', 'ua').expect(200, {
+      workspace: 'acme',
+      tenant: 't1',
+      agent: 'ua',
+      audit: 'audited',
+    });
   });
 
   test('endpoints in a subfolder get the router injections', async () => {
@@ -64,9 +55,7 @@ describe('inject and injectOnRequest on a router module', () => {
 
   test('a router lists endpoints built with its own endpoint through a callback', async () => {
     await req.post('/team/roster').expect(200, { team: 'core' });
-    await req
-      .post('/team/lead')
-      .expect(200, { team: 'core', lead: 'ada' });
+    await req.post('/team/lead').expect(200, { team: 'core', lead: 'ada' });
   });
 
   test("a nested router's endpoints get none of the parent's injections", async () => {
@@ -89,9 +78,9 @@ describe('inject and injectOnRequest on a router module', () => {
   });
 
   test("an endpoint built with the router's endpoint gets its path from its own file", async () => {
-    expect(
-      Reflect.getMetadata('endpoints:path', await membersList()),
-    ).toBe('workspace/members/list');
+    expect(Reflect.getMetadata('endpoints:path', await membersList())).toBe(
+      'workspace/members/list',
+    );
   });
 
   test('a key the router already injects is an error', () => {
@@ -191,12 +180,9 @@ describe("an endpoint built with another router's endpoint", () => {
   });
 
   test('fails startup in a router that lists it in endpoints', async () => {
-    const { default: whoami } =
-      await import('../src/workspace/endpoints/whoami.endpoint');
+    const { default: whoami } = await import('../src/workspace/endpoints/whoami.endpoint');
     const listed = EndpointRouterModule.create({ endpoints: [whoami] });
-    await expect(
-      Test.createTestingModule({ imports: [listed] }).compile(),
-    ).rejects.toThrow(
+    await expect(Test.createTestingModule({ imports: [listed] }).compile()).rejects.toThrow(
       /whoami\.endpoint[\s\S]*workspace[/\\]router\.module[\s\S]*router-injections\.e2e-spec/,
     );
   });
@@ -227,15 +213,9 @@ describe('the type error for a key the router already injects', () => {
       });
     `);
     expect(errors).toHaveLength(3);
-    expect(errors[0]).toContain(
-      '`workspace` is already injected by its router',
-    );
-    expect(errors[1]).toContain(
-      '`tenant` is already injected by its router',
-    );
-    expect(errors[2]).toContain(
-      '`workspace` is already injected by its router',
-    );
+    expect(errors[0]).toContain('`workspace` is already injected by its router');
+    expect(errors[1]).toContain('`tenant` is already injected by its router');
+    expect(errors[2]).toContain('`workspace` is already injected by its router');
   });
 });
 
@@ -245,14 +225,8 @@ describe('the type error for a key the router already injects', () => {
  */
 function typeErrors(source: string): string[] {
   const configPath = path.resolve(import.meta.dirname, '../tsconfig.json');
-  const { config } = ts.readConfigFile(configPath, (f) =>
-    ts.sys.readFile(f),
-  );
-  const { options } = ts.parseJsonConfigFileContent(
-    config,
-    ts.sys,
-    path.dirname(configPath),
-  );
+  const { config } = ts.readConfigFile(configPath, (f) => ts.sys.readFile(f));
+  const { options } = ts.parseJsonConfigFileContent(config, ts.sys, path.dirname(configPath));
   const file = path.join(import.meta.dirname, 'collision.virtual.ts');
   const host = ts.createCompilerHost(options);
   const getSourceFile = host.getSourceFile.bind(host);

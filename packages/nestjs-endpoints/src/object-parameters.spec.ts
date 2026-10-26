@@ -21,9 +21,7 @@ describe('objectParameters', () => {
   });
 
   test('objectParameters unwraps preprocess', () => {
-    const parameters = objectParameters(
-      z.preprocess((v) => v, z.object({ a: z.coerce.number() })),
-    );
+    const parameters = objectParameters(z.preprocess((v) => v, z.object({ a: z.coerce.number() })));
     expect(parameters).toHaveLength(1);
     expect(parameters[0]).toMatchObject({ name: 'a', required: true });
   });

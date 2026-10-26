@@ -6,10 +6,7 @@ import { buildReactQueryWrapperSource } from './wrapper.js';
 
 /** A minimal descriptor for the wrapper builder. */
 function descriptor(
-  fields: Pick<
-    EndpointDescriptor,
-    'operationId' | 'kind' | 'method' | 'path'
-  > &
+  fields: Pick<EndpointDescriptor, 'operationId' | 'kind' | 'method' | 'path'> &
     Partial<EndpointDescriptor>,
 ): EndpointDescriptor {
   return {
@@ -80,8 +77,7 @@ const source = buildReactQueryWrapperSource({
 });
 
 /** The expression the wrapper assigns to `key`, up to the end of its line. */
-const entry = (key: string) =>
-  new RegExp(`^\\s*${key}: (.*),$`, 'm').exec(source)?.[1];
+const entry = (key: string) => new RegExp(`^\\s*${key}: (.*),$`, 'm').exec(source)?.[1];
 
 describe('buildReactQueryWrapperSource', () => {
   test('a query operation carries its query key and bound query options', () => {
@@ -96,9 +92,7 @@ describe('buildReactQueryWrapperSource', () => {
   });
 
   test('a mutation operation carries its mutation key and bound mutation options', () => {
-    expect(entry('authLogin')).toContain(
-      'mutationKey: _hooks.authLoginMutationKey',
-    );
+    expect(entry('authLogin')).toContain('mutationKey: _hooks.authLoginMutationKey');
     expect(entry('authLogin')).toContain(
       'mutationOptions: bindMutationOptions(_hooks.authLoginMutationOptions, _request)',
     );
@@ -117,28 +111,17 @@ describe('buildReactQueryWrapperSource', () => {
   });
 
   test('the call itself stays the bound request function', () => {
-    for (const name of [
-      'greet',
-      'articlesLatest',
-      'authLogin',
-      'authLogout',
-    ]) {
+    for (const name of ['greet', 'articlesLatest', 'authLogin', 'authLogout']) {
       // One call binds the client and attaches the tree, so the request
       // function keeps its generic signature (`throwOnError: false`).
-      expect(entry(name)).toMatch(
-        new RegExp(`^bindOperation\\(_ops\\.${name}, _request, \\{`),
-      );
+      expect(entry(name)).toMatch(new RegExp(`^bindOperation\\(_ops\\.${name}, _request, \\{`));
     }
-    expect(entry('list')).toMatch(
-      /^bindOperation\(_ops\.userAdminList, _request, \{/,
-    );
+    expect(entry('list')).toMatch(/^bindOperation\(_ops\.userAdminList, _request, \{/);
   });
 
   test('hooks and root keys are unchanged', () => {
     expect(source).toContain('useGreet: bindHook(_hooks.useGreet, 1)');
-    expect(source).toContain(
-      'useAuthLogin: bindHook(_hooks.useAuthLogin, 0)',
-    );
+    expect(source).toContain('useAuthLogin: bindHook(_hooks.useAuthLogin, 0)');
     expect(source).toContain('axios: _axios,');
     expect(source).toContain('[_CTX]: _ctx,');
     expect(source).toMatch(/"user-admin": \{/);
@@ -185,9 +168,7 @@ describe('buildReactQueryWrapperSource', () => {
 
   test('an operation Kubb gives neither query nor mutation helpers keeps only its call', () => {
     const build = (
-      pluginOptions: Parameters<
-        typeof buildReactQueryWrapperSource
-      >[0]['pluginOptions'],
+      pluginOptions: Parameters<typeof buildReactQueryWrapperSource>[0]['pluginOptions'],
     ) =>
       buildReactQueryWrapperSource({
         descriptors: [
@@ -221,14 +202,10 @@ describe('buildReactQueryWrapperSource', () => {
       });
     const defaults = build(undefined);
     expect(defaults).toContain('usePing: bindHook(_hooks.usePing, 0)');
-    expect(defaults).toContain(
-      'useItemSave: bindHook(_hooks.useItemSave, 0)',
-    );
+    expect(defaults).toContain('useItemSave: bindHook(_hooks.useItemSave, 0)');
 
     const noQueries = build({ query: false });
-    expect(noQueries).toMatch(
-      /^\s*greet: bindClient\(_ops\.greet, _request\),$/m,
-    );
+    expect(noQueries).toMatch(/^\s*greet: bindClient\(_ops\.greet, _request\),$/m);
     expect(noQueries).not.toContain('useGreet');
     expect(noQueries).not.toContain('bindQueryOptions');
 
@@ -249,9 +226,7 @@ describe('buildReactQueryWrapperSource', () => {
         },
       ],
     });
-    expect(pingOff).toMatch(
-      /^\s*ping: bindClient\(_ops\.ping, _request\),$/m,
-    );
+    expect(pingOff).toMatch(/^\s*ping: bindClient\(_ops\.ping, _request\),$/m);
     expect(pingOff).not.toContain('usePing');
     expect(pingOff).toContain('useGreet');
 
@@ -259,16 +234,12 @@ describe('buildReactQueryWrapperSource', () => {
     const excluded = build({
       exclude: [{ type: 'operationId', pattern: '^Greet$' }],
     });
-    expect(excluded).toMatch(
-      /^\s*greet: bindClient\(_ops\.greet, _request\),$/m,
-    );
+    expect(excluded).toMatch(/^\s*greet: bindClient\(_ops\.greet, _request\),$/m);
     expect(excluded).not.toContain('useGreet');
   });
 
   test('InputSchema is exported for consumers to name', () => {
-    expect(source).toContain(
-      `export type { InputSchema } from './c/client-runtime';`,
-    );
+    expect(source).toContain(`export type { InputSchema } from './c/client-runtime';`);
   });
 
   test("the app's own InputSchema type is not hidden by the client's", () => {
@@ -327,9 +298,7 @@ describe('buildReactQueryWrapperSource', () => {
       pluginOptions: undefined,
       inputSchemaNames: new Set(),
     });
-    expect(filtered).toContain(
-      `export type { InputSchema } from './c/client-runtime';`,
-    );
+    expect(filtered).toContain(`export type { InputSchema } from './c/client-runtime';`);
   });
 
   test('a query without search parameters binds its hook without a request', () => {
@@ -356,9 +325,7 @@ describe('buildReactQueryWrapperSource', () => {
       pluginOptions: undefined,
       inputSchemaNames: new Set(),
     });
-    expect(emptyQuery).toContain(
-      'useEverything: bindHook(_hooks.useEverything, 0)',
-    );
+    expect(emptyQuery).toContain('useEverything: bindHook(_hooks.useEverything, 0)');
     expect(emptyQuery).toContain(
       'queryOptions: bindQueryOptions(_hooks.everythingQueryOptions, _request, false)',
     );

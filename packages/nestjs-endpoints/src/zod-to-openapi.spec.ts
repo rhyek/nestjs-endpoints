@@ -417,13 +417,10 @@ describe('zodToOpenApi', () => {
         schemaComponents: {},
       },
     },
-  ])(
-    'should return the correct openapi schema for %$',
-    ({ params, expected }) => {
-      const result = zodToOpenApi(params);
-      expect(result).toEqual(expected);
-    },
-  );
+  ])('should return the correct openapi schema for %$', ({ params, expected }) => {
+    const result = zodToOpenApi(params);
+    expect(result).toEqual(expected);
+  });
 });
 
 describe('toJsonSchema', () => {
@@ -452,44 +449,37 @@ describe('toJsonSchema', () => {
   });
 
   test('nullable input date nests', () => {
-    const { schema } = toJsonSchema(
-      z.object({ d: z.coerce.date().nullable() }),
-      'input',
-    );
+    const { schema } = toJsonSchema(z.object({ d: z.coerce.date().nullable() }), 'input');
     expect((schema as any).properties.d).toEqual({
       oneOf: [inputDate, { type: 'null' }],
     });
   });
 
-  test.each(['input', 'output'] as const)(
-    '%s date keeps its own annotations',
-    (io) => {
-      const date = io === 'input' ? inputDate : outputDate;
-      expect(
-        toJsonSchema(z.date().describe('Birthday'), io).schema,
-      ).toEqual({ description: 'Birthday', ...date });
-      expect(
-        toJsonSchema(
-          z.coerce.date().meta({
-            description: 'Birthday',
-            examples: ['2024-01-01T00:00:00Z'],
-            deprecated: true,
-          }),
-          io,
-        ).schema,
-      ).toEqual({
-        description: 'Birthday',
-        examples: ['2024-01-01T00:00:00Z'],
-        deprecated: true,
-        ...date,
-      });
-    },
-  );
+  test.each(['input', 'output'] as const)('%s date keeps its own annotations', (io) => {
+    const date = io === 'input' ? inputDate : outputDate;
+    expect(toJsonSchema(z.date().describe('Birthday'), io).schema).toEqual({
+      description: 'Birthday',
+      ...date,
+    });
+    expect(
+      toJsonSchema(
+        z.coerce.date().meta({
+          description: 'Birthday',
+          examples: ['2024-01-01T00:00:00Z'],
+          deprecated: true,
+        }),
+        io,
+      ).schema,
+    ).toEqual({
+      description: 'Birthday',
+      examples: ['2024-01-01T00:00:00Z'],
+      deprecated: true,
+      ...date,
+    });
+  });
 
   test('bigint without a type throws with its path', () => {
-    expect(() =>
-      toJsonSchema(z.object({ b: z.bigint() }), 'input'),
-    ).toThrow(
+    expect(() => toJsonSchema(z.object({ b: z.bigint() }), 'input')).toThrow(
       'bigint cannot travel as JSON at properties.b; give it .meta({ type })',
     );
     expect(() => toJsonSchema(z.bigint(), 'input')).toThrow(
@@ -535,10 +525,7 @@ describe('toJsonSchema', () => {
   });
 
   test('unions are oneOf', () => {
-    const { schema } = toJsonSchema(
-      z.union([z.string(), z.number()]),
-      'input',
-    );
+    const { schema } = toJsonSchema(z.union([z.string(), z.number()]), 'input');
     expect(schema.oneOf).toBeDefined();
     expect(schema.anyOf).toBeUndefined();
   });
@@ -559,19 +546,12 @@ describe('toJsonSchema', () => {
   });
 
   test('zod-openapi meta override still applies', () => {
-    const { schema } = toJsonSchema(
-      z.string().meta({ override: { format: 'email' } }),
-      'input',
-    );
+    const { schema } = toJsonSchema(z.string().meta({ override: { format: 'email' } }), 'input');
     expect(schema.format).toBe('email');
   });
 
   test('ref names the schema', () => {
-    const { schema, components } = toJsonSchema(
-      z.object({}),
-      'output',
-      'XOutput',
-    );
+    const { schema, components } = toJsonSchema(z.object({}), 'output', 'XOutput');
     expect(schema).toEqual({ $ref: '#/components/schemas/XOutput' });
     expect(components.XOutput).toBeDefined();
   });

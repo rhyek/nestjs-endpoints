@@ -46,24 +46,13 @@ export default endpoint.mutation({
   decorators: [UseGuards(AuthGuard)],
   inject: {
     userService: UserService,
-    appointmentsRepository: decorated<IAppointmentRepository>(
-      Inject(AppointmentRepositoryToken),
-    ),
+    appointmentsRepository: decorated<IAppointmentRepository>(Inject(AppointmentRepositoryToken)),
   },
   injectAtRequest: {
-    currentUser: decorated<{ name: string; isSuperAdmin: boolean }>(
-      CurrentUser(),
-    ),
+    currentUser: decorated<{ name: string; isSuperAdmin: boolean }>(CurrentUser()),
     req: decorated<{ ip: string | undefined }>(Req()),
   },
-  handler: async ({
-    input,
-    userService,
-    appointmentsRepository,
-    currentUser,
-    req,
-    response,
-  }) => {
+  handler: async ({ input, userService, appointmentsRepository, currentUser, req, response }) => {
     assert(typeof req.ip === 'string');
     assert(currentUser.isSuperAdmin);
     const user = userService.find(input.userId);
@@ -76,13 +65,6 @@ export default endpoint.mutation({
         errorCode: 'APPOINTMENT_CONFLICT',
       });
     }
-    return response(
-      201,
-      await appointmentsRepository.create(
-        input.userId,
-        input.date,
-        req.ip,
-      ),
-    );
+    return response(201, await appointmentsRepository.create(input.userId, input.date, req.ip));
   },
 });

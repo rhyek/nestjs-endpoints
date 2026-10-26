@@ -25,10 +25,7 @@ describe('guards option on EndpointsRouterModule.register', () => {
   test('request with the required header passes the guard', async () => {
     const { app, req } = await setup();
     try {
-      await req
-        .post('/secured/me')
-        .set('x-secret', 'let-me-in')
-        .expect(200, { ok: true });
+      await req.post('/secured/me').set('x-secret', 'let-me-in').expect(200, { ok: true });
     } finally {
       await app.close();
     }

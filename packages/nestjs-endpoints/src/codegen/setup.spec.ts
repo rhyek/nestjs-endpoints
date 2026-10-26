@@ -50,13 +50,10 @@ afterEach(async () => {
   await rm(dir, { recursive: true, force: true });
 });
 
-const run = () =>
-  setupCodegen(app, { clients: [{ type: 'axios', outputFile }] });
+const run = () => setupCodegen(app, { clients: [{ type: 'axios', outputFile }] });
 
 test('an unchanged client is not regenerated', async () => {
-  generate.mockImplementation(({ outputFile, hash }) =>
-    writeClient(outputFile, hash),
-  );
+  generate.mockImplementation(({ outputFile, hash }) => writeClient(outputFile, hash));
   await run();
   await run();
   expect(generate).toHaveBeenCalledTimes(1);
@@ -68,10 +65,8 @@ test('a failed build leaves no wrapper, so the next run fails again', async () =
     await writeClient(outputFile, hash);
     throw new Error('a plugin failed');
   });
-  await expect(run()).rejects.toThrow(
-    /failed to generate the axios client .*: a plugin failed/,
-  );
-  await expect(stat(outputFile)).rejects.toThrow();
+  await expect(run()).rejects.toThrow(/failed to generate the axios client .*: a plugin failed/);
+  await expect(stat(outputFile)).rejects.toThrow(/ENOENT/);
   await expect(run()).rejects.toThrow(/a plugin failed/);
   expect(generate).toHaveBeenCalledTimes(2);
 });

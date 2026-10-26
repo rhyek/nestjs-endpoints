@@ -23,15 +23,15 @@ export function GreetPage() {
           onChange={(e) => setName(e.target.value)}
           placeholder="Enter your name"
         />
-        <button onClick={() => refetch()}>Greet</button>
+        <button type="button" onClick={() => refetch()}>
+          Greet
+        </button>
       </div>
 
       {status === 'pending' && name && <div>Loading...</div>}
 
       {error && (
-        <div>
-          Error: {(error.response?.data as { message: string }).message}
-        </div>
+        <div>Error: {(error.response?.data as { message: string } | undefined)?.message}</div>
       )}
 
       {data && <div data-testid="greeting">{data}</div>}

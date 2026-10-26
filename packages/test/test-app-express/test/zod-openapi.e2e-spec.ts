@@ -1,4 +1,4 @@
-import { Writable } from 'stream';
+import { Writable } from 'node:stream';
 import { Module } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { endpoint, setupOpenAPI, z } from 'nestjs-endpoints';
@@ -207,9 +207,9 @@ describe('zod-openapi', () => {
         $ref: '#/components/schemas/AddressOutput',
       });
       const op = (document.paths['/shared-address'] as any).post;
-      expect(
-        op.responses['200'].content['application/json'].schema,
-      ).toEqual({ $ref: '#/components/schemas/SharedAddressOutput' });
+      expect(op.responses['200'].content['application/json'].schema).toEqual({
+        $ref: '#/components/schemas/SharedAddressOutput',
+      });
     } finally {
       await app.close();
     }

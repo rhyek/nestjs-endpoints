@@ -4,19 +4,12 @@ import { createRequire } from 'node:module';
 import path from 'node:path';
 import { Writable } from 'node:stream';
 import { INestApplication } from '@nestjs/common';
-import {
-  DocumentBuilder,
-  SwaggerCustomOptions,
-  SwaggerModule,
-} from '@nestjs/swagger';
+import { DocumentBuilder, SwaggerCustomOptions, SwaggerModule } from '@nestjs/swagger';
 import { settings } from './consts.js';
 import { collectDescriptors } from './descriptors.js';
 import { getCallsiteFile } from './helpers.js';
 import { readPkgJson } from './package-json.js';
-import {
-  mergeSharedSchemas,
-  rewriteOutputRefs,
-} from './shared-schemas.js';
+import { mergeSharedSchemas, rewriteOutputRefs } from './shared-schemas.js';
 
 export type SetupOpenAPIOptions = {
   configure?: (documentBuilder: DocumentBuilder) => void;
@@ -41,10 +34,7 @@ export type SetupOpenAPIOptions = {
   };
 };
 
-export async function setupOpenAPI(
-  app: INestApplication,
-  options?: SetupOpenAPIOptions,
-) {
+export async function setupOpenAPI(app: INestApplication, options?: SetupOpenAPIOptions) {
   const builder = new DocumentBuilder();
   if (options?.configure) {
     options.configure(builder);
@@ -72,8 +62,10 @@ export async function setupOpenAPI(
           operationIds.has(operation.operationId as string) &&
           'responses' in operation
         ) {
-          (operation as { responses: unknown }).responses =
-            rewriteOutputRefs(operation.responses, shared.renamed);
+          (operation as { responses: unknown }).responses = rewriteOutputRefs(
+            operation.responses,
+            shared.renamed,
+          );
         }
       }
     }
@@ -97,15 +89,18 @@ export async function setupOpenAPI(
     const groups = new Map<string, string[]>();
     for (const tag of document.tags!) {
       const top = tag.name.split('/')[0];
-      if (!groups.has(top)) groups.set(top, []);
+      if (!groups.has(top)) {
+        groups.set(top, []);
+      }
       groups.get(top)!.push(tag.name);
     }
     if (groups.size > 1) {
-      (document as unknown as Record<string, unknown>)['x-tagGroups'] =
-        Array.from(groups.entries()).map(([name, tags]) => ({
-          name,
-          tags,
-        }));
+      (document as unknown as Record<string, unknown>)['x-tagGroups'] = Array.from(
+        groups.entries(),
+      ).map(([name, tags]) => ({
+        name,
+        tags,
+      }));
     }
   }
   Object.assign(document, {
@@ -123,12 +118,7 @@ export async function setupOpenAPI(
       document as unknown as Record<string, unknown>,
     );
     if (!mountedScalar) {
-      SwaggerModule.setup(
-        options.ui.path,
-        app,
-        document,
-        options.ui.options,
-      );
+      SwaggerModule.setup(options.ui.path, app, document, options.ui.options);
     }
   }
 
@@ -141,8 +131,11 @@ export async function setupOpenAPI(
     if (outputFile instanceof Writable) {
       await new Promise<void>((resolve, reject) => {
         outputFile.write(newDocument, (err) => {
-          if (err) reject(err);
-          else resolve();
+          if (err) {
+            reject(err);
+          } else {
+            resolve();
+          }
         });
       });
       changed = true;
@@ -150,9 +143,7 @@ export async function setupOpenAPI(
       const documentFile = path.isAbsolute(outputFile)
         ? outputFile
         : path.resolve(path.dirname(getCallsiteFile()), outputFile);
-      const currentDocument = await fs
-        .readFile(documentFile, 'utf-8')
-        .catch(() => '');
+      const currentDocument = await fs.readFile(documentFile, 'utf-8').catch(() => '');
       if (currentDocument !== newDocument) {
         await fs.writeFile(documentFile, newDocument, 'utf-8');
         changed = true;
@@ -183,7 +174,9 @@ function findScalarBundle(): string | null {
         }
       }
       const parent = path.dirname(dir);
-      if (parent === dir) return null;
+      if (parent === dir) {
+        return null;
+      }
       dir = parent;
     }
   } catch {
@@ -211,7 +204,9 @@ async function mountScalarUi(
   document: Record<string, unknown>,
 ): Promise<boolean> {
   const bundlePath = findScalarBundle();
-  if (!bundlePath) return false;
+  if (!bundlePath) {
+    return false;
+  }
   let bundle: string;
   try {
     bundle = await fs.readFile(bundlePath, 'utf-8');
@@ -220,14 +215,12 @@ async function mountScalarUi(
   }
 
   const normalizedPath = ui.path.startsWith('/') ? ui.path : '/' + ui.path;
-  const title =
-    (document as { info?: { title?: string } }).info?.title ?? 'API docs';
+  const title = (document as { info?: { title?: string } }).info?.title ?? 'API docs';
   // Inline the spec as JSON. Escape `<` to survive being embedded in a
   // <script> tag even if the doc contains literal `</script>` anywhere.
-  const escapeForScript = (v: unknown) =>
-    JSON.stringify(v ?? {}).replace(/</g, '\\u003c');
+  const escapeForScript = (v: unknown) => JSON.stringify(v ?? {}).replace(/</g, '\\u003c');
   const scalarConfig = escapeForScript({
-    ...(ui.options ?? {}),
+    ...ui.options,
     content: document,
   });
   const html = `<!DOCTYPE html>
@@ -252,16 +245,9 @@ async function mountScalarUi(
     adapter.setHeader(res, 'Content-Type', 'text/html; charset=utf-8');
     adapter.reply(res, html, 200);
   });
-  adapter.get(
-    normalizedPath + '/scalar.standalone.js',
-    (_req: unknown, res: unknown) => {
-      adapter.setHeader(
-        res,
-        'Content-Type',
-        'application/javascript; charset=utf-8',
-      );
-      adapter.reply(res, bundle, 200);
-    },
-  );
+  adapter.get(normalizedPath + '/scalar.standalone.js', (_req: unknown, res: unknown) => {
+    adapter.setHeader(res, 'Content-Type', 'application/javascript; charset=utf-8');
+    adapter.reply(res, bundle, 200);
+  });
   return true;
 }

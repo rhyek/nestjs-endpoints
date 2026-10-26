@@ -4,10 +4,7 @@ import { applyDecorators } from '@nestjs/common';
 import { ApiParam, ApiQuery } from '@nestjs/swagger';
 import callsites from 'callsites';
 import { callsiteFileToPath } from './callsite.js';
-import {
-  convertObject,
-  type ObjectSchemaLike,
-} from './object-parameters.js';
+import { convertObject, type ObjectSchemaLike } from './object-parameters.js';
 import { registerComponents } from './zod-to-openapi.js';
 
 function isDirPathSegment(dir: string) {
@@ -38,11 +35,7 @@ function expandUrlSegment(segment: string): string[] {
 const shortCircuitDirs: Record<string, boolean> = {
   [process.cwd()]: true,
 };
-export function getEndpointHttpPath(
-  rootDirectories: string[],
-  basePath: string,
-  file: string,
-) {
+export function getEndpointHttpPath(rootDirectories: string[], basePath: string, file: string) {
   const stopDirs: Record<string, boolean> = { ...shortCircuitDirs };
   for (const d of rootDirectories) {
     stopDirs[d] = true;
@@ -59,9 +52,7 @@ export function getEndpointHttpPath(
   while (true) {
     if (
       Object.keys(stopDirs).some(
-        (d) =>
-          path.normalize(d + path.sep) ===
-          path.normalize(start + path.sep),
+        (d) => path.normalize(d + path.sep) === path.normalize(start + path.sep),
       ) ||
       start === path.parse(start).root
     ) {
@@ -107,23 +98,15 @@ export function getHttpPathPascalName(httpPath: string) {
 }
 
 export const ApiQueries = <T extends ObjectSchemaLike>(zodObject: T) => {
-  const { parameters, components } = convertObject(
-    zodObject,
-    'The schema given to ApiQueries()',
-  );
+  const { parameters, components } = convertObject(zodObject, 'The schema given to ApiQueries()');
   registerComponents(components);
   return applyDecorators(
-    ...parameters.map((p) =>
-      ApiQuery({ name: p.name, required: p.required, schema: p.schema }),
-    ),
+    ...parameters.map((p) => ApiQuery({ name: p.name, required: p.required, schema: p.schema })),
   );
 };
 
 export const ApiParams = <T extends ObjectSchemaLike>(zodObject: T) => {
-  const { parameters, components } = convertObject(
-    zodObject,
-    'The schema given to ApiParams()',
-  );
+  const { parameters, components } = convertObject(zodObject, 'The schema given to ApiParams()');
   registerComponents(components);
   return applyDecorators(
     ...parameters.map((p) =>

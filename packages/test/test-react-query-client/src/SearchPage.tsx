@@ -13,10 +13,10 @@ export function SearchPage() {
 
   return (
     <div>
-      <button onClick={() => setPage((p) => p + 1)}>Next page</button>
-      {data && (
-        <div data-testid="search-result">{JSON.stringify(data)}</div>
-      )}
+      <button type="button" onClick={() => setPage((p) => p + 1)}>
+        Next page
+      </button>
+      {data && <div data-testid="search-result">{JSON.stringify(data)}</div>}
     </div>
   );
 }

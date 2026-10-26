@@ -18,9 +18,8 @@ import { stripNamespaceFromFlatName } from './name-transform.js';
  * `controllerClassMethodName`).
  */
 export function normalizeOperationIdToPascal(operationId: string): string {
-  let normalized = operationId.replace(
-    /[^A-Za-z0-9]+([A-Za-z0-9])/g,
-    (_, c: string) => c.toUpperCase(),
+  let normalized = operationId.replace(/[^A-Za-z0-9]+([A-Za-z0-9])/g, (_, c: string) =>
+    c.toUpperCase(),
   );
   normalized = normalized.replace(/[^A-Za-z0-9]/g, '');
   return normalized.charAt(0).toUpperCase() + normalized.slice(1);
@@ -74,10 +73,7 @@ type BucketEntry = OperationTarget & {
 };
 
 /** `undefined` leaves the operation's key out of that form. */
-type Access = (
-  sourceName: string,
-  target: OperationTarget,
-) => string | undefined;
+type Access = (sourceName: string, target: OperationTarget) => string | undefined;
 
 type BucketNode = {
   /** keyed by propertyName; exactly one op per key */
@@ -95,11 +91,7 @@ function emptyBucket(): BucketNode {
  * without properties has no search parameters.
  */
 function hasRequestData(d: EndpointDescriptor): boolean {
-  return (
-    d.pathParams.length > 0 ||
-    (d.query?.parameters.length ?? 0) > 0 ||
-    d.input !== undefined
-  );
+  return d.pathParams.length > 0 || (d.query?.parameters.length ?? 0) > 0 || d.input !== undefined;
 }
 
 function collectOperations(
@@ -114,10 +106,7 @@ function collectOperations(
     return {
       namespaceChain: d.namespaceChain,
       sourceName,
-      propertyName: stripNamespaceFromFlatName(
-        sourceName,
-        d.namespaceChain,
-      ),
+      propertyName: stripNamespaceFromFlatName(sourceName, d.namespaceChain),
       operationId: d.operationId,
       method: d.method,
       hasRequest: hasRequestData(d),
@@ -207,7 +196,9 @@ function buildBucketRoot(
  * camelCase tokens that are safe bare; kebab-case segments get quoted.
  */
 function safeKey(name: string): string {
-  if (/^[A-Za-z_$][A-Za-z0-9_$]*$/.test(name)) return name;
+  if (/^[A-Za-z_$][A-Za-z0-9_$]*$/.test(name)) {
+    return name;
+  }
   return JSON.stringify(name);
 }
 
@@ -294,13 +285,5 @@ export function buildClientObjectExpression(params: {
   const plainOps = collectOperations(descriptors, 'plain');
   const hookOps = hookAccess ? collectOperations(descriptors, 'hook') : [];
   const root = buildBucketRoot(plainOps, hookOps, ROOT_RESERVED);
-  return serializeBucket(
-    root,
-    indent,
-    plainAccess,
-    hookAccess,
-    [],
-    tagDescriptions,
-    rootExtras,
-  );
+  return serializeBucket(root, indent, plainAccess, hookAccess, [], tagDescriptions, rootExtras);
 }

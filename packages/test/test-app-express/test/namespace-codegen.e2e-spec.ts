@@ -26,8 +26,7 @@ void _shopCartAddPreservesShape;
 // per-namespace `useXxx` hooks alongside the axios methods. Its methods also
 // carry their query/mutation options, so one is usable wherever the axios
 // client's is, not the other way round.
-const _rqHasAxios: RqApiClient['axios'] =
-  null as unknown as AxiosApiClient['axios'];
+const _rqHasAxios: RqApiClient['axios'] = null as unknown as AxiosApiClient['axios'];
 const _rqHasNamespaced: AxiosApiClient['shop']['cart']['add'] =
   null as unknown as RqApiClient['shop']['cart']['add'];
 const _rqHasHooksAlongsideAxiosMethods: RqApiClient['shop']['cart']['useAdd'] =
@@ -42,9 +41,7 @@ describe('namespace codegen wrappers', () => {
     // structure here.
     const client = createRqApiClient({ baseURL: 'http://localhost' });
     const keys = Object.keys(client);
-    expect(keys).toEqual(
-      expect.arrayContaining(['shop', 'articles', 'secured', 'axios']),
-    );
+    expect(keys).toEqual(expect.arrayContaining(['shop', 'articles', 'secured', 'axios']));
     // Un-namespaced ops sit at root in BOTH axios and hook form.
     expect(typeof client.authLogin).toBe('function');
     expect(typeof client.useAuthLogin).toBe('function');
@@ -94,9 +91,7 @@ describe('namespace codegen wrappers', () => {
     ] as const) {
       expect(typeof bucket[name as keyof typeof bucket]).toBe('function');
       expect(hook in bucket).toBe(false);
-      expect('queryOptions' in bucket[name as keyof typeof bucket]).toBe(
-        false,
-      );
+      expect('queryOptions' in bucket[name as keyof typeof bucket]).toBe(false);
     }
     // Untouched by the filters.
     expect(typeof client.shop.cart.useAdd).toBe('function');

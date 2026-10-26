@@ -1,8 +1,4 @@
-import {
-  BadRequestException,
-  HttpStatus,
-  InternalServerErrorException,
-} from '@nestjs/common';
+import { BadRequestException, HttpStatus, InternalServerErrorException } from '@nestjs/common';
 import { ZodError } from 'zod';
 
 export class ZodValidationException extends BadRequestException {

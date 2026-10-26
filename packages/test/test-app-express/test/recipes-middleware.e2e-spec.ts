@@ -9,11 +9,9 @@ describe('recipes middleware + interceptor', () => {
 
   beforeEach(() => {
     logs = [];
-    consoleLogSpy = vitest
-      .spyOn(console, 'log')
-      .mockImplementation((...args: unknown[]) => {
-        logs.push(args.map((a) => String(a)).join(' '));
-      });
+    consoleLogSpy = vitest.spyOn(console, 'log').mockImplementation((...args: unknown[]) => {
+      logs.push(args.map((a) => String(a)).join(' '));
+    });
   });
 
   afterEach(() => {
@@ -36,10 +34,7 @@ describe('recipes middleware + interceptor', () => {
   test('logs fire in expected order for /recipes/create', async () => {
     const { app, req } = await bootstrap();
     try {
-      await req
-        .post('/recipes/create')
-        .send({ name: 'Pizza' })
-        .expect(200);
+      await req.post('/recipes/create').send({ name: 'Pizza' }).expect(200);
       // let res.on('finish') callbacks flush
       await new Promise((resolve) => setTimeout(resolve, 25));
       const entries = relevantRecipesLogs();

@@ -36,10 +36,7 @@ export function collectInputSchemas(
   const document: RefTarget = { components: { schemas: shared.schemas } };
   const entries = new Map<string, InputSchemaEntry>();
   const resolve = (json: unknown, operationId: string) =>
-    resolveRefs(document, json, operationId, []) as Record<
-      string,
-      unknown
-    >;
+    resolveRefs(document, json, operationId, []) as Record<string, unknown>;
   for (const { operationId, input, query } of descriptors) {
     const schemas: InputSchemaEntry['schemas'] = {};
     if (input) {
@@ -49,7 +46,9 @@ export function collectInputSchemas(
     if (query?.parameters.length) {
       schemas.query = resolve(query.json, operationId);
     }
-    if (!schemas.input && !schemas.query) continue;
+    if (!schemas.input && !schemas.query) {
+      continue;
+    }
     const sourceName = operationSourceName(operationId);
     entries.set(sourceName, { sourceName, schemas });
   }
@@ -64,10 +63,7 @@ function isLocalRef(ref: unknown): ref is `#/${string}` {
  * The value a local JSON pointer (`#/components/schemas/Name`) points at,
  * with `~1` and `~0` unescaped; `undefined` when nothing is there.
  */
-function resolveLocalRef(
-  document: RefTarget,
-  ref: `#/${string}`,
-): unknown {
+function resolveLocalRef(document: RefTarget, ref: `#/${string}`): unknown {
   let target: unknown = document;
   for (const segment of ref.slice(2).split('/')) {
     target = (target as Record<string, unknown> | undefined)?.[
@@ -91,9 +87,7 @@ function resolveRefs(
   chain: readonly string[],
 ): unknown {
   if (Array.isArray(value)) {
-    return value.map((item) =>
-      resolveRefs(document, item, operationId, chain),
-    );
+    return value.map((item) => resolveRefs(document, item, operationId, chain));
   }
   if (!value || typeof value !== 'object') {
     return value;
@@ -113,31 +107,20 @@ function resolveRefs(
       `The input schema of operation "${operationId}" refers back to itself (${[...chain, ref].join(' → ')}), so it cannot be written out as self-contained JSON Schema.`,
     );
   }
-  const target = isLocalRef(ref)
-    ? resolveLocalRef(document, ref)
-    : undefined;
+  const target = isLocalRef(ref) ? resolveLocalRef(document, ref) : undefined;
   if (target === undefined) {
     throw new Error(
       `The input schema of operation "${operationId}" refers to ${ref}, which is not among the shared schemas.`,
     );
   }
   return {
-    ...(resolveRefs(document, target, operationId, [
-      ...chain,
-      ref,
-    ]) as object),
+    ...(resolveRefs(document, target, operationId, [...chain, ref]) as object),
     ...siblings,
   };
 }
 
 /** Keywords whose value is data, not a schema. */
-const DATA_KEYWORDS = new Set([
-  'const',
-  'default',
-  'enum',
-  'example',
-  'examples',
-]);
+const DATA_KEYWORDS = new Set(['const', 'default', 'enum', 'example', 'examples']);
 
 /** Keywords whose value maps names to schemas: the names are not keywords. */
 const SCHEMA_MAPS = new Set([
@@ -210,9 +193,7 @@ export function buildSchemasModuleSource(params: {
   }
   const optionsType = (sourceName: string) =>
     `${sourceName.charAt(0).toUpperCase()}${sourceName.slice(1)}Options`;
-  const typeNames = [
-    ...new Set(entries.map((e) => optionsType(e.sourceName))),
-  ].sort();
+  const typeNames = [...new Set(entries.map((e) => optionsType(e.sourceName)))].sort();
   return (
     header +
     `import type { InputSchema } from '${runtimeImport}';\n` +

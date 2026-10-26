@@ -5,9 +5,7 @@ import type { EndpointDescriptor } from '../descriptors.js';
 import { clientHash, readClientHash } from './hash.js';
 import { printedTagDescriptions } from './kubb/wrapper.js';
 
-function descriptor(
-  name: Record<string, unknown> = { type: 'string' },
-): EndpointDescriptor {
+function descriptor(name: Record<string, unknown> = { type: 'string' }): EndpointDescriptor {
   return {
     operationId: 'UserCreate',
     kind: 'mutation',
@@ -47,9 +45,7 @@ const shared = {
   },
 };
 
-function hashOf(
-  overrides: Partial<Parameters<typeof clientHash>[0]> = {},
-): string {
+function hashOf(overrides: Partial<Parameters<typeof clientHash>[0]> = {}): string {
   return clientHash({
     descriptors: [descriptor()],
     shared,
@@ -77,9 +73,7 @@ test('stable across runs', () => {
 });
 
 test('changes with a schema', () => {
-  expect(
-    hashOf({ descriptors: [descriptor({ type: 'number' })] }),
-  ).not.toBe(hashOf());
+  expect(hashOf({ descriptors: [descriptor({ type: 'number' })] })).not.toBe(hashOf());
   expect(
     hashOf({
       shared: {
@@ -94,9 +88,7 @@ test('changes with a schema', () => {
 });
 
 test('changes with the kind alone', () => {
-  expect(
-    hashOf({ descriptors: [{ ...descriptor(), kind: 'query' }] }),
-  ).not.toBe(hashOf());
+  expect(hashOf({ descriptors: [{ ...descriptor(), kind: 'query' }] })).not.toBe(hashOf());
 });
 
 test('changes with the client type alone', () => {
@@ -108,9 +100,7 @@ test('changes with the client type alone', () => {
 test('changes with namespaces or options', () => {
   const base = hashOf({ client: { type: 'react-query' } });
   expect(hashOf()).not.toBe(base);
-  expect(
-    hashOf({ client: { type: 'react-query', namespaces: ['user'] } }),
-  ).not.toBe(base);
+  expect(hashOf({ client: { type: 'react-query', namespaces: ['user'] } })).not.toBe(base);
   expect(
     hashOf({
       client: { type: 'react-query', options: { suspense: {} } },
@@ -164,24 +154,16 @@ test('changes with the version', () => {
 });
 
 test('readClientHash reads the header', async () => {
-  const dir = await mkdtemp(
-    path.join(os.tmpdir(), 'nestjs-endpoints-hash-'),
-  );
+  const dir = await mkdtemp(path.join(os.tmpdir(), 'nestjs-endpoints-hash-'));
   try {
     const hash = hashOf();
     const withHeader = path.join(dir, 'client.ts');
-    await writeFile(
-      withHeader,
-      `// nestjs-endpoints: ${hash}\n/**\n * Generated\n */\n`,
-    );
+    await writeFile(withHeader, `// nestjs-endpoints: ${hash}\n/**\n * Generated\n */\n`);
     expect(await readClientHash(withHeader)).toBe(hash);
 
     // A checkout with CRLF line endings, or an editor that adds a BOM.
     const crlf = path.join(dir, 'crlf-client.ts');
-    await writeFile(
-      crlf,
-      `// nestjs-endpoints: ${hash}\r\n/**\r\n * Generated\r\n */\r\n`,
-    );
+    await writeFile(crlf, `// nestjs-endpoints: ${hash}\r\n/**\r\n * Generated\r\n */\r\n`);
     expect(await readClientHash(crlf)).toBe(hash);
     const bom = path.join(dir, 'bom-client.ts');
     await writeFile(bom, `\uFEFF// nestjs-endpoints: ${hash}\n`);
@@ -191,9 +173,7 @@ test('readClientHash reads the header', async () => {
     await writeFile(withoutHeader, `/**\n * Generated\n */\n`);
     expect(await readClientHash(withoutHeader)).toBeUndefined();
 
-    expect(
-      await readClientHash(path.join(dir, 'missing.ts')),
-    ).toBeUndefined();
+    expect(await readClientHash(path.join(dir, 'missing.ts'))).toBeUndefined();
   } finally {
     await rm(dir, { recursive: true, force: true });
   }

@@ -1,0 +1,35 @@
+{
+  "name": "@rhyek/oxc-config",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Shared oxlint and oxfmt configuration: ESLint's and typescript-eslint's recommended presets carried over to oxlint, plus the bug-catching rules worth having, and the house formatting. Consumed as TypeScript source from the consumer's oxlint.config.ts and oxfmt.config.ts.",
+  "exports": {
+    "./oxlint": {
+      "types": "./src/oxlint.ts",
+      "default": "./src/oxlint.ts"
+    },
+    "./oxfmt": {
+      "types": "./src/oxfmt.ts",
+      "default": "./src/oxfmt.ts"
+    }
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "//peerDependencies": "The tools are the consumer's: its scripts, hooks and editor run them. This package only imports their types.",
+  "peerDependencies": {
+    "oxfmt": ">=0.74.0",
+    "oxlint": "^1.88.0",
+    "oxlint-tsgolint": "^7.0.2004"
+  },
+  "devDependencies": {
+    "@types/node": "^26.1.0",
+    "oxfmt": "^0.74.0",
+    "oxlint": "^1.89.0",
+    "oxlint-tsgolint": "^7.0.2005",
+    "typescript": "~6.0.3",
+    "vitest": "~5.0.3"
+  }
+}

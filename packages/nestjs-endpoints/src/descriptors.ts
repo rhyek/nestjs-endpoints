@@ -1,10 +1,7 @@
 import { RequestMethod, VersioningType } from '@nestjs/common';
 import type { INestApplicationContext } from '@nestjs/common';
 // Not re-exported by `@nestjs/common`'s index.
-import {
-  MODULE_PATH,
-  VERSION_METADATA,
-} from '@nestjs/common/constants.js';
+import { MODULE_PATH, VERSION_METADATA } from '@nestjs/common/constants.js';
 import { ApplicationConfig, ModulesContainer } from '@nestjs/core';
 // Not re-exported by `@nestjs/core`'s index; `@nestjs/swagger` builds the
 // document's paths with the same factory.
@@ -60,9 +57,7 @@ export const DESCRIPTOR_METADATA_KEY = 'endpoints:descriptor';
 export function toOpenApiPath(httpPath: string): string {
   return httpPath
     .split('/')
-    .map((segment) =>
-      segment.startsWith(':') ? `{${segment.slice(1)}}` : segment,
-    )
+    .map((segment) => (segment.startsWith(':') ? `{${segment.slice(1)}}` : segment))
     .join('/');
 }
 
@@ -85,9 +80,7 @@ const requestMethods: Record<HttpMethod, RequestMethod | undefined> = {
  * endpoint served under several paths (several URI versions) takes the
  * first. Plain controllers carry no descriptor and are skipped.
  */
-export function collectDescriptors(
-  app: INestApplicationContext,
-): EndpointDescriptor[] {
+export function collectDescriptors(app: INestApplicationContext): EndpointDescriptor[] {
   const modules = app.get(ModulesContainer);
   const config = app.get(ApplicationConfig);
   const globalPrefix = config.getGlobalPrefix().replace(/\/$/, '');
@@ -97,15 +90,19 @@ export function collectDescriptors(
   const descriptors = new Map<unknown, EndpointDescriptor>();
   for (const module of modules.values()) {
     const modulePath: string | undefined =
-      Reflect.getMetadata(
-        MODULE_PATH + modules.applicationId,
-        module.metatype,
-      ) ?? Reflect.getMetadata(MODULE_PATH, module.metatype);
+      Reflect.getMetadata(MODULE_PATH + modules.applicationId, module.metatype) ??
+      Reflect.getMetadata(MODULE_PATH, module.metatype);
     for (const { metatype: cls } of module.controllers.values()) {
-      if (typeof cls !== 'function' || descriptors.has(cls)) continue;
-      const descriptor: EndpointDescriptor | undefined =
-        Reflect.getMetadata(DESCRIPTOR_METADATA_KEY, cls);
-      if (!descriptor) continue;
+      if (typeof cls !== 'function' || descriptors.has(cls)) {
+        continue;
+      }
+      const descriptor: EndpointDescriptor | undefined = Reflect.getMetadata(
+        DESCRIPTOR_METADATA_KEY,
+        cls,
+      );
+      if (!descriptor) {
+        continue;
+      }
       const [routePath] = routePaths.create(
         {
           ctrlPath: Reflect.getMetadata('endpoints:path', cls) as string,
@@ -113,14 +110,10 @@ export function collectDescriptors(
           modulePath,
           globalPrefix,
           versioningOptions,
-          methodVersion: Reflect.getMetadata(
-            VERSION_METADATA,
-            cls.prototype.handler,
-          ),
+          methodVersion: Reflect.getMetadata(VERSION_METADATA, cls.prototype.handler),
           controllerVersion:
             versioningOptions?.type === VersioningType.URI
-              ? (Reflect.getMetadata(VERSION_METADATA, cls) ??
-                versioningOptions.defaultVersion)
+              ? (Reflect.getMetadata(VERSION_METADATA, cls) ?? versioningOptions.defaultVersion)
               : undefined,
         },
         requestMethods[descriptor.method],
@@ -146,7 +139,9 @@ export function filterDescriptors(
   descriptors: EndpointDescriptor[],
   namespaces: string[] | undefined,
 ): EndpointDescriptor[] {
-  if (namespaces === undefined) return descriptors;
+  if (namespaces === undefined) {
+    return descriptors;
+  }
   const allowed = new Set(namespaces);
   return descriptors.filter((d) => {
     const top = d.namespaceChain[0];

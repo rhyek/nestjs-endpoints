@@ -1,11 +1,7 @@
 import { expect, test } from 'vitest';
 import * as z from 'zod';
 import type { EndpointDescriptor } from './descriptors.js';
-import {
-  mergeSharedSchemas,
-  reachableSchemas,
-  rewriteOutputRefs,
-} from './shared-schemas.js';
+import { mergeSharedSchemas, reachableSchemas, rewriteOutputRefs } from './shared-schemas.js';
 import { toJsonSchema } from './zod-to-openapi.js';
 
 function descriptor(
@@ -32,9 +28,7 @@ function descriptor(
     namespaceChain: [],
     tags: [],
     summary: operationId,
-    ...(params
-      ? { params: { json: params.schema, components: params.components } }
-      : {}),
+    ...(params ? { params: { json: params.schema, components: params.components } } : {}),
     ...(query
       ? {
           query: {
@@ -44,9 +38,7 @@ function descriptor(
           },
         }
       : {}),
-    ...(parts.input
-      ? { input: conv(parts.input, 'input', operationId + 'Input') }
-      : {}),
+    ...(parts.input ? { input: conv(parts.input, 'input', operationId + 'Input') } : {}),
     outputs: parts.output
       ? [
           {
@@ -87,14 +79,9 @@ test('input and output differences get an Output twin', () => {
   ]);
   expect(shared.renamed.get('Address')).toBe('AddressOutput');
   expect(shared.schemas.Address.required).toEqual(['city']);
-  expect(shared.schemas.AddressOutput.required).toEqual([
-    'city',
-    'country',
-  ]);
+  expect(shared.schemas.AddressOutput.required).toEqual(['city', 'country']);
   const bOutput = shared.schemas.bOutput as any;
-  expect(bOutput.properties.address.$ref).toBe(
-    '#/components/schemas/AddressOutput',
-  );
+  expect(bOutput.properties.address.$ref).toBe('#/components/schemas/AddressOutput');
 });
 
 test('a schema referring to a renamed id gets a twin too', () => {
@@ -107,16 +94,12 @@ test('a schema referring to a renamed id gets a twin too', () => {
   expect((shared.schemas.PersonOutput as any).properties.home.$ref).toBe(
     '#/components/schemas/AddressOutput',
   );
-  expect((shared.schemas.Person as any).properties.home.$ref).toBe(
-    '#/components/schemas/Address',
-  );
+  expect((shared.schemas.Person as any).properties.home.$ref).toBe('#/components/schemas/Address');
 });
 
 test('additionalProperties: false alone makes no twin', () => {
   // Same id and shape; only the output conversion closes the objects.
-  const box = z
-    .object({ a: z.string(), inner: z.object({ b: z.number() }) })
-    .meta({ id: 'Box' });
+  const box = z.object({ a: z.string(), inner: z.object({ b: z.number() }) }).meta({ id: 'Box' });
   const shared = mergeSharedSchemas([
     descriptor('a', { input: z.object({ box }) }),
     descriptor('b', { output: z.object({ box }) }),
@@ -125,12 +108,8 @@ test('additionalProperties: false alone makes no twin', () => {
   expect(shared.schemas.BoxOutput).toBeUndefined();
   // The one schema is the input conversion: open at every level.
   expect(shared.schemas.Box.additionalProperties).toBeUndefined();
-  expect(
-    (shared.schemas.Box as any).properties.inner.additionalProperties,
-  ).toBeUndefined();
-  expect((shared.schemas.bOutput as any).properties.box.$ref).toBe(
-    '#/components/schemas/Box',
-  );
+  expect((shared.schemas.Box as any).properties.inner.additionalProperties).toBeUndefined();
+  expect((shared.schemas.bOutput as any).properties.box.$ref).toBe('#/components/schemas/Box');
 });
 
 test('a strict id stays closed', () => {
@@ -189,9 +168,7 @@ test('reachableSchemas follows refs transitively', () => {
 
 test('params components are input-direction', () => {
   const slug = z.string().min(2).meta({ id: 'Slug' });
-  const shared = mergeSharedSchemas([
-    descriptor('a', { params: z.object({ slug }) }),
-  ]);
+  const shared = mergeSharedSchemas([descriptor('a', { params: z.object({ slug }) })]);
   expect(shared.schemas.Slug).toBeDefined();
   expect(() =>
     mergeSharedSchemas([
@@ -220,9 +197,7 @@ test('query components are input-direction', () => {
 });
 
 test('an Output twin may not take the name of another schema', () => {
-  const other = z
-    .object({ other: z.number() })
-    .meta({ id: 'AddressOutput' });
+  const other = z.object({ other: z.number() }).meta({ id: 'AddressOutput' });
   expect(() =>
     mergeSharedSchemas([
       descriptor('a', { input: z.object({ address: address() }) }),

@@ -1,16 +1,11 @@
 import { Req } from '@nestjs/common';
 import { decorated, endpoint } from './endpoint-fn.js';
-import {
-  EndpointRouter,
-  EndpointRouterModule,
-} from './endpoint-router.module.js';
+import { EndpointRouter, EndpointRouterModule } from './endpoint-router.module.js';
 import { moduleAls } from './helpers.js';
 
 describe('a router no endpoint manifest covers', () => {
   test('fails at bootstrap with the fix', async () => {
-    await expect(
-      EndpointRouterModule.create({ rootDirectory: '/nowhere' }),
-    ).rejects.toThrow(
+    await expect(EndpointRouterModule.create({ rootDirectory: '/nowhere' })).rejects.toThrow(
       /no endpoint manifest covers[\s\S]*npx nestjs-endpoints init[\s\S]*setupFiles/,
     );
   });
@@ -62,9 +57,7 @@ test('a router fails when a module its callback lists exports no endpoint', asyn
     EndpointRouterModule.create({
       endpoints: () => [Promise.resolve({ pangInput: {} })],
     }),
-  ).rejects.toThrow(
-    /endpoint-router\.module\.spec[\s\S]*exports no endpoint/,
-  );
+  ).rejects.toThrow(/endpoint-router\.module\.spec[\s\S]*exports no endpoint/);
 });
 
 test('a top-level router stays top-level when another router awaits it first', async () => {
@@ -105,9 +98,7 @@ describe("a router's endpointConfig", () => {
   });
 
   test('types its endpoints from either map, or both', () => {
-    expectTypeOf(
-      EndpointRouterModule.create({ endpoints: [] }),
-    ).toEqualTypeOf<EndpointRouter>();
+    expectTypeOf(EndpointRouterModule.create({ endpoints: [] })).toEqualTypeOf<EndpointRouter>();
     expectTypeOf(
       EndpointRouterModule.create({
         endpoints: [],
@@ -121,12 +112,7 @@ describe("a router's endpointConfig", () => {
           injectOnRequest: { user: decorated<string>(Req()) },
         },
       }),
-    ).toEqualTypeOf<
-      EndpointRouter<
-        undefined,
-        { user: ReturnType<typeof decorated<string>> }
-      >
-    >();
+    ).toEqualTypeOf<EndpointRouter<undefined, { user: ReturnType<typeof decorated<string>> }>>();
     EndpointRouterModule.create({
       endpoints: [],
       endpointConfig: {

@@ -29,11 +29,10 @@ function segmentToPascal(segment: string): string {
  * - If stripping would leave an empty remainder, the original flat
  *   name is returned unchanged (same lenient fallback as a non-match).
  */
-export function stripNamespaceFromFlatName(
-  flatName: string,
-  namespaceChain: string[],
-): string {
-  if (namespaceChain.length === 0) return flatName;
+export function stripNamespaceFromFlatName(flatName: string, namespaceChain: string[]): string {
+  if (namespaceChain.length === 0) {
+    return flatName;
+  }
 
   const hasUsePrefix = /^use[A-Z]/.test(flatName);
   const rawBody = hasUsePrefix ? flatName.slice(3) : flatName;

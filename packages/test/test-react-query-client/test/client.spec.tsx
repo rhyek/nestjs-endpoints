@@ -15,10 +15,7 @@ import { UserPage } from '../src/UserPage';
 
 function SpreadGreet() {
   const api = useApiClient();
-  const { data } = api.useGreet(
-    { body: { name: 'Spread' } },
-    { query: { retry: false } },
-  );
+  const { data } = api.useGreet({ body: { name: 'Spread' } }, { query: { retry: false } });
   return <div data-testid="spread-greeting">{data ?? ''}</div>;
 }
 
@@ -36,18 +33,12 @@ describe('Client', () => {
     );
     expect(await screen.findByText('Loading...')).toBeInTheDocument();
     await vitest.waitFor(async () => {
-      expect(
-        await screen.findByText('Error: User not found'),
-      ).toBeInTheDocument();
+      expect(await screen.findByText('Error: User not found')).toBeInTheDocument();
     });
     await userEvent.click(screen.getByText('Create User'));
     await vitest.waitFor(async () => {
-      expect(
-        await screen.findByText('Name: John Doe'),
-      ).toBeInTheDocument();
-      expect(
-        await screen.findByText('Email: john.doe@example.com'),
-      ).toBeInTheDocument();
+      expect(await screen.findByText('Name: John Doe')).toBeInTheDocument();
+      expect(await screen.findByText('Email: john.doe@example.com')).toBeInTheDocument();
     });
   });
 
@@ -65,9 +56,7 @@ describe('Client', () => {
     await userEvent.click(button);
 
     await vitest.waitFor(async () => {
-      expect(await screen.findByTestId('greeting')).toHaveTextContent(
-        'Hello, World!',
-      );
+      expect(await screen.findByTestId('greeting')).toHaveTextContent('Hello, World!');
     });
   });
 
@@ -81,9 +70,7 @@ describe('Client', () => {
     // If the bound client weren't injected (the binding regression), the query
     // would hit the unbound default client and never resolve to this payload.
     await vitest.waitFor(async () => {
-      expect(
-        await screen.findByTestId('optional-result'),
-      ).toHaveTextContent('"ok":true');
+      expect(await screen.findByTestId('optional-result')).toHaveTextContent('"ok":true');
     });
   });
 
@@ -94,20 +81,20 @@ describe('Client', () => {
       </App>,
     );
     await vitest.waitFor(async () => {
-      expect(
-        JSON.parse(
-          (await screen.findByTestId('search-result')).textContent,
-        ),
-      ).toEqual({ term: 'pizza', tags: [], page: 1 });
+      expect(JSON.parse((await screen.findByTestId('search-result')).textContent)).toEqual({
+        term: 'pizza',
+        tags: [],
+        page: 1,
+      });
     });
     // A new search param is a new query key, so the hook fetches again.
     await userEvent.click(screen.getByText('Next page'));
     await vitest.waitFor(async () => {
-      expect(
-        JSON.parse(
-          (await screen.findByTestId('search-result')).textContent,
-        ),
-      ).toEqual({ term: 'pizza', tags: [], page: 2 });
+      expect(JSON.parse((await screen.findByTestId('search-result')).textContent)).toEqual({
+        term: 'pizza',
+        tags: [],
+        page: 2,
+      });
     });
   });
 
@@ -127,9 +114,7 @@ describe('Client', () => {
       </QueryClientProvider>,
     );
     await vitest.waitFor(async () => {
-      expect(
-        await screen.findByTestId('spread-greeting'),
-      ).toHaveTextContent('Hello, Spread!');
+      expect(await screen.findByTestId('spread-greeting')).toHaveTextContent('Hello, Spread!');
     });
   });
 });

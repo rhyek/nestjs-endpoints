@@ -21,10 +21,11 @@ export class LazyPromise<T> extends Promise<T> {
     return Promise;
   }
 
+  // A promise subclass: `then` is what makes it one.
+  // eslint-disable-next-line unicorn/no-thenable
   override then<TResult1 = T, TResult2 = never>(
     onfulfilled?: ((value: T) => TResult1 | PromiseLike<TResult1>) | null,
-    onrejected?:
-      ((reason: any) => TResult2 | PromiseLike<TResult2>) | null,
+    onrejected?: ((reason: any) => TResult2 | PromiseLike<TResult2>) | null,
   ): Promise<TResult1 | TResult2> {
     this.#started ??= this.#run();
     return this.#started.then(onfulfilled, onrejected);

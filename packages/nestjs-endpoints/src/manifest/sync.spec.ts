@@ -4,10 +4,7 @@ import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { Logger } from '@nestjs/common';
 import { readImportExtension, writeManifest } from './file.js';
-import {
-  findManifestCovering,
-  registerEndpointManifest,
-} from './registry.js';
+import { findManifestCovering, registerEndpointManifest } from './registry.js';
 import { closeManifestWatchers, syncManifest, syncMode } from './sync.js';
 
 const DEV = {};
@@ -27,9 +24,7 @@ function touch(rel: string, base = src) {
 
 /** The keys the manifest file on disk declares. */
 function keysOnDisk(): string[] {
-  return [
-    ...fs.readFileSync(manifest, 'utf8').matchAll(/^ {4}"(.+?)":/gm),
-  ].map((m) => m[1]);
+  return [...fs.readFileSync(manifest, 'utf8').matchAll(/^ {4}"(.+?)":/gm)].map((m) => m[1]);
 }
 
 beforeEach(() => {
@@ -44,6 +39,7 @@ beforeEach(() => {
 afterEach(() => {
   closeManifestWatchers();
   vi.restoreAllMocks();
+  vi.unstubAllEnvs();
   fs.chmodSync(src, 0o755);
 });
 
@@ -63,9 +59,7 @@ describe('at startup', () => {
     touch('a.endpoint.ts');
     writeManifest(manifest, ['a.endpoint.ts'], 'js');
     const before = fs.statSync(manifest).mtimeMs;
-    expect(syncManifest(manifest, ['a.endpoint.ts'], 'js', TEST)).toEqual([
-      'a.endpoint.ts',
-    ]);
+    expect(syncManifest(manifest, ['a.endpoint.ts'], 'js', TEST)).toEqual(['a.endpoint.ts']);
     expect(fs.statSync(manifest).mtimeMs).toBe(before);
   });
 
@@ -74,27 +68,21 @@ describe('at startup', () => {
     touch('shop/router.module.ts');
     writeManifest(manifest, [], 'js');
     expect(syncManifest(manifest, [], 'js', DEV)).toEqual([]);
-    expect(keysOnDisk()).toEqual([
-      'a.endpoint.ts',
-      'shop/router.module.ts',
-    ]);
+    expect(keysOnDisk()).toEqual(['a.endpoint.ts', 'shop/router.module.ts']);
   });
 
   test('a deleted endpoint is dropped from the file and is not loaded', () => {
     touch('a.endpoint.ts');
     writeManifest(manifest, ['a.endpoint.ts', 'gone.endpoint.ts'], 'js');
-    expect(
-      syncManifest(
-        manifest,
-        ['a.endpoint.ts', 'gone.endpoint.ts'],
-        'js',
-        TEST,
-      ),
-    ).toEqual(['a.endpoint.ts']);
+    expect(syncManifest(manifest, ['a.endpoint.ts', 'gone.endpoint.ts'], 'js', TEST)).toEqual([
+      'a.endpoint.ts',
+    ]);
     expect(keysOnDisk()).toEqual(['a.endpoint.ts']);
   });
 
   test('routers never see a deleted file, so it cannot fail the boot', () => {
+    // Registration reads the real environment: under CI the stale manifest would throw instead.
+    vi.stubEnv('CI', '');
     touch('a.endpoint.ts');
     const load = () => Promise.resolve({});
     registerEndpointManifest(pathToFileURL(manifest).href, {
@@ -107,9 +95,7 @@ describe('at startup', () => {
 
   test('a renamed endpoint is swapped, and the old name is not loaded', () => {
     touch('new-name.endpoint.ts');
-    expect(
-      syncManifest(manifest, ['old-name.endpoint.ts'], 'js', DEV),
-    ).toEqual([]);
+    expect(syncManifest(manifest, ['old-name.endpoint.ts'], 'js', DEV)).toEqual([]);
     expect(keysOnDisk()).toEqual(['new-name.endpoint.ts']);
   });
 
@@ -117,21 +103,15 @@ describe('at startup', () => {
     touch('a.endpoint.ts');
     touch('new.endpoint.ts');
     writeManifest(manifest, ['a.endpoint.ts'], 'js');
-    expect(() =>
-      syncManifest(manifest, ['a.endpoint.ts'], 'js', TEST),
-    ).toThrow(
+    expect(() => syncManifest(manifest, ['a.endpoint.ts'], 'js', TEST)).toThrow(
       /regenerated:\n {2}\+ new\.endpoint\.ts\n.*Run the tests again\.\n.*`npx nestjs-endpoints generate` before the tests/,
     );
     expect(keysOnDisk()).toEqual(['a.endpoint.ts', 'new.endpoint.ts']);
     // The next run loads the regenerated manifest.
-    expect(
-      syncManifest(
-        manifest,
-        ['a.endpoint.ts', 'new.endpoint.ts'],
-        'js',
-        TEST,
-      ),
-    ).toEqual(['a.endpoint.ts', 'new.endpoint.ts']);
+    expect(syncManifest(manifest, ['a.endpoint.ts', 'new.endpoint.ts'], 'js', TEST)).toEqual([
+      'a.endpoint.ts',
+      'new.endpoint.ts',
+    ]);
   });
 
   test('an added endpoint is reported as not served by this process', () => {
@@ -149,17 +129,13 @@ describe('at startup', () => {
     touch('a.endpoint.ts');
     syncManifest(manifest, [], 'ts', DEV);
     expect(readImportExtension(manifest)).toBe('ts');
-    expect(fs.readFileSync(manifest, 'utf8')).toContain(
-      'import("./a.endpoint.ts")',
-    );
+    expect(fs.readFileSync(manifest, 'utf8')).toContain('import("./a.endpoint.ts")');
   });
 
   test('in CI a stale manifest is an error, and nothing is written', () => {
     touch('a.endpoint.ts');
     writeManifest(manifest, ['gone.endpoint.ts'], 'js');
-    expect(() =>
-      syncManifest(manifest, ['gone.endpoint.ts'], 'js', { CI: 'true' }),
-    ).toThrow(
+    expect(() => syncManifest(manifest, ['gone.endpoint.ts'], 'js', { CI: 'true' })).toThrow(
       /out of date[\s\S]*\+ a\.endpoint\.ts[\s\S]*- gone\.endpoint\.ts/,
     );
     expect(keysOnDisk()).toEqual(['gone.endpoint.ts']);
@@ -181,9 +157,7 @@ describe('at startup', () => {
     writeManifest(manifest, [], 'js');
     fs.chmodSync(src, 0o555);
     expect(syncManifest(manifest, [], 'js', TEST)).toEqual([]);
-    expect(warn).toHaveBeenCalledWith(
-      expect.stringContaining('could not be rewritten'),
-    );
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining('could not be rewritten'));
     expect(keysOnDisk()).toEqual([]);
   });
 });
@@ -211,10 +185,7 @@ describe('compiled apps', () => {
   });
 
   test.each([
-    [
-      'an external source map',
-      '//# sourceMappingURL=endpoints.gen.js.map',
-    ],
+    ['an external source map', '//# sourceMappingURL=endpoints.gen.js.map'],
     [
       'an inline source map',
       `//# sourceMappingURL=data:application/json;base64,${Buffer.from(map).toString('base64')}`,
@@ -222,49 +193,30 @@ describe('compiled apps', () => {
   ])('find the source manifest through %s', (_, comment) => {
     fs.writeFileSync(compiled, `export {};\n${comment}\n`);
     fs.writeFileSync(`${compiled}.map`, map);
-    expect(
-      syncManifest(
-        compiled,
-        ['a.endpoint.ts', 'gone.endpoint.ts'],
-        'js',
-        TEST,
-      ),
-    ).toEqual(['a.endpoint.ts']);
+    expect(syncManifest(compiled, ['a.endpoint.ts', 'gone.endpoint.ts'], 'js', TEST)).toEqual([
+      'a.endpoint.ts',
+    ]);
     expect(keysOnDisk()).toEqual(['a.endpoint.ts']);
   });
 
   test('a current source manifest is not rewritten while dist/ lags behind', () => {
-    fs.writeFileSync(
-      compiled,
-      'export {};\n//# sourceMappingURL=endpoints.gen.js.map\n',
-    );
+    fs.writeFileSync(compiled, 'export {};\n//# sourceMappingURL=endpoints.gen.js.map\n');
     fs.writeFileSync(`${compiled}.map`, map);
     writeManifest(manifest, ['a.endpoint.ts'], 'js');
     const before = fs.statSync(manifest).mtimeMs;
-    expect(
-      syncManifest(
-        compiled,
-        ['a.endpoint.ts', 'gone.endpoint.ts'],
-        'js',
-        TEST,
-      ),
-    ).toEqual(['a.endpoint.ts']);
+    expect(syncManifest(compiled, ['a.endpoint.ts', 'gone.endpoint.ts'], 'js', TEST)).toEqual([
+      'a.endpoint.ts',
+    ]);
     expect(fs.statSync(manifest).mtimeMs).toBe(before);
   });
 
   test('without a source map nothing is synced, with a warning', () => {
     fs.writeFileSync(compiled, 'export {};\n');
-    expect(
-      syncManifest(
-        compiled,
-        ['a.endpoint.ts', 'gone.endpoint.ts'],
-        'js',
-        TEST,
-      ),
-    ).toEqual(['a.endpoint.ts', 'gone.endpoint.ts']);
-    expect(warn).toHaveBeenCalledWith(
-      expect.stringContaining('Cannot find the source'),
-    );
+    expect(syncManifest(compiled, ['a.endpoint.ts', 'gone.endpoint.ts'], 'js', TEST)).toEqual([
+      'a.endpoint.ts',
+      'gone.endpoint.ts',
+    ]);
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining('Cannot find the source'));
   });
 });
 
@@ -273,18 +225,14 @@ describe('while running in development', () => {
     touch('a.endpoint.ts');
     touch('shop/b.endpoint.ts');
     writeManifest(manifest, ['a.endpoint.ts', 'shop/b.endpoint.ts'], 'js');
-    syncManifest(
-      manifest,
-      ['a.endpoint.ts', 'shop/b.endpoint.ts'],
-      'js',
-      DEV,
-    );
+    syncManifest(manifest, ['a.endpoint.ts', 'shop/b.endpoint.ts'], 'js', DEV);
     // A watcher can miss events in its first moments (macOS FSEvents does),
     // so wait until it demonstrably reports changes before testing them.
     const probe = path.join(src, 'probe.endpoint.ts');
     await vi.waitFor(
       () => {
         fs.writeFileSync(probe, '');
+        // eslint-disable-next-line vitest/no-standalone-expect -- a hook waiting on a condition
         expect(keysOnDisk()).toContain('probe.endpoint.ts');
       },
       { timeout: 5000, interval: 200 },
@@ -300,11 +248,7 @@ describe('while running in development', () => {
 
   test('an added endpoint is written in', async () => {
     touch('c.endpoint.ts');
-    await expectKeys([
-      'a.endpoint.ts',
-      'c.endpoint.ts',
-      'shop/b.endpoint.ts',
-    ]);
+    await expectKeys(['a.endpoint.ts', 'c.endpoint.ts', 'shop/b.endpoint.ts']);
   });
 
   test('an added endpoint is reported as served after the restart', async () => {
@@ -313,9 +257,7 @@ describe('while running in development', () => {
     await vi.waitFor(
       () =>
         expect(log).toHaveBeenCalledWith(
-          expect.stringMatching(
-            /\+ c\.endpoint\.ts\nAdded endpoints are served after a restart/,
-          ),
+          expect.stringMatching(/\+ c\.endpoint\.ts\nAdded endpoints are served after a restart/),
         ),
       { timeout: 3000 },
     );
@@ -333,11 +275,7 @@ describe('while running in development', () => {
 
   test('an added router module is written in', async () => {
     touch('shop/router.module.ts');
-    await expectKeys([
-      'a.endpoint.ts',
-      'shop/b.endpoint.ts',
-      'shop/router.module.ts',
-    ]);
+    await expectKeys(['a.endpoint.ts', 'shop/b.endpoint.ts', 'shop/router.module.ts']);
   });
 
   test('other files do not rewrite the manifest', async () => {
@@ -350,12 +288,7 @@ describe('while running in development', () => {
 
   test('tests do not start a watcher', async () => {
     closeManifestWatchers();
-    syncManifest(
-      manifest,
-      ['a.endpoint.ts', 'shop/b.endpoint.ts'],
-      'js',
-      TEST,
-    );
+    syncManifest(manifest, ['a.endpoint.ts', 'shop/b.endpoint.ts'], 'js', TEST);
     touch('c.endpoint.ts');
     await new Promise((resolve) => setTimeout(resolve, 400));
     expect(keysOnDisk()).toEqual(['a.endpoint.ts', 'shop/b.endpoint.ts']);

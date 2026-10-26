@@ -2,8 +2,7 @@ import type { NestExpressApplication } from '@nestjs/platform-express';
 import type { TestingModule } from '@nestjs/testing';
 
 export async function createApp(moduleFixture: TestingModule) {
-  const app =
-    moduleFixture.createNestApplication<NestExpressApplication>();
+  const app = moduleFixture.createNestApplication<NestExpressApplication>();
   app.set('query parser', 'extended');
   await app.init();
   // supertest connects to 127.0.0.1. Listening on the default `::` lets

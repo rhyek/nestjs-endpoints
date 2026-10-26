@@ -20,18 +20,11 @@ function banner(version: string): string {
 
 /** Reads the shipped `assets/skill.md` template and stamps the managed banner. */
 export function renderSkill(version: string): string {
-  const templatePath = path.join(
-    import.meta.dirname,
-    '../assets/skill.md',
-  );
-  const template = fs
-    .readFileSync(templatePath, 'utf8')
-    .replace(BANNER_RE, '');
+  const templatePath = path.join(import.meta.dirname, '../assets/skill.md');
+  const template = fs.readFileSync(templatePath, 'utf8').replace(BANNER_RE, '');
 
   if (!template.startsWith('---\n')) {
-    throw new Error(
-      'assets/skill.md must open with YAML frontmatter on line 1',
-    );
+    throw new Error('assets/skill.md must open with YAML frontmatter on line 1');
   }
   return `---\n` + banner(version) + template.slice('---\n'.length);
 }
@@ -82,9 +75,7 @@ function stateFile(cwd: string): string {
 
 function readState(cwd: string): SkillState | null {
   try {
-    return JSON.parse(
-      fs.readFileSync(stateFile(cwd), 'utf8'),
-    ) as SkillState;
+    return JSON.parse(fs.readFileSync(stateFile(cwd), 'utf8')) as SkillState;
   } catch {
     return null;
   }
@@ -103,13 +94,7 @@ const OPTIONAL_DIRS = ['.agents', '.cursor'];
 
 /** Canonical install path (`.claude/skills/nestjs-endpoints/SKILL.md`). */
 export function skillInstallPath(cwd: string): string {
-  return path.join(
-    cwd,
-    '.claude',
-    'skills',
-    'nestjs-endpoints',
-    'SKILL.md',
-  );
+  return path.join(cwd, '.claude', 'skills', 'nestjs-endpoints', 'SKILL.md');
 }
 
 /** `true` when the managed skill file is already installed at `cwd`. */
@@ -124,10 +109,7 @@ export function isSkillInstalled(cwd: string): boolean {
  * `node_modules/.nestjs-endpoints/skill.json` so a later `init` can tell an
  * untouched file from a hand-edited one.
  */
-export function installSkill(opts: {
-  cwd?: string;
-  version: string;
-}): string[] {
+export function installSkill(opts: { cwd?: string; version: string }): string[] {
   const cwd = opts.cwd ?? process.cwd();
   const content = renderSkill(opts.version);
   const paths: string[] = [];
@@ -141,13 +123,7 @@ export function installSkill(opts: {
       continue;
     }
     try {
-      const p = path.join(
-        cwd,
-        dir,
-        'skills',
-        'nestjs-endpoints',
-        'SKILL.md',
-      );
+      const p = path.join(cwd, dir, 'skills', 'nestjs-endpoints', 'SKILL.md');
       writeSkillFile(p, content);
       paths.push(p);
     } catch {
@@ -169,10 +145,7 @@ export function installSkill(opts: {
  * since — but only if the on-disk file still hashes to what was last written.
  * A hand-edited file is left alone.
  */
-export function refreshSkillIfStale(opts: {
-  cwd?: string;
-  version: string;
-}): boolean {
+export function refreshSkillIfStale(opts: { cwd?: string; version: string }): boolean {
   const cwd = opts.cwd ?? process.cwd();
   const state = readState(cwd);
   if (!state || !isOlder(state.version, opts.version)) {

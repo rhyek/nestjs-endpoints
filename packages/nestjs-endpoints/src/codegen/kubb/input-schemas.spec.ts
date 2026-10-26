@@ -4,10 +4,7 @@ import { z } from 'zod';
 import type { EndpointDescriptor } from '../../descriptors.js';
 import { convertObject } from '../../object-parameters.js';
 import type { JsonSchema } from '../../zod-to-openapi.js';
-import {
-  buildSchemasModuleSource,
-  collectInputSchemas,
-} from './input-schemas.js';
+import { buildSchemasModuleSource, collectInputSchemas } from './input-schemas.js';
 
 /** A minimal descriptor, with `json` as its input when given. */
 function descriptor(
@@ -30,10 +27,8 @@ function descriptor(
 }
 
 /** `collectInputSchemas` over `descriptors`, with `schemas` as the shared set. */
-const collect = (
-  descriptors: EndpointDescriptor[],
-  schemas: Record<string, JsonSchema> = {},
-) => collectInputSchemas(descriptors, { schemas, renamed: new Map() });
+const collect = (descriptors: EndpointDescriptor[], schemas: Record<string, JsonSchema> = {}) =>
+  collectInputSchemas(descriptors, { schemas, renamed: new Map() });
 
 const ref = (name: string) => ({ $ref: `#/components/schemas/${name}` });
 
@@ -53,9 +48,7 @@ describe('collectInputSchemas', () => {
       ],
       { AuthLoginInput: login },
     );
-    expect([...entries.values()]).toEqual([
-      { sourceName: 'authLogin', schemas: { input: login } },
-    ]);
+    expect([...entries.values()]).toEqual([{ sourceName: 'authLogin', schemas: { input: login } }]);
   });
 
   test('nested $refs are resolved at every depth, inside properties, items, oneOf and allOf', () => {
@@ -225,17 +218,14 @@ describe('collectInputSchemas', () => {
 
   test('a recursive schema stops with an error naming the operation', () => {
     expect(() =>
-      collect(
-        [descriptor({ operationId: 'TreeSave', json: ref('Node') })],
-        {
-          Node: {
-            type: 'object',
-            properties: {
-              children: { type: 'array', items: ref('Node') },
-            },
+      collect([descriptor({ operationId: 'TreeSave', json: ref('Node') })], {
+        Node: {
+          type: 'object',
+          properties: {
+            children: { type: 'array', items: ref('Node') },
           },
         },
-      ),
+      }),
     ).toThrow(/TreeSave/);
   });
 
@@ -299,17 +289,13 @@ describe('collectInputSchemas', () => {
       examples: [data],
       example: data,
     };
-    const { input } = collect([
-      descriptor({ operationId: 'A', json: schema }),
-    ]).get('a')!.schemas;
+    const { input } = collect([descriptor({ operationId: 'A', json: schema })]).get('a')!.schemas;
     expect(input).toEqual(schema);
     expect(input!.default).not.toBe(data);
   });
 
   test('the descriptors and shared schemas are not changed', () => {
-    const descriptors = [
-      descriptor({ operationId: 'A', json: ref('AInput') }),
-    ];
+    const descriptors = [descriptor({ operationId: 'A', json: ref('AInput') })];
     const schemas = {
       AInput: { type: 'object', properties: { b: ref('B') } },
       B: { type: 'string' },
@@ -354,12 +340,8 @@ describe('buildSchemasModuleSource', () => {
     expect(source).toContain(
       `export const greet: { input: InputSchema<NonNullable<GreetOptions['body']>>; query: InputSchema<NonNullable<GreetOptions['query']>> } =`,
     );
-    expect(source).toContain(
-      `import type { InputSchema } from './client-runtime';`,
-    );
-    expect(source).toContain(
-      `import type { AuthLoginOptions, GreetOptions } from './types';`,
-    );
+    expect(source).toContain(`import type { InputSchema } from './client-runtime';`);
+    expect(source).toContain(`import type { AuthLoginOptions, GreetOptions } from './types';`);
     const { diagnostics } = ts.transpileModule(source, {
       reportDiagnostics: true,
     });

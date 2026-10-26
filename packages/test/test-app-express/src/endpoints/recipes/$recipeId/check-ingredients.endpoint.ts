@@ -17,9 +17,7 @@ export default endpoint.mutation({
   },
   handler: ({ params, input, recipesRepository }) => {
     const recipe = recipesRepository.find(params.recipeId);
-    const missing = recipe.ingredients.filter(
-      (i) => !input.available.includes(i),
-    );
+    const missing = recipe.ingredients.filter((i) => !input.available.includes(i));
     return { missing, ok: missing.length === 0 };
   },
 });

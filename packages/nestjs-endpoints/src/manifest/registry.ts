@@ -71,33 +71,24 @@ export function createManifest(
     const absolute = path.join(dir, ...key.split('/'));
     loaders.set(absolute, files[key]);
     addChild(path.dirname(absolute), path.basename(absolute), false);
-    for (
-      let current = path.dirname(absolute);
-      current !== dir;
-      current = path.dirname(current)
-    ) {
+    for (let current = path.dirname(absolute); current !== dir; current = path.dirname(current)) {
       addChild(path.dirname(current), path.basename(current), true);
     }
   }
   const tree = new Map(
     [...children].map(([parent, entries]) => [
       parent,
-      new Map(
-        [...entries].sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)),
-      ),
+      new Map([...entries].sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))),
     ]),
   );
   return { dir, loaders, tree };
 }
 
 /** The most specific registered manifest whose directory contains `dir`. */
-export function findManifestCovering(
-  dir: string,
-): RegisteredManifest | undefined {
+export function findManifestCovering(dir: string): RegisteredManifest | undefined {
   let best: RegisteredManifest | undefined;
   for (const manifest of registry.values()) {
-    const covers =
-      dir === manifest.dir || dir.startsWith(manifest.dir + path.sep);
+    const covers = dir === manifest.dir || dir.startsWith(manifest.dir + path.sep);
     if (covers && (!best || manifest.dir.length > best.dir.length)) {
       best = manifest;
     }

@@ -15,12 +15,7 @@ import { UserService } from '../src/endpoints/user/user.service';
 
 test('can test controllers directly without http pipeline', async () => {
   const moduleFixture: TestingModule = await Test.createTestingModule({
-    controllers: [
-      userListNoPathEndpoint,
-      userCreateEndpoint,
-      userPurgeEndpoint,
-      userFindEndpoint,
-    ],
+    controllers: [userListNoPathEndpoint, userCreateEndpoint, userPurgeEndpoint, userFindEndpoint],
     providers: [
       AuthService,
       {
@@ -69,9 +64,7 @@ test('can test controllers directly without http pipeline', async () => {
   // that regresses, which `.resolves.toEqual()` alone would not catch.
   const createdId: number = created.id;
   expect(createdId).toBe(1);
-  expect(userRepository.findAll()).toEqual([
-    { id: 1, name: 'John', email: 'john@example.com' },
-  ]);
+  expect(userRepository.findAll()).toEqual([{ id: 1, name: 'John', email: 'john@example.com' }]);
   await expect(userListNoPath.invoke()).resolves.toEqual([
     { id: 1, name: 'John', email: 'john@example.com' },
   ]);
@@ -98,18 +91,12 @@ test('invoke threads path params through the second arg', async () => {
   const recipesEdit = app.get(recipesEditEndpoint);
   // Path param strings get coerced by the Zod schema, just like an HTTP call.
   await expect(
-    recipesEdit.invoke(
-      { name: 'Margherita' },
-      { params: { recipeId: '1' } },
-    ),
+    recipesEdit.invoke({ name: 'Margherita' }, { params: { recipeId: '1' } }),
   ).resolves.toEqual({ id: 1, name: 'Margherita' });
 
   // Validation errors on params should surface as ZodValidationException.
   try {
-    await recipesEdit.invoke(
-      { name: 'X' },
-      { params: { recipeId: 'nope' } },
-    );
+    await recipesEdit.invoke({ name: 'X' }, { params: { recipeId: 'nope' } });
     throw new Error('Should not reach here');
   } catch (error) {
     expect(error).toBeInstanceOf(ZodValidationException);
@@ -136,9 +123,11 @@ test('invoke threads search params through the last arg', async () => {
 
   // With an `input`, the body comes first and the search params after it.
   const search = app.get(searchEndpoint);
-  await expect(
-    search.invoke({ term: 'pizza' }, { query: { page: '3' } }),
-  ).resolves.toEqual({ term: 'pizza', tags: [], page: 3 });
+  await expect(search.invoke({ term: 'pizza' }, { query: { page: '3' } })).resolves.toEqual({
+    term: 'pizza',
+    tags: [],
+    page: 3,
+  });
 
   // Every search param is optional, so the options may be left out.
   await expect(search.invoke({ term: 'pizza' })).resolves.toEqual({

@@ -271,7 +271,4 @@ export type InputSchema<T> = {
 export const AXIOS_CLIENT_RUNTIME_SOURCE = HEADER + AXIOS_RUNTIME_BODY;
 
 export const REACT_QUERY_CLIENT_RUNTIME_SOURCE =
-  HEADER +
-  `import * as React from 'react';\n` +
-  AXIOS_RUNTIME_BODY +
-  REACT_QUERY_ADDITIONS;
+  HEADER + `import * as React from 'react';\n` + AXIOS_RUNTIME_BODY + REACT_QUERY_ADDITIONS;

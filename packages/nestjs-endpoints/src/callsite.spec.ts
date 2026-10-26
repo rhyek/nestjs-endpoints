@@ -14,9 +14,7 @@ describe('callsiteFileToPath', () => {
 
   test('round-trips a real path containing a space', () => {
     const original = '/tmp/some dir/endpoint.js';
-    expect(callsiteFileToPath(pathToFileURL(original).href)).toBe(
-      original,
-    );
+    expect(callsiteFileToPath(pathToFileURL(original).href)).toBe(original);
   });
 
   test('passes a bare path through unchanged', () => {

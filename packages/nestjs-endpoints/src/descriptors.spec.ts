@@ -6,25 +6,15 @@ import {
   Version,
   VersioningType,
 } from '@nestjs/common';
-import {
-  AbstractHttpAdapter,
-  NestFactory,
-  RouterModule,
-} from '@nestjs/core';
+import { AbstractHttpAdapter, NestFactory, RouterModule } from '@nestjs/core';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { z } from 'zod';
-import {
-  collectDescriptors,
-  EndpointDescriptor,
-  filterDescriptors,
-} from './descriptors.js';
+import { collectDescriptors, EndpointDescriptor, filterDescriptors } from './descriptors.js';
 import { endpoint, schema } from './endpoint-fn.js';
 
 const apps: INestApplicationContext[] = [];
 
-async function describeApp(
-  controllers: Type[],
-): Promise<EndpointDescriptor[]> {
+async function describeApp(controllers: Type[]): Promise<EndpointDescriptor[]> {
   @Module({ controllers })
   class AppModule {}
   const app = await NestFactory.createApplicationContext(AppModule, {
@@ -53,11 +43,9 @@ async function createHttpApp(
     },
     close() {},
   };
-  const app = await NestFactory.create(
-    AppModule,
-    adapter as unknown as AbstractHttpAdapter,
-    { logger: false },
-  );
+  const app = await NestFactory.create(AppModule, adapter as unknown as AbstractHttpAdapter, {
+    logger: false,
+  });
   apps.push(app);
   return app;
 }
@@ -78,17 +66,13 @@ test('path params from the route, typed by params', async () => {
   });
   const [r, u] = await describeApp([typed, untyped]);
   expect(r.path).toBe('/r/{id}/view');
-  expect(r.pathParams).toEqual([
-    { name: 'id', schema: { type: 'number' } },
-  ]);
+  expect(r.pathParams).toEqual([{ name: 'id', schema: { type: 'number' } }]);
   expect(r.params?.json).toMatchObject({
     properties: { id: { type: 'number' } },
   });
   expect(u.params).toBeUndefined();
   expect(u.path).toBe('/u/{slug}/view');
-  expect(u.pathParams).toEqual([
-    { name: 'slug', schema: { type: 'string' } },
-  ]);
+  expect(u.pathParams).toEqual([{ name: 'slug', schema: { type: 'string' } }]);
 });
 
 test("an endpoint is a POST of its builder's kind by default", async () => {
@@ -120,10 +104,7 @@ test('query is split into search parameters', async () => {
   expect(d.method).toBe('post');
   expect(d.input).toBeUndefined();
   expect(d.query!.parameters.map((p) => p.name)).toEqual(['q', 'n']);
-  expect(d.query!.parameters.map((p) => p.required)).toEqual([
-    true,
-    false,
-  ]);
+  expect(d.query!.parameters.map((p) => p.required)).toEqual([true, false]);
   expect(d.query!.json).toMatchObject({
     type: 'object',
     properties: { q: { type: 'string' }, n: { type: 'number' } },
@@ -162,9 +143,7 @@ test('a query given through schema() is split into search parameters', async () 
     handler: ({ query: { q } }) => q,
   });
   const [d] = await describeApp([search]);
-  expect(d.query!.parameters).toEqual([
-    { name: 'q', required: true, schema: { type: 'string' } },
-  ]);
+  expect(d.query!.parameters).toEqual([{ name: 'q', required: true, schema: { type: 'string' } }]);
 });
 
 test('input and query together are a body and search parameters', async () => {
@@ -184,15 +163,11 @@ test('input and query together are a body and search parameters', async () => {
 test('params with a meta id type the path parameters', async () => {
   const view = endpoint.query({
     path: '/named/:id/view',
-    params: z
-      .object({ id: z.coerce.number() })
-      .meta({ id: 'NamedViewParams' }),
+    params: z.object({ id: z.coerce.number() }).meta({ id: 'NamedViewParams' }),
     handler: () => null,
   });
   const [d] = await describeApp([view]);
-  expect(d.pathParams).toEqual([
-    { name: 'id', schema: { type: 'number' } },
-  ]);
+  expect(d.pathParams).toEqual([{ name: 'id', schema: { type: 'number' } }]);
 });
 
 test('a GET endpoint with input throws, naming the file', () => {
@@ -247,15 +222,10 @@ test('a query that is not an object throws, naming the endpoint', () => {
     endpoint.query({
       path: '/either',
       // @ts-expect-error `query` is an object schema.
-      query: z.union([
-        z.object({ a: z.string() }),
-        z.object({ b: z.string() }),
-      ]),
+      query: z.union([z.object({ a: z.string() }), z.object({ b: z.string() })]),
       handler: () => null,
     }),
-  ).toThrow(
-    'The query of endpoint "Either" (POST /either) must be an object schema',
-  );
+  ).toThrow('The query of endpoint "Either" (POST /either) must be an object schema');
 });
 
 test('params that are not an object throw, naming the endpoint', () => {
@@ -263,15 +233,10 @@ test('params that are not an object throw, naming the endpoint', () => {
     endpoint.query({
       path: '/either/:id',
       // @ts-expect-error `params` is an object schema.
-      params: z.union([
-        z.object({ id: z.string() }),
-        z.object({ id: z.number() }),
-      ]),
+      params: z.union([z.object({ id: z.string() }), z.object({ id: z.number() })]),
       handler: () => null,
     }),
-  ).toThrow(
-    'The params of endpoint "Either" (POST /either/:id) must be an object schema',
-  );
+  ).toThrow('The params of endpoint "Either" (POST /either/:id) must be an object schema');
 });
 
 test('input is a named body', async () => {
@@ -329,10 +294,7 @@ test('paths carry the global prefix, except the routes it excludes', async () =>
   const health = endpoint.query({ path: '/health', handler: () => null });
   const app = await createHttpApp([view, health]);
   app.setGlobalPrefix('api/', { exclude: ['health'] });
-  expect(collectDescriptors(app).map((d) => d.path)).toEqual([
-    '/api/p/{id}/view',
-    '/health',
-  ]);
+  expect(collectDescriptors(app).map((d) => d.path)).toEqual(['/api/p/{id}/view', '/health']);
 });
 
 test('paths carry the URI version, by default or by the method', async () => {
@@ -345,10 +307,7 @@ test('paths carry the URI version, by default or by the method', async () => {
   const app = await createHttpApp([plain, pinned]);
   app.setGlobalPrefix('api');
   app.enableVersioning({ type: VersioningType.URI, defaultVersion: '1' });
-  expect(collectDescriptors(app).map((d) => d.path)).toEqual([
-    '/api/v1/plain',
-    '/api/v2/pinned',
-  ]);
+  expect(collectDescriptors(app).map((d) => d.path)).toEqual(['/api/v1/plain', '/api/v2/pinned']);
 });
 
 test('an endpoint served under several versions takes the first path', async () => {
@@ -372,16 +331,10 @@ test('paths carry the module path a RouterModule mounts them under', async () =>
   class AdminModule {}
   const app = await createHttpApp(
     [top],
-    [
-      AdminModule,
-      RouterModule.register([{ path: 'admin', module: AdminModule }]),
-    ],
+    [AdminModule, RouterModule.register([{ path: 'admin', module: AdminModule }])],
   );
   app.setGlobalPrefix('api');
-  expect(collectDescriptors(app).map((d) => d.path)).toEqual([
-    '/api/admin/users/list',
-    '/api/top',
-  ]);
+  expect(collectDescriptors(app).map((d) => d.path)).toEqual(['/api/admin/users/list', '/api/top']);
 });
 
 test('every descriptor path is a path of the OpenAPI document', async () => {
@@ -399,24 +352,16 @@ test('every descriptor path is a path of the OpenAPI document', async () => {
   class AdminModule {}
   const app = await createHttpApp(
     [plain, both],
-    [
-      AdminModule,
-      RouterModule.register([{ path: 'admin', module: AdminModule }]),
-    ],
+    [AdminModule, RouterModule.register([{ path: 'admin', module: AdminModule }])],
   );
   app.setGlobalPrefix('api');
   app.enableVersioning({ type: VersioningType.URI, defaultVersion: '1' });
-  const document = SwaggerModule.createDocument(
-    app,
-    new DocumentBuilder().build(),
-  );
+  const document = SwaggerModule.createDocument(app, new DocumentBuilder().build());
   const paths = collectDescriptors(app).map((d) => d.path);
-  expect(paths).toEqual([
-    '/api/v1/admin/users/list',
-    '/api/v1/plain',
-    '/api/v2/both',
-  ]);
-  for (const path of paths) expect(document.paths[path]).toBeDefined();
+  expect(paths).toEqual(['/api/v1/admin/users/list', '/api/v1/plain', '/api/v2/both']);
+  for (const path of paths) {
+    expect(document.paths[path]).toBeDefined();
+  }
 });
 
 test('each operation of the OpenAPI document carries its kind', async () => {
@@ -431,10 +376,7 @@ test('each operation of the OpenAPI document carries its kind', async () => {
     handler: () => null,
   });
   const app = await createHttpApp([find, make, fetch]);
-  const { paths } = SwaggerModule.createDocument(
-    app,
-    new DocumentBuilder().build(),
-  );
+  const { paths } = SwaggerModule.createDocument(app, new DocumentBuilder().build());
   expect(paths).toMatchObject({
     '/kind/find': { post: { 'x-endpoint-kind': 'query' } },
     '/kind/make': { post: { 'x-endpoint-kind': 'mutation' } },
@@ -445,10 +387,7 @@ test('each operation of the OpenAPI document carries its kind', async () => {
 test('the OpenAPI document gives an endpoint without output a 200', async () => {
   const purge = endpoint.mutation({ path: '/purge', handler: () => null });
   const app = await createHttpApp([purge]);
-  const { paths } = SwaggerModule.createDocument(
-    app,
-    new DocumentBuilder().build(),
-  );
+  const { paths } = SwaggerModule.createDocument(app, new DocumentBuilder().build());
   expect(Object.keys(paths['/purge'].post!.responses)).toEqual(['200']);
 });
 
@@ -458,14 +397,10 @@ test('filterDescriptors keeps listed top-level namespaces', () => {
       EndpointDescriptor,
       'operationId' | 'namespaceChain'
     > as EndpointDescriptor;
-  const descriptors = [
-    withChain(['admin', 'users']),
-    withChain(['public']),
-    withChain([]),
-  ];
+  const descriptors = [withChain(['admin', 'users']), withChain(['public']), withChain([])];
   expect(filterDescriptors(descriptors, undefined)).toEqual(descriptors);
-  expect(
-    filterDescriptors(descriptors, ['admin']).map((d) => d.operationId),
-  ).toEqual(['admin.users']);
+  expect(filterDescriptors(descriptors, ['admin']).map((d) => d.operationId)).toEqual([
+    'admin.users',
+  ]);
   expect(filterDescriptors(descriptors, ['users'])).toEqual([]);
 });

@@ -15,10 +15,7 @@ test('a single router module can be tested without the rest of the app', async (
   const req = request(app.getHttpServer());
   try {
     await req.post('/shop/stats').expect(200, { visitors: 42 });
-    await req
-      .post('/shop/cart/add')
-      .send({ item: 'ABC' })
-      .expect(200, { added: 'ABC' });
+    await req.post('/shop/cart/add').send({ item: 'ABC' }).expect(200, { added: 'ABC' });
     await req.post('/user/find').expect(404);
     await req.post('/articles/latest').expect(404);
   } finally {

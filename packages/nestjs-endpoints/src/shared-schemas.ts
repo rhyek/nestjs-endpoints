@@ -15,7 +15,9 @@ function canonical(value: unknown): string {
 }
 
 function sortKeys(value: unknown): unknown {
-  if (Array.isArray(value)) return value.map(sortKeys);
+  if (Array.isArray(value)) {
+    return value.map(sortKeys);
+  }
   if (value && typeof value === 'object') {
     return Object.fromEntries(
       Object.entries(value)
@@ -32,7 +34,9 @@ function sortKeys(value: unknown): unknown {
  * `.strict()`, so the two directions of one id are compared without it.
  */
 function withoutClosedObjects(value: unknown): unknown {
-  if (Array.isArray(value)) return value.map(withoutClosedObjects);
+  if (Array.isArray(value)) {
+    return value.map(withoutClosedObjects);
+  }
   if (value && typeof value === 'object') {
     return Object.fromEntries(
       Object.entries(value)
@@ -67,10 +71,7 @@ function gather(
 }
 
 /** A deep copy of `value` with `$ref`s to renamed ids pointing at their twin. */
-export function rewriteOutputRefs<T>(
-  value: T,
-  renamed: ReadonlyMap<string, string>,
-): T {
+export function rewriteOutputRefs<T>(value: T, renamed: ReadonlyMap<string, string>): T {
   if (Array.isArray(value)) {
     return value.map((v) => rewriteOutputRefs(v, renamed)) as T;
   }
@@ -99,9 +100,7 @@ export function rewriteOutputRefs<T>(
  * difference in `additionalProperties: false` alone is not one: the id is one
  * schema, its input conversion.
  */
-export function mergeSharedSchemas(
-  descriptors: EndpointDescriptor[],
-): SharedSchemas {
+export function mergeSharedSchemas(descriptors: EndpointDescriptor[]): SharedSchemas {
   const inputs = new Map<string, Found>();
   const outputs = new Map<string, Found>();
   for (const d of descriptors) {
@@ -126,11 +125,12 @@ export function mergeSharedSchemas(
     changed = false;
     for (const [name, out] of outputs) {
       const inp = inputs.get(name);
-      if (!inp || renamed.has(name)) continue;
+      if (!inp || renamed.has(name)) {
+        continue;
+      }
       if (
-        canonical(
-          withoutClosedObjects(rewriteOutputRefs(out.schema, renamed)),
-        ) !== canonical(withoutClosedObjects(inp.schema))
+        canonical(withoutClosedObjects(rewriteOutputRefs(out.schema, renamed))) !==
+        canonical(withoutClosedObjects(inp.schema))
       ) {
         renamed.set(name, name + 'Output');
         changed = true;
@@ -152,10 +152,14 @@ export function mergeSharedSchemas(
   // Inputs first, then outputs and twins; an id equal in both directions is
   // written once, as its input.
   const schemas: Record<string, JsonSchema> = {};
-  for (const [name, inp] of inputs) schemas[name] = inp.schema;
+  for (const [name, inp] of inputs) {
+    schemas[name] = inp.schema;
+  }
   for (const [name, out] of outputs) {
     const key = renamed.get(name) ?? name;
-    if (Object.hasOwn(schemas, key)) continue;
+    if (Object.hasOwn(schemas, key)) {
+      continue;
+    }
     schemas[key] = rewriteOutputRefs(out.schema, renamed);
   }
   return { schemas, renamed };
@@ -163,14 +167,12 @@ export function mergeSharedSchemas(
 
 function collectRefs(value: unknown, into: Set<string>) {
   if (Array.isArray(value)) {
-    for (const v of value) collectRefs(v, into);
+    for (const v of value) {
+      collectRefs(v, into);
+    }
   } else if (value && typeof value === 'object') {
     for (const [k, v] of Object.entries(value)) {
-      if (
-        k === '$ref' &&
-        typeof v === 'string' &&
-        v.startsWith(refPrefix)
-      ) {
+      if (k === '$ref' && typeof v === 'string' && v.startsWith(refPrefix)) {
         into.add(v.slice(refPrefix.length));
       } else {
         collectRefs(v, into);
@@ -189,7 +191,9 @@ export function reachableSchemas(
   collectRefs(roots, queue);
   for (const name of queue) {
     const schema = shared.schemas[name];
-    if (!schema || name in found) continue;
+    if (!schema || name in found) {
+      continue;
+    }
     found[name] = schema;
     collectRefs(schema, queue);
   }

@@ -31,8 +31,12 @@ const logger = new Logger('nestjs-endpoints');
 const watchers = new Map<string, { close(): void }>();
 
 export function syncMode(env: NodeJS.ProcessEnv): SyncMode {
-  if (env.NODE_ENV === 'production') return 'off';
-  if (env.CI && env.CI !== 'false' && env.CI !== '0') return 'check';
+  if (env.NODE_ENV === 'production') {
+    return 'off';
+  }
+  if (env.CI && env.CI !== 'false' && env.CI !== '0') {
+    return 'check';
+  }
   return 'write';
 }
 
@@ -71,13 +75,7 @@ export function syncManifest(
     if (mode === 'check') {
       throw new Error(staleMessage(sourceFile, diff));
     }
-    const current = tryWrite(
-      sourceFile,
-      scanned,
-      importExtension,
-      diff,
-      STARTUP_ADDED_NOTE,
-    );
+    const current = tryWrite(sourceFile, scanned, importExtension, diff, STARTUP_ADDED_NOTE);
     // A test run cannot load what its manifest did not list, and later test
     // files would load the rewritten one: fail clearly rather than let the
     // first file's 404s look like flakiness.
@@ -89,9 +87,7 @@ export function syncManifest(
     watchSourceTree(sourceFile, scanned, importExtension);
   }
   const present = new Set(scanned);
-  return diff
-    ? declaredKeys.filter((key) => present.has(key))
-    : declaredKeys;
+  return diff ? declaredKeys.filter((key) => present.has(key)) : declaredKeys;
 }
 
 interface KeyDiff {
@@ -99,10 +95,7 @@ interface KeyDiff {
   removed: string[];
 }
 
-function diffKeys(
-  before: readonly string[],
-  after: readonly string[],
-): KeyDiff | undefined {
+function diffKeys(before: readonly string[], after: readonly string[]): KeyDiff | undefined {
   const beforeSet = new Set(before);
   const afterSet = new Set(after);
   const added = after.filter((key) => !beforeSet.has(key));
@@ -111,10 +104,7 @@ function diffKeys(
 }
 
 function formatDiff({ added, removed }: KeyDiff): string {
-  return [
-    ...added.map((key) => `  + ${key}`),
-    ...removed.map((key) => `  - ${key}`),
-  ].join('\n');
+  return [...added.map((key) => `  + ${key}`), ...removed.map((key) => `  - ${key}`)].join('\n');
 }
 
 function staleMessage(sourceFile: string, diff: KeyDiff): string {
@@ -189,13 +179,7 @@ function watchSourceTree(
     const diff = diffKeys(current, scanned);
     if (diff) {
       current = scanned;
-      tryWrite(
-        sourceFile,
-        scanned,
-        importExtension,
-        diff,
-        RUNNING_ADDED_NOTE,
-      );
+      tryWrite(sourceFile, scanned, importExtension, diff, RUNNING_ADDED_NOTE);
     }
   };
   const scheduleRescan = () => {
@@ -234,15 +218,12 @@ function watchSourceTree(
 function isIgnored(filename: string, manifestName: string): boolean {
   const segments = filename.split(/[\\/]/);
   const base = segments[segments.length - 1];
-  return (
-    base === manifestName ||
-    segments.some((s) => s.startsWith('.') || s === 'node_modules')
-  );
+  return base === manifestName || segments.some((s) => s.startsWith('.') || s === 'node_modules');
 }
 
 /** Stops every watcher. For tests. */
 export function closeManifestWatchers(): void {
-  for (const watcher of [...watchers.values()]) {
+  for (const watcher of watchers.values()) {
     watcher.close();
   }
 }

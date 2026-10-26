@@ -2,17 +2,8 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { readImportExtension } from './manifest/file.js';
-import {
-  DEFAULT_SOURCE_DIR,
-  generateManifest,
-  markGenerated,
-} from './manifest/generate.js';
-import {
-  installSkill,
-  isSkillInstalled,
-  readOwnVersion,
-  refreshSkillIfStale,
-} from './skill.js';
+import { DEFAULT_SOURCE_DIR, generateManifest, markGenerated } from './manifest/generate.js';
+import { installSkill, isSkillInstalled, readOwnVersion, refreshSkillIfStale } from './skill.js';
 
 const USAGE = `nestjs-endpoints <command>
 
@@ -33,7 +24,9 @@ Commands:
 /** `--name value` or `--name=value`. */
 function flag(argv: string[], name: string): string | undefined {
   const inline = argv.find((a) => a.startsWith(`${name}=`));
-  if (inline) return inline.slice(name.length + 1);
+  if (inline) {
+    return inline.slice(name.length + 1);
+  }
   const i = argv.indexOf(name);
   return i === -1 ? undefined : argv[i + 1];
 }
@@ -42,14 +35,8 @@ type ManifestOptions = Parameters<typeof generateManifest>[0];
 
 function manifestOptions(argv: string[]): ManifestOptions {
   const importExtension = flag(argv, '--import-extension');
-  if (
-    importExtension !== undefined &&
-    importExtension !== 'js' &&
-    importExtension !== 'ts'
-  ) {
-    throw new Error(
-      `--import-extension must be js or ts, got: ${importExtension}`,
-    );
+  if (importExtension !== undefined && importExtension !== 'js' && importExtension !== 'ts') {
+    throw new Error(`--import-extension must be js or ts, got: ${importExtension}`);
   }
   return {
     dir: path.resolve(flag(argv, '--dir') ?? DEFAULT_SOURCE_DIR),
@@ -61,11 +48,7 @@ function runGenerate(options: ManifestOptions): { file: string } {
   const { file, keys, written } = generateManifest(options);
   const count = `${keys.length} file${keys.length === 1 ? '' : 's'}`;
   const shown = path.relative(process.cwd(), file);
-  console.log(
-    written
-      ? `Wrote ${shown} (${count})`
-      : `${shown} is up to date (${count})`,
-  );
+  console.log(written ? `Wrote ${shown} (${count})` : `${shown} is up to date (${count})`);
   return { file };
 }
 
@@ -86,9 +69,7 @@ function runInit(argv: string[]): void {
   if (fs.existsSync(options.dir)) {
     const { file } = runGenerate(options);
     for (const changed of markGenerated(cwd)) {
-      console.log(
-        `Marked it as generated in ${path.relative(cwd, changed)}`,
-      );
+      console.log(`Marked it as generated in ${path.relative(cwd, changed)}`);
     }
     console.log(
       `\nImport it once from your app module (tests that skip the app module import it too, or list it in Vitest's setupFiles):\n  import './endpoints.gen.${readImportExtension(file)}';\n`,
@@ -101,16 +82,12 @@ function runInit(argv: string[]): void {
 
   const existed = isSkillInstalled(cwd);
   const paths = installSkill({ cwd, version });
-  console.log(
-    `${existed ? 'Updated' : 'Installed'} agent skill (v${version}):`,
-  );
+  console.log(`${existed ? 'Updated' : 'Installed'} agent skill (v${version}):`);
   for (const p of paths) {
     console.log(`  ${path.relative(cwd, p)}`);
   }
   if (!existed) {
-    console.log(
-      `\nThe skill points agents at node_modules/nestjs-endpoints/docs/agents.md.`,
-    );
+    console.log(`\nThe skill points agents at node_modules/nestjs-endpoints/docs/agents.md.`);
   }
 }
 

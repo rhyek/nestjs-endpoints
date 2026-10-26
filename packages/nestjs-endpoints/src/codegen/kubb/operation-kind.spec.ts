@@ -4,10 +4,7 @@ import { kindOverrides, operationKinds } from './operation-kind.js';
 
 /** A minimal descriptor for the kind classifier. */
 function descriptor(
-  fields: Pick<
-    EndpointDescriptor,
-    'operationId' | 'kind' | 'method' | 'path'
-  > &
+  fields: Pick<EndpointDescriptor, 'operationId' | 'kind' | 'method' | 'path'> &
     Partial<EndpointDescriptor>,
 ): EndpointDescriptor {
   return {
@@ -52,8 +49,7 @@ const descriptors = [
 ];
 
 type Options = Parameters<typeof operationKinds>[1];
-const kinds = (options: Options) =>
-  Object.fromEntries(operationKinds(descriptors, options));
+const kinds = (options: Options) => Object.fromEntries(operationKinds(descriptors, options));
 
 describe('operationKinds', () => {
   test('takes the kind of the builder, whatever the method', () => {
@@ -77,36 +73,41 @@ describe('operationKinds', () => {
   });
 
   test('exclude leaves out what any filter matches, by each filter type', () => {
-    expect(kinds({ exclude: [{ type: 'tag', pattern: 'auth' }] })).toEqual(
-      { Greet: 'query', Upload: 'mutation', Find: 'query' },
-    );
+    expect(kinds({ exclude: [{ type: 'tag', pattern: 'auth' }] })).toEqual({
+      Greet: 'query',
+      Upload: 'mutation',
+      Find: 'query',
+    });
     expect(
       kinds({
         exclude: [{ type: 'operationId', pattern: '^(Greet|Upload)$' }],
       }),
     ).toEqual({ AuthLogin: 'mutation', Find: 'query' });
-    expect(
-      kinds({ exclude: [{ type: 'method', pattern: 'post' }] }),
-    ).toEqual({ Greet: 'query', Upload: 'mutation' });
-    expect(
-      kinds({ exclude: [{ type: 'path', pattern: /^\/auth\// }] }),
-    ).toEqual({ Greet: 'query', Upload: 'mutation', Find: 'query' });
-    expect(
-      kinds({ exclude: [{ type: 'contentType', pattern: 'json' }] }),
-    ).toEqual({ Greet: 'query', AuthLogin: 'mutation', Find: 'query' });
-    expect(
-      kinds({ exclude: [{ type: 'extension', key: 'x-namespace' }] }),
-    ).toEqual({ Greet: 'query', AuthLogin: 'mutation', Find: 'query' });
+    expect(kinds({ exclude: [{ type: 'method', pattern: 'post' }] })).toEqual({
+      Greet: 'query',
+      Upload: 'mutation',
+    });
+    expect(kinds({ exclude: [{ type: 'path', pattern: /^\/auth\// }] })).toEqual({
+      Greet: 'query',
+      Upload: 'mutation',
+      Find: 'query',
+    });
+    expect(kinds({ exclude: [{ type: 'contentType', pattern: 'json' }] })).toEqual({
+      Greet: 'query',
+      AuthLogin: 'mutation',
+      Find: 'query',
+    });
+    expect(kinds({ exclude: [{ type: 'extension', key: 'x-namespace' }] })).toEqual({
+      Greet: 'query',
+      AuthLogin: 'mutation',
+      Find: 'query',
+    });
   });
 
   test('include keeps only what some filter matches', () => {
-    expect(
-      kinds({ include: [{ type: 'tag', pattern: 'public' }] }),
-    ).toEqual({ Greet: 'query' });
+    expect(kinds({ include: [{ type: 'tag', pattern: 'public' }] })).toEqual({ Greet: 'query' });
     // As in Kubb: a schema-only include matches no operation.
-    expect(
-      kinds({ include: [{ type: 'schemaName', pattern: 'Anything' }] }),
-    ).toEqual({});
+    expect(kinds({ include: [{ type: 'schemaName', pattern: 'Anything' }] })).toEqual({});
   });
 
   test("the first matching override's query and mutation options apply", () => {

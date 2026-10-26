@@ -20,8 +20,7 @@ async function bootstrap() {
       // the per-client `namespaces` filter and schema pruning).
       {
         type: 'react-query',
-        outputFile:
-          process.cwd() + '/generated/shop-react-query-client.tsx',
+        outputFile: process.cwd() + '/generated/shop-react-query-client.tsx',
         namespaces: ['shop'],
       },
       // Kubb's own operation filters leave some operations without hooks or
@@ -29,8 +28,7 @@ async function bootstrap() {
       // skipped (tscheck compiles it).
       {
         type: 'react-query',
-        outputFile:
-          process.cwd() + '/generated/filtered-react-query-client.tsx',
+        outputFile: process.cwd() + '/generated/filtered-react-query-client.tsx',
         namespaces: ['shop'],
         options: {
           exclude: [{ type: 'operationId', pattern: '^ShopStats$' }],

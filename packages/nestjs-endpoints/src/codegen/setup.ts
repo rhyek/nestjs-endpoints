@@ -5,10 +5,7 @@ import type { OpenAPIObject } from '@nestjs/swagger';
 import { collectDescriptors, filterDescriptors } from '../descriptors.js';
 import { readPkgJson } from '../package-json.js';
 import { setupOpenAPI, SetupOpenAPIOptions } from '../setup-openapi.js';
-import {
-  mergeSharedSchemas,
-  reachableSchemas,
-} from '../shared-schemas.js';
+import { mergeSharedSchemas, reachableSchemas } from '../shared-schemas.js';
 import { clientHash, readClientHash } from './hash.js';
 import { rootsOf } from './kubb/adapter.js';
 import {
@@ -61,10 +58,7 @@ export async function setupCodegen(
   },
 ): Promise<{ document?: OpenAPIObject }> {
   for (const client of params.clients) {
-    if (
-      client.namespaces !== undefined &&
-      client.namespaces.length === 0
-    ) {
+    if (client.namespaces !== undefined && client.namespaces.length === 0) {
       throw new Error(
         `setupCodegen: client for "${client.outputFile}" has an empty ` +
           `namespaces filter. Either omit the field (include all ` +
@@ -102,9 +96,7 @@ export async function setupCodegen(
       ]),
     );
   }
-  const document = params.openapi
-    ? (await setupOpenAPI(app, params.openapi)).document
-    : undefined;
+  const document = params.openapi ? (await setupOpenAPI(app, params.openapi)).document : undefined;
 
   // Shared schemas are named from every endpoint of the app, so a schema has
   // the same name in every client, whatever its namespaces.
@@ -119,10 +111,7 @@ export async function setupCodegen(
 
   await Promise.all(
     params.clients.map(async (client) => {
-      const clientDescriptors = filterDescriptors(
-        descriptors,
-        client.namespaces,
-      );
+      const clientDescriptors = filterDescriptors(descriptors, client.namespaces);
       const hash = clientHash({
         descriptors: clientDescriptors,
         shared: reachableSchemas(
@@ -133,8 +122,7 @@ export async function setupCodegen(
         client: {
           type: client.type,
           namespaces: client.namespaces,
-          options:
-            client.type === 'react-query' ? client.options : undefined,
+          options: client.type === 'react-query' ? client.options : undefined,
         },
         version,
       });

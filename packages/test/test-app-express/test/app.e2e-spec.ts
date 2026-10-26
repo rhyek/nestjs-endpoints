@@ -25,6 +25,7 @@ describe('api', { concurrent: true }, () => {
     class ZodValidationExceptionFilter extends BaseExceptionFilter {
       catch(exception: ZodValidationException, host: ArgumentsHost) {
         validationExceptionSpy(exception);
+        // eslint-disable-next-line promise/valid-params -- the filter's `catch`, not a promise's
         super.catch(exception, host);
       }
     }
@@ -33,6 +34,7 @@ describe('api', { concurrent: true }, () => {
     class ZodSerializationExceptionFilter extends BaseExceptionFilter {
       catch(exception: ZodSerializationException, host: ArgumentsHost) {
         serializationExceptionSpy(exception);
+        // eslint-disable-next-line promise/valid-params -- the filter's `catch`, not a promise's
         super.catch(exception, host);
       }
     }
@@ -55,9 +57,7 @@ describe('api', { concurrent: true }, () => {
     app.useLogger(false);
 
     const userService = app.get(UserService);
-    const appointmentsRepository = app.get<AppointmentRepository>(
-      AppointmentRepositoryToken,
-    );
+    const appointmentsRepository = app.get<AppointmentRepository>(AppointmentRepositoryToken);
     const req = request(app.getHttpServer());
 
     return {
@@ -72,8 +72,7 @@ describe('api', { concurrent: true }, () => {
   }
 
   test('error endpoint throws', async () => {
-    const { req, validationExceptionSpy, serializationExceptionSpy } =
-      await setup();
+    const { req, validationExceptionSpy, serializationExceptionSpy } = await setup();
     await req.post('/test/error').expect(500, {
       statusCode: 500,
       message: 'Internal server error',
@@ -92,8 +91,7 @@ describe('api', { concurrent: true }, () => {
   });
 
   test('user find input validation throws', async () => {
-    const { req, validationExceptionSpy, serializationExceptionSpy } =
-      await setup();
+    const { req, validationExceptionSpy, serializationExceptionSpy } = await setup();
     validationExceptionSpy.mockImplementationOnce((exception) => {
       expect(exception).toBeInstanceOf(ZodValidationException);
       expect(exception.message).toBe('Validation failed');
@@ -165,8 +163,7 @@ describe('api', { concurrent: true }, () => {
   });
 
   test('user create input validation throws', async () => {
-    const { req, validationExceptionSpy, serializationExceptionSpy } =
-      await setup();
+    const { req, validationExceptionSpy, serializationExceptionSpy } = await setup();
     await req
       .post('/user/create')
       .send({ namez: 'John', email: 'john@example.com' })
@@ -187,12 +184,7 @@ describe('api', { concurrent: true }, () => {
   });
 
   test('user find output validation throws ZodSerializationException', async () => {
-    const {
-      req,
-      userService,
-      validationExceptionSpy,
-      serializationExceptionSpy,
-    } = await setup();
+    const { req, userService, validationExceptionSpy, serializationExceptionSpy } = await setup();
     vitest.spyOn(userService, 'find').mockReturnValueOnce({
       id: 1,
       namez: 'John',
@@ -207,9 +199,7 @@ describe('api', { concurrent: true }, () => {
     expect(serializationExceptionSpy).toHaveBeenCalledTimes(1);
     expect(exception).toBeInstanceOf(ZodSerializationException);
     expect(exception.message).toBe('Internal Server Error');
-    expect(
-      (exception as ZodSerializationException).getZodError().issues,
-    ).toMatchObject([
+    expect((exception as ZodSerializationException).getZodError().issues).toMatchObject([
       {
         expected: 'string',
         code: 'invalid_type',
@@ -231,8 +221,7 @@ describe('api', { concurrent: true }, () => {
   });
 
   test('appointment create input validation throws', async () => {
-    const { req, validationExceptionSpy, serializationExceptionSpy } =
-      await setup();
+    const { req, validationExceptionSpy, serializationExceptionSpy } = await setup();
     await req
       .post('/user/appointment/create')
       .set('Authorization', 'secret')
@@ -257,8 +246,7 @@ describe('api', { concurrent: true }, () => {
   });
 
   test('appointment create can return 400 with first schema of union', async () => {
-    const { req, validationExceptionSpy, serializationExceptionSpy } =
-      await setup();
+    const { req, validationExceptionSpy, serializationExceptionSpy } = await setup();
     const date1 = new Date();
     await req
       .post('/user/appointment/create')
@@ -298,8 +286,7 @@ describe('api', { concurrent: true }, () => {
   });
 
   test('appointment create can return 400 with second schema of union', async () => {
-    const { req, validationExceptionSpy, serializationExceptionSpy } =
-      await setup();
+    const { req, validationExceptionSpy, serializationExceptionSpy } = await setup();
     await req
       .post('/user/create')
       .send({
@@ -332,12 +319,8 @@ describe('api', { concurrent: true }, () => {
   });
 
   test('appointment create output validation throws ZodSerializationException', async () => {
-    const {
-      req,
-      appointmentsRepository,
-      validationExceptionSpy,
-      serializationExceptionSpy,
-    } = await setup();
+    const { req, appointmentsRepository, validationExceptionSpy, serializationExceptionSpy } =
+      await setup();
     await req
       .post('/user/create')
       .send({
@@ -370,9 +353,7 @@ describe('api', { concurrent: true }, () => {
     expect(validationExceptionSpy).toHaveBeenCalledTimes(0);
     expect(serializationExceptionSpy).toHaveBeenCalledTimes(1);
     expect(exception).toBeInstanceOf(ZodSerializationException);
-    expect(
-      (exception as ZodSerializationException).getZodError().issues,
-    ).toMatchObject([
+    expect((exception as ZodSerializationException).getZodError().issues).toMatchObject([
       {
         expected: 'date',
         code: 'invalid_type',
@@ -486,15 +467,11 @@ describe('api', { concurrent: true }, () => {
 
   test('greet endpoint returns greeting', async () => {
     const { req } = await setup();
-    await req
-      .post('/greet')
-      .send({ name: 'John' })
-      .expect(200, 'Hello, John!');
+    await req.post('/greet').send({ name: 'John' }).expect(200, 'Hello, John!');
   });
 
   test('greet endpoint input validation throws', async () => {
-    const { req, validationExceptionSpy, serializationExceptionSpy } =
-      await setup();
+    const { req, validationExceptionSpy, serializationExceptionSpy } = await setup();
     await req
       .post('/greet')
       .send({ wrongField: 'John' })
@@ -534,8 +511,7 @@ describe('api', { concurrent: true }, () => {
   });
 
   test('a GET endpoint validates its search params', async () => {
-    const { req, validationExceptionSpy, serializationExceptionSpy } =
-      await setup();
+    const { req, validationExceptionSpy, serializationExceptionSpy } = await setup();
     await req
       .get('/oauth/callback')
       .query({ code: 'abc', expiresIn: 'soon' })
@@ -592,9 +568,7 @@ describe('api', { concurrent: true }, () => {
       .send({ term: '' })
       .expect(400)
       .then((resp) => {
-        expect(resp.body.errors).toMatchObject([
-          { code: 'too_small', path: ['term'] },
-        ]);
+        expect(resp.body.errors).toMatchObject([{ code: 'too_small', path: ['term'] }]);
       });
     await req
       .post('/search')
@@ -602,23 +576,15 @@ describe('api', { concurrent: true }, () => {
       .send({ term: 'pizza' })
       .expect(400)
       .then((resp) => {
-        expect(resp.body.errors).toMatchObject([
-          { code: 'too_small', path: ['page'] },
-        ]);
+        expect(resp.body.errors).toMatchObject([{ code: 'too_small', path: ['page'] }]);
       });
     expect(validationExceptionSpy).toHaveBeenCalledTimes(2);
   });
 
   test('nested endpoints router module: recipes create works', async () => {
     const { req } = await setup();
-    await req
-      .post('/recipes/create')
-      .send({ name: 'Pizza' })
-      .expect(200, { id: 1, name: 'Pizza' });
-    await req
-      .post('/recipes/create')
-      .send({ name: 'Pasta' })
-      .expect(200, { id: 2, name: 'Pasta' });
+    await req.post('/recipes/create').send({ name: 'Pizza' }).expect(200, { id: 1, name: 'Pizza' });
+    await req.post('/recipes/create').send({ name: 'Pasta' }).expect(200, { id: 2, name: 'Pasta' });
   });
 
   test('manual endpoints router module: recipes-manual-1 create works', async () => {
@@ -634,8 +600,7 @@ describe('api', { concurrent: true }, () => {
   });
 
   test('nested endpoints router module: recipes create input validation throws', async () => {
-    const { req, validationExceptionSpy, serializationExceptionSpy } =
-      await setup();
+    const { req, validationExceptionSpy, serializationExceptionSpy } = await setup();
     await req
       .post('/recipes/create')
       .send({})
@@ -1227,7 +1192,5 @@ test('spec works', async () => {
     },
   });
   expect(Object.keys(parsed.paths['/oauth/callback'])).toEqual(['get']);
-  expect(parsed.paths['/oauth/callback'].get).not.toHaveProperty(
-    'requestBody',
-  );
+  expect(parsed.paths['/oauth/callback'].get).not.toHaveProperty('requestBody');
 });

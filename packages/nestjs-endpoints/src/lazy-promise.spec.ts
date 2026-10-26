@@ -22,12 +22,8 @@ describe('LazyPromise', () => {
 
   test('passes rejections to catch and finally', async () => {
     const onFinally = vi.fn();
-    const lazy = new LazyPromise<number>(() =>
-      Promise.reject(new Error('boom')),
-    );
-    await expect(lazy.catch((e: Error) => e.message)).resolves.toBe(
-      'boom',
-    );
+    const lazy = new LazyPromise<number>(() => Promise.reject(new Error('boom')));
+    await expect(lazy.catch((e: unknown) => (e as Error).message)).resolves.toBe('boom');
     await expect(lazy.finally(onFinally)).rejects.toThrow('boom');
     expect(onFinally).toHaveBeenCalledTimes(1);
   });

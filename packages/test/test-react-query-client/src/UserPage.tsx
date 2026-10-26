@@ -19,7 +19,7 @@ export function UserPage() {
       await apiClient.userPurge();
       setPurged(true);
     })();
-  }, []);
+  }, [apiClient]);
 
   return (
     <div>
@@ -28,10 +28,7 @@ export function UserPage() {
       ) : (
         <>
           {error && (
-            <div>
-              Error:{' '}
-              {(error.response?.data as { message: string }).message}
-            </div>
+            <div>Error: {(error.response?.data as { message: string } | undefined)?.message}</div>
           )}
           {data && (
             <div>
@@ -44,6 +41,7 @@ export function UserPage() {
 
       <div>
         <button
+          type="button"
           onClick={async () => {
             await createUser({
               body: {

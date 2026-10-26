@@ -13,25 +13,25 @@ const SOURCE_MAPPING_URL = /\/\/# sourceMappingURL=(\S+)\s*$/;
  * source. Run compiled (e.g. `nest start --watch` runs `dist/`), the source is
  * whatever the emitted source map — external or inline — names.
  */
-export function locateSourceManifest(
-  runningFile: string,
-): string | undefined {
+export function locateSourceManifest(runningFile: string): string | undefined {
   if (SOURCE_EXTENSION.test(runningFile)) {
     return runningFile;
   }
   try {
     const code = fs.readFileSync(runningFile, 'utf8');
     const url = SOURCE_MAPPING_URL.exec(code)?.[1];
-    if (!url) return undefined;
+    if (!url) {
+      return undefined;
+    }
     const { map, mapDir } = readSourceMap(url, path.dirname(runningFile));
     const source = map.sources?.[0];
-    if (!source) return undefined;
+    if (!source) {
+      return undefined;
+    }
     const sourceFile = source.startsWith('file:')
       ? fileURLToPath(source)
       : path.resolve(mapDir, map.sourceRoot ?? '', source);
-    return SOURCE_EXTENSION.test(sourceFile) && fs.existsSync(sourceFile)
-      ? sourceFile
-      : undefined;
+    return SOURCE_EXTENSION.test(sourceFile) && fs.existsSync(sourceFile) ? sourceFile : undefined;
   } catch {
     return undefined;
   }
@@ -42,12 +42,8 @@ interface SourceMap {
   sources?: string[];
 }
 
-function readSourceMap(
-  url: string,
-  fileDir: string,
-): { map: SourceMap; mapDir: string } {
-  const inline =
-    /^data:application\/json;(?:charset=[^;]+;)?base64,(.*)$/.exec(url);
+function readSourceMap(url: string, fileDir: string): { map: SourceMap; mapDir: string } {
+  const inline = /^data:application\/json;(?:charset=[^;]+;)?base64,(.*)$/.exec(url);
   if (inline) {
     const json = Buffer.from(inline[1], 'base64').toString('utf8');
     return { map: JSON.parse(json) as SourceMap, mapDir: fileDir };

@@ -14,9 +14,7 @@ function withProviders(apiClient: ApiClient) {
     const queryClient = useMemo(() => new QueryClient(), []);
     return (
       <QueryClientProvider client={queryClient}>
-        <ApiClientProvider client={apiClient}>
-          {children}
-        </ApiClientProvider>
+        <ApiClientProvider client={apiClient}>{children}</ApiClientProvider>
       </QueryClientProvider>
     );
   };
@@ -71,11 +69,7 @@ describe('useApiClient()', () => {
       const client = useApiClient();
       // Type-level: `client.shop.cart.add(...)` must compile as a call.
       const call = client.shop.cart.add;
-      return (
-        <div data-testid="type">
-          {typeof call === 'function' ? 'ok' : 'no'}
-        </div>
-      );
+      return <div data-testid="type">{typeof call === 'function' ? 'ok' : 'no'}</div>;
     }
 
     const { getByTestId } = render(

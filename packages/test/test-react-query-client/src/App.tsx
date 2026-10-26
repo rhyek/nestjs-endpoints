@@ -22,9 +22,7 @@ export function App({ children }: AppProps = {}) {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <ApiClientProvider client={apiClient}>
-        {children ?? <UserPage />}
-      </ApiClientProvider>
+      <ApiClientProvider client={apiClient}>{children ?? <UserPage />}</ApiClientProvider>
     </QueryClientProvider>
   );
 }

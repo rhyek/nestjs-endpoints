@@ -4,6 +4,7 @@ packages:
   # Self-contained, copy-pasteable showcases live under examples/ and
   # are intentionally excluded from this workspace.
   - '!examples/**'
+  - 'synced-utils/*'
 
 # The compiled library resolves @nestjs/core from the root node_modules while each
 # test app resolves its own. pnpm keys a package's physical instance on its resolved

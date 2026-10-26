@@ -20,10 +20,7 @@ type Filter =
   | { type: 'extension'; key: string; value?: unknown };
 
 type Override = Filter & {
-  options: { query?: KindOption; mutation?: KindOption } & Record<
-    string,
-    unknown
-  >;
+  options: { query?: KindOption; mutation?: KindOption } & Record<string, unknown>;
 };
 
 /** The react-query plugin options that decide an operation's kind. */
@@ -43,29 +40,25 @@ export type OperationKindOptions =
  * the kind it gets helpers of: its builder's (`descriptor.kind`), unless
  * that kind's options are `false`.
  */
-function resolveKinds(
-  descriptors: readonly EndpointDescriptor[],
-  options: OperationKindOptions,
-) {
+function resolveKinds(descriptors: readonly EndpointDescriptor[], options: OperationKindOptions) {
   const { include, exclude = [], override = [] } = options ?? {};
   return descriptors.flatMap((descriptor) => {
-    const matches = (filter: Filter) =>
-      matchesOperation(descriptor, filter);
-    if (exclude.some(matches)) return [];
-    if (include && !include.some(matches)) return [];
+    const matches = (filter: Filter) => matchesOperation(descriptor, filter);
+    if (exclude.some(matches)) {
+      return [];
+    }
+    if (include && !include.some(matches)) {
+      return [];
+    }
     const overridden = override.find(matches)?.options ?? {};
-    const pick = (kind: EndpointKind) =>
-      kind in overridden ? overridden[kind] : options?.[kind];
+    const pick = (kind: EndpointKind) => (kind in overridden ? overridden[kind] : options?.[kind]);
     const resolved = { query: pick('query'), mutation: pick('mutation') };
     return [
       {
         descriptor,
         overridden,
         ...resolved,
-        kind:
-          resolved[descriptor.kind] === false
-            ? undefined
-            : descriptor.kind,
+        kind: resolved[descriptor.kind] === false ? undefined : descriptor.kind,
       },
     ];
   });
@@ -78,7 +71,9 @@ export function operationKinds(
 ): Map<string, EndpointKind> {
   const kinds = new Map<string, EndpointKind>();
   for (const { descriptor, kind } of resolveKinds(descriptors, options)) {
-    if (kind) kinds.set(descriptor.operationId, kind);
+    if (kind) {
+      kinds.set(descriptor.operationId, kind);
+    }
   }
   return kinds;
 }
@@ -104,18 +99,15 @@ export function kindOverrides(
       // as the top-level `query`, which claims GET by default.
       const claim = (claimant: EndpointKind) => ({
         importPath: '@tanstack/react-query',
-        ...(resolved[claimant] || {}),
-        methods:
-          claimant === kind ? [descriptor.method.toUpperCase()] : [],
+        ...resolved[claimant],
+        methods: claimant === kind ? [descriptor.method.toUpperCase()] : [],
       });
       return {
         type: 'operationId',
         // A RegExp: `@kubb/core` reads a string pattern as a regular
         // expression, but the plugin's `hookOptionsGenerator` compares it
         // with `===`, and both test a RegExp.
-        pattern: new RegExp(
-          `^${descriptor.operationId.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`,
-        ),
+        pattern: new RegExp(`^${descriptor.operationId.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`),
         options: {
           ...overridden,
           query: claim('query'),
@@ -133,22 +125,18 @@ export function kindOverrides(
  * its one `application/json` content type, and `x-namespace` is its one
  * extension.
  */
-function matchesOperation(
-  descriptor: EndpointDescriptor,
-  filter: Filter,
-): boolean {
+function matchesOperation(descriptor: EndpointDescriptor, filter: Filter): boolean {
   if (filter.type === 'extension' && 'key' in filter) {
     const extensions: Record<string, unknown> =
-      descriptor.namespaceChain.length > 0
-        ? { 'x-namespace': descriptor.namespaceChain }
-        : {};
+      descriptor.namespaceChain.length > 0 ? { 'x-namespace': descriptor.namespaceChain } : {};
     return (
       Object.hasOwn(extensions, filter.key) &&
-      (filter.value === undefined ||
-        extensions[filter.key] === filter.value)
+      (filter.value === undefined || extensions[filter.key] === filter.value)
     );
   }
-  if (!('pattern' in filter)) return false;
+  if (!('pattern' in filter)) {
+    return false;
+  }
   const test = (value: string) =>
     typeof filter.pattern === 'string'
       ? new RegExp(filter.pattern).test(value)

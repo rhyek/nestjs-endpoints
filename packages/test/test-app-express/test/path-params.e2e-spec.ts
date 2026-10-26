@@ -64,9 +64,7 @@ describe('path params via $-segment file-based routing', () => {
         .expect(200, { missing: [], ok: true });
 
       // $recipeId.delete.endpoint.ts — DELETE returns the removed recipe.
-      await req
-        .delete('/recipes/1/delete')
-        .expect(200, { id: 1, name: 'Margherita' });
+      await req.delete('/recipes/1/delete').expect(200, { id: 1, name: 'Margherita' });
 
       // After deletion the view endpoint should 404 (NotFoundException
       // is thrown by the repo).

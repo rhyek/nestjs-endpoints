@@ -25,7 +25,9 @@ function canonical(value: unknown): unknown {
   if (typeof value === 'function' || value instanceof RegExp) {
     return String(value);
   }
-  if (Array.isArray(value)) return value.map(canonical);
+  if (Array.isArray(value)) {
+    return value.map(canonical);
+  }
   if (value && typeof value === 'object') {
     return Object.fromEntries(
       Object.entries(value)
@@ -74,9 +76,7 @@ export function clientHash(params: {
  * The hash in the first line of the wrapper at `outputFile`; `undefined` when
  * the file or its header is missing.
  */
-export async function readClientHash(
-  outputFile: string,
-): Promise<string | undefined> {
+export async function readClientHash(outputFile: string): Promise<string | undefined> {
   const source = await fs.readFile(outputFile, 'utf-8').catch(() => '');
   return headerPattern.exec(source.split('\n', 1)[0])?.[1];
 }

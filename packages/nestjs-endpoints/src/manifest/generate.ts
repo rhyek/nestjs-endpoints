@@ -10,20 +10,17 @@ export const DEFAULT_SOURCE_DIR = 'src';
  * Writes `<dir>/endpoints.gen.ts` from the files under `dir`. Without an
  * explicit `importExtension`, an existing manifest's setting is kept.
  */
-export function generateManifest(opts: {
-  dir: string;
-  importExtension?: ImportExtension;
-}): { file: string; keys: string[]; written: boolean } {
+export function generateManifest(opts: { dir: string; importExtension?: ImportExtension }): {
+  file: string;
+  keys: string[];
+  written: boolean;
+} {
   if (!fs.statSync(opts.dir, { throwIfNoEntry: false })?.isDirectory()) {
     throw new Error(`Source directory not found: ${opts.dir}`);
   }
   const file = path.join(opts.dir, MANIFEST_FILE_NAME);
   const keys = scanRoutingFiles(opts.dir);
-  const written = writeManifest(
-    file,
-    keys,
-    opts.importExtension ?? readImportExtension(file),
-  );
+  const written = writeManifest(file, keys, opts.importExtension ?? readImportExtension(file));
   return { file, keys, written };
 }
 
@@ -40,11 +37,13 @@ export function markGenerated(cwd: string): string[] {
   const changed: string[] = [];
   const append = (name: string, line: string, create: boolean) => {
     const file = path.join(cwd, name);
-    const existing = fs.existsSync(file)
-      ? fs.readFileSync(file, 'utf8')
-      : undefined;
-    if (existing === undefined && !create) return;
-    if (existing?.split(/\r?\n/).some((l) => l.trim() === line)) return;
+    const existing = fs.existsSync(file) ? fs.readFileSync(file, 'utf8') : undefined;
+    if (existing === undefined && !create) {
+      return;
+    }
+    if (existing?.split(/\r?\n/).some((l) => l.trim() === line)) {
+      return;
+    }
     const separator = existing && !existing.endsWith('\n') ? '\n' : '';
     fs.writeFileSync(file, `${existing ?? ''}${separator}${line}\n`);
     changed.push(file);

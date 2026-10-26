@@ -1,27 +1,16 @@
 import { settings } from '../../consts.js';
 import type { EndpointDescriptor } from '../../descriptors.js';
-import {
-  reachableSchemas,
-  type SharedSchemas,
-} from '../../shared-schemas.js';
+import { reachableSchemas, type SharedSchemas } from '../../shared-schemas.js';
 import { rootsOf } from './adapter.js';
 import { buildClientObjectExpression } from './buckets.js';
-import {
-  operationKinds,
-  type OperationKindOptions,
-} from './operation-kind.js';
+import { operationKinds, type OperationKindOptions } from './operation-kind.js';
 
 /**
  * The descriptions router modules give their namespaces, keyed by the chain
  * joined with `/`, written above each namespace bucket.
  */
 function tagDescriptions(): Map<string, string> {
-  return new Map(
-    settings.openapi.tags.map(({ name, description }) => [
-      name,
-      description,
-    ]),
-  );
+  return new Map(settings.openapi.tags.map(({ name, description }) => [name, description]));
 }
 
 /**
@@ -38,7 +27,9 @@ export function printedTagDescriptions(
     for (let i = 1; i <= namespaceChain.length; i++) {
       const key = namespaceChain.slice(0, i).join('/');
       const description = descriptions.get(key);
-      if (description) printed[key] = description;
+      if (description) {
+        printed[key] = description;
+      }
     }
   }
   return printed;
@@ -61,8 +52,7 @@ export function buildAxiosWrapperSource(params: {
   /** Import specifier for the generated barrel whose types are re-exported. */
   typesImport: string;
 }): string {
-  const { descriptors, clientsImport, runtimeImport, typesImport } =
-    params;
+  const { descriptors, clientsImport, runtimeImport, typesImport } = params;
 
   const buildExpr = buildClientObjectExpression({
     descriptors,
@@ -160,8 +150,7 @@ export function buildReactQueryWrapperSource(params: {
     shared,
   );
   const ownsInputSchema = Object.keys(generated).some(
-    (name) =>
-      name.replace(/[^A-Za-z0-9]/g, '').toLowerCase() === 'inputschema',
+    (name) => name.replace(/[^A-Za-z0-9]/g, '').toLowerCase() === 'inputschema',
   );
   // The binders the operations below use, so the wrapper imports nothing
   // more: an unused import fails a consumer's `noUnusedLocals`.
@@ -201,7 +190,9 @@ export function buildReactQueryWrapperSource(params: {
     // has any; mutation hooks get theirs through `mutate()`.
     hookAccess: (src, { operationId, hasRequest }) => {
       const kind = kinds.get(operationId);
-      if (!kind) return undefined;
+      if (!kind) {
+        return undefined;
+      }
       binders.add('bindHook');
       return `bindHook(_hooks.${src}, ${kind === 'query' && hasRequest ? 1 : 0})`;
     },
@@ -226,9 +217,7 @@ export function buildReactQueryWrapperSource(params: {
     `import * as React from 'react';\n` +
     `import * as _ops from '${opsImport}';\n` +
     `import * as _hooks from '${hooksImport}';\n` +
-    (inputSchemaNames.size
-      ? `import * as _schemas from '${schemasImport}';\n`
-      : '') +
+    (inputSchemaNames.size ? `import * as _schemas from '${schemasImport}';\n` : '') +
     `import {\n` +
     ['ApiClientContext', ...[...binders].sort(), 'createBoundClient']
       .map((name) => `  ${name},\n`)
@@ -236,9 +225,7 @@ export function buildReactQueryWrapperSource(params: {
     `  type ApiClientContextValue,\n` +
     `} from '${runtimeImport}';\n\n` +
     `export type * from '${typesImport}';\n` +
-    (ownsInputSchema
-      ? '\n'
-      : `export type { InputSchema } from '${runtimeImport}';\n\n`) +
+    (ownsInputSchema ? '\n' : `export type { InputSchema } from '${runtimeImport}';\n\n`) +
     `const _CTX = Symbol('nestjs-endpoints:client-ctx');\n\n` +
     `const _build = (_ctx: ApiClientContextValue) => {\n` +
     `  const { request: _request, axios: _axios } = _ctx;\n` +

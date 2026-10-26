@@ -11,10 +11,7 @@ export default endpoint.query({
   }),
   output: z.number(),
   inject: {
-    appointmentsRepository: decorated<IAppointmentRepository>(
-      Inject(AppointmentRepositoryToken),
-    ),
+    appointmentsRepository: decorated<IAppointmentRepository>(Inject(AppointmentRepositoryToken)),
   },
-  handler: ({ input, appointmentsRepository }) =>
-    appointmentsRepository.count(input.userId),
+  handler: ({ input, appointmentsRepository }) => appointmentsRepository.count(input.userId),
 });

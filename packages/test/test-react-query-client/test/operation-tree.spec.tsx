@@ -1,8 +1,4 @@
-import {
-  QueryClient,
-  QueryClientProvider,
-  useMutation,
-} from '@tanstack/react-query';
+import { QueryClient, QueryClientProvider, useMutation } from '@tanstack/react-query';
 import { render, renderHook, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import React, { useMemo } from 'react';
@@ -23,26 +19,18 @@ const unreachable = createApiClient({ baseURL: 'http://127.0.0.1:1' });
 
 const networkError = { isAxiosError: true, code: 'ERR_NETWORK' };
 
-function withQueryClient({ children }: { children: React.ReactNode }) {
+function WithQueryClient({ children }: { children: React.ReactNode }) {
   const queryClient = useMemo(() => new QueryClient(), []);
-  return (
-    <QueryClientProvider client={queryClient}>
-      {children}
-    </QueryClientProvider>
-  );
+  return <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>;
 }
 
 describe('the operation tree', () => {
   test('queryOptions calls through its own client instance', async () => {
     const queryClient = new QueryClient();
-    await expect(loadGreeting(queryClient, api, 'Ana')).resolves.toBe(
+    await expect(loadGreeting(queryClient, api, 'Ana')).resolves.toBe('Hello, Ana!');
+    expect(queryClient.getQueryData(api.greet.queryKey({ body: { name: 'Ana' } }))).toBe(
       'Hello, Ana!',
     );
-    expect(
-      queryClient.getQueryData(
-        api.greet.queryKey({ body: { name: 'Ana' } }),
-      ),
-    ).toBe('Hello, Ana!');
 
     await expect(
       new QueryClient().fetchQuery({
@@ -67,10 +55,9 @@ describe('the operation tree', () => {
       tags: [],
     });
 
-    const { result } = renderHook(
-      () => useMutation(unreachable.profileUpdate.mutationOptions()),
-      { wrapper: withQueryClient },
-    );
+    const { result } = renderHook(() => useMutation(unreachable.profileUpdate.mutationOptions()), {
+      wrapper: WithQueryClient,
+    });
     await expect(
       result.current.mutateAsync({ body: { name: 'Ana', address: null } }),
     ).rejects.toMatchObject(networkError);
@@ -81,21 +68,13 @@ describe('the operation tree', () => {
       required: string[];
       properties: Record<string, Record<string, unknown>>;
     };
-    expect(input.required).toEqual(
-      expect.arrayContaining(['name', 'address']),
-    );
+    expect(input.required).toEqual(expect.arrayContaining(['name', 'address']));
     for (const optional of ['nickname', 'theme', 'tags']) {
       expect(input.required).not.toContain(optional);
     }
     expect(input.properties.theme.default).toBe('system');
-    expect(input.properties.theme.enum).toEqual([
-      'light',
-      'dark',
-      'system',
-    ]);
-    expect(JSON.stringify(input.properties.nickname)).toContain(
-      '{"type":"null"}',
-    );
+    expect(input.properties.theme.enum).toEqual(['light', 'dark', 'system']);
+    expect(JSON.stringify(input.properties.nickname)).toContain('{"type":"null"}');
     // Self-contained: nothing points back into the OpenAPI document.
     expect(JSON.stringify(input)).not.toContain('"$ref"');
     expect(JSON.stringify(input)).not.toContain('#/components/');
@@ -115,10 +94,7 @@ describe('the operation tree', () => {
       },
     });
     // Both sides of a request that carries both.
-    expect(Object.keys(api.search.schemas).sort()).toEqual([
-      'input',
-      'query',
-    ]);
+    expect(Object.keys(api.search.schemas).sort()).toEqual(['input', 'query']);
     expect(api.search.schemas.query).toMatchObject({
       properties: { page: { type: 'integer', default: 1 } },
     });
@@ -147,14 +123,10 @@ describe('the operation tree', () => {
   });
 
   test('the request type is the input side', () => {
-    type Body = NonNullable<
-      Parameters<typeof api.profileUpdate>[0]
-    >['body'];
+    type Body = NonNullable<Parameters<typeof api.profileUpdate>[0]>['body'];
     // Defaulted and nullish fields may be left out of what a form sends.
     expectTypeOf<{ name: string; address: null }>().toExtend<Body>();
-    expectTypeOf(api.profileUpdate.schemas.input).toEqualTypeOf<
-      InputSchema<Body>
-    >();
+    expectTypeOf(api.profileUpdate.schemas.input).toEqualTypeOf<InputSchema<Body>>();
     // The call keeps its own generic signature beside the tree.
     expectTypeOf(api.greet).toBeCallableWith({
       body: { name: 'Ana' },

@@ -8,16 +8,10 @@ export function ProfilePage() {
 
   return (
     <div>
-      <button
-        onClick={() =>
-          save.mutate({ body: { name: ' Ana ', address: null } })
-        }
-      >
+      <button type="button" onClick={() => save.mutate({ body: { name: ' Ana ', address: null } })}>
         Save
       </button>
-      {save.data && (
-        <pre data-testid="saved">{JSON.stringify(save.data)}</pre>
-      )}
+      {save.data && <pre data-testid="saved">{JSON.stringify(save.data)}</pre>}
     </div>
   );
 }

@@ -4,8 +4,7 @@ import { buildClientObjectExpression } from './buckets.js';
 
 /** A minimal descriptor for the bucket builder. */
 function descriptor(
-  fields: Pick<EndpointDescriptor, 'operationId'> &
-    Partial<EndpointDescriptor>,
+  fields: Pick<EndpointDescriptor, 'operationId'> & Partial<EndpointDescriptor>,
 ): EndpointDescriptor {
   return {
     kind: 'query',
@@ -115,10 +114,8 @@ describe('buildClientObjectExpression', () => {
   });
 
   test('tells each operation whether it carries request data', () => {
-    const target = (
-      src: string,
-      t: { method: string; hasRequest: boolean },
-    ) => `${src}:${t.method}:${t.hasRequest}`;
+    const target = (src: string, t: { method: string; hasRequest: boolean }) =>
+      `${src}:${t.method}:${t.hasRequest}`;
     const expr = buildClientObjectExpression({
       descriptors: [
         descriptor({ operationId: 'None', path: '/none' }),
@@ -162,8 +159,7 @@ describe('buildClientObjectExpression', () => {
   });
 
   test('a query carries request data only through its search parameters', () => {
-    const target = (src: string, t: { hasRequest: boolean }) =>
-      `${src}:${t.hasRequest}`;
+    const target = (src: string, t: { hasRequest: boolean }) => `${src}:${t.hasRequest}`;
     const expr = buildClientObjectExpression({
       descriptors: [
         // `query: z.object({})`: no search parameters, which Kubb gives no

@@ -15,9 +15,7 @@ test('a nested router evaluated before its parent still mounts under it', async 
   const { app } = await createApp(moduleFixture);
   app.useLogger(false);
   try {
-    await request(app.getHttpServer())
-      .post('/shop/category/list')
-      .expect(200);
+    await request(app.getHttpServer()).post('/shop/category/list').expect(200);
     const { document } = await setupOpenAPI(app);
     expect(document.paths['/shop/category/list'].post).toMatchObject({
       'x-namespace': ['shop', 'category'],

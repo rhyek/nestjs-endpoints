@@ -32,10 +32,7 @@ import {
   EndpointDescriptor,
   toOpenApiPath,
 } from './descriptors.js';
-import {
-  ZodSerializationException,
-  ZodValidationException,
-} from './exceptions.js';
+import { ZodSerializationException, ZodValidationException } from './exceptions.js';
 import {
   getCallsiteFile,
   getEndpointHttpPath,
@@ -63,21 +60,16 @@ type EndpointMethod = keyof typeof httpMethodDecorators;
  */
 export type EndpointKind = 'query' | 'mutation';
 
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
 class WithDecorator<_T> {
   constructor(public decorator: PropertyDecorator | ParameterDecorator) {}
 }
 
-export function decorated<T = any>(
-  decorator: PropertyDecorator | ParameterDecorator,
-) {
+export function decorated<T = any>(decorator: PropertyDecorator | ParameterDecorator) {
   return new WithDecorator<T>(decorator);
 }
 
-export type InjectProvidersMap =
-  Record<string, Type<any> | WithDecorator<any>> | undefined;
-export type InjectOnRequestMap =
-  Record<string, WithDecorator<any>> | undefined;
+export type InjectProvidersMap = Record<string, Type | WithDecorator<any>> | undefined;
+export type InjectOnRequestMap = Record<string, WithDecorator<any>> | undefined;
 
 type MaybePromise<T> = T | Promise<T>;
 
@@ -89,13 +81,10 @@ class SchemaDef<S extends Schema = Schema> {
     public description: string | undefined,
   ) {}
 }
-type ExtractSchemaFromSchemaDef<S extends Schema | SchemaDef<Schema>> =
+type ExtractSchemaFromSchemaDef<S extends Schema | SchemaDef> =
   S extends SchemaDef<infer _S> ? _S : S;
 
-export function schema<S extends Schema>(
-  schema: S,
-  spec?: { description?: string },
-) {
+export function schema<S extends Schema>(schema: S, spec?: { description?: string }) {
   return new SchemaDef<S>(schema, spec?.description);
 }
 
@@ -108,11 +97,9 @@ function unwrapSchema<S extends Schema>(s: S | SchemaDef<S>): S {
  * A `params` or `query` schema: an object, bare or behind a transform or
  * preprocess.
  */
-type ObjectSchemaUnion =
-  ObjectSchemaLike | SchemaDef<ObjectSchemaLike> | undefined;
+type ObjectSchemaUnion = ObjectSchemaLike | SchemaDef<ObjectSchemaLike> | undefined;
 
-type OutputSchemaUnion =
-  Schema | SchemaDef | Record<number, Schema | SchemaDef> | undefined;
+type OutputSchemaUnion = Schema | SchemaDef | Record<number, Schema | SchemaDef> | undefined;
 
 type OutputMap<OS extends OutputSchemaUnion> = OS extends undefined
   ? never
@@ -122,13 +109,9 @@ type OutputMap<OS extends OutputSchemaUnion> = OS extends undefined
       ? { [k in keyof OS & number]: ExtractSchemaFromSchemaDef<OS[k]> }
       : never;
 
-type OutputMapKey<OS extends OutputSchemaUnion> = keyof OutputMap<OS> &
-  number;
+type OutputMapKey<OS extends OutputSchemaUnion> = keyof OutputMap<OS> & number;
 
-type OutputMapValue<
-  OS extends OutputSchemaUnion,
-  K extends OutputMapKey<OS>,
-> = OS extends undefined
+type OutputMapValue<OS extends OutputSchemaUnion, K extends OutputMapKey<OS>> = OS extends undefined
   ? any
   : OutputMap<OS>[K] extends Schema
     ? z.input<OutputMap<OS>[K]>
@@ -142,10 +125,7 @@ export class EndpointResponse<Status extends number = any, Body = any> {
 }
 
 type OutputMapResponseUnion<OS extends OutputSchemaUnion> = {
-  [Status in OutputMapKey<OS>]: EndpointResponse<
-    Status,
-    OutputMapValue<OS, Status>
-  >;
+  [Status in OutputMapKey<OS>]: EndpointResponse<Status, OutputMapValue<OS, Status>>;
 }[keyof OutputMap<OS> & number];
 
 /**
@@ -154,20 +134,14 @@ type OutputMapResponseUnion<OS extends OutputSchemaUnion> = {
  * `OutputMapValue`, which describes what a handler may hand *in*
  * (pre-transform).
  */
-type OutputMapBody<
-  OS extends OutputSchemaUnion,
-  K extends OutputMapKey<OS>,
-> = OS extends undefined
+type OutputMapBody<OS extends OutputSchemaUnion, K extends OutputMapKey<OS>> = OS extends undefined
   ? any
   : OutputMap<OS>[K] extends Schema
     ? z.output<OutputMap<OS>[K]>
     : never;
 
 type InvokeResponseUnion<OS extends OutputSchemaUnion> = {
-  [Status in OutputMapKey<OS>]: EndpointResponse<
-    Status,
-    OutputMapBody<OS, Status>
-  >;
+  [Status in OutputMapKey<OS>]: EndpointResponse<Status, OutputMapBody<OS, Status>>;
 }[keyof OutputMap<OS> & number];
 
 /**
@@ -198,9 +172,7 @@ type HandlerMethod<
   params: (InjectProviders extends undefined
     ? object
     : {
-        [
-          p in keyof InjectProviders
-        ]: InjectProviders[p] extends WithDecorator<infer ParameterType>
+        [p in keyof InjectProviders]: InjectProviders[p] extends WithDecorator<infer ParameterType>
           ? ParameterType
           : InjectProviders[p] extends Type<infer ParameterType>
             ? ParameterType
@@ -211,33 +183,25 @@ type HandlerMethod<
       : {
           [
             p in keyof InjectOnRequestParameters
-          ]: InjectOnRequestParameters[p] extends WithDecorator<
-            infer ParameterType
-          >
+          ]: InjectOnRequestParameters[p] extends WithDecorator<infer ParameterType>
             ? ParameterType
             : never;
         }) &
     (InputSchema extends undefined
       ? object
       : {
-          input: z.output<
-            ExtractSchemaFromSchemaDef<NonNullable<InputSchema>>
-          >;
+          input: z.output<ExtractSchemaFromSchemaDef<NonNullable<InputSchema>>>;
           rawInput: unknown;
         }) &
     (ParamsSchema extends undefined
       ? object
       : {
-          params: z.output<
-            ExtractSchemaFromSchemaDef<NonNullable<ParamsSchema>>
-          >;
+          params: z.output<ExtractSchemaFromSchemaDef<NonNullable<ParamsSchema>>>;
         }) &
     (QuerySchema extends undefined
       ? object
       : {
-          query: z.output<
-            ExtractSchemaFromSchemaDef<NonNullable<QuerySchema>>
-          >;
+          query: z.output<ExtractSchemaFromSchemaDef<NonNullable<QuerySchema>>>;
         }) & {
       response: <
         Status extends OutputMapKey<OutputSchema>,
@@ -256,9 +220,7 @@ type HandlerMethod<
         (ParamsSchema extends undefined
           ? object
           : {
-              params: ExtractSchemaFromSchemaDef<
-                NonNullable<ParamsSchema>
-              >;
+              params: ExtractSchemaFromSchemaDef<NonNullable<ParamsSchema>>;
             }) &
         (QuerySchema extends undefined
           ? object
@@ -271,14 +233,12 @@ type HandlerMethod<
   : OutputSchema extends Record<number, Schema | SchemaDef>
     ? MaybePromise<OutputMapResponseUnion<OutputSchema>>
     : OutputSchema extends Schema
-      ? MaybePromise<
-          | z.input<NonNullable<OutputSchema>>
-          | OutputMapResponseUnion<OutputSchema>
-        >
+      ? MaybePromise<z.input<NonNullable<OutputSchema>> | OutputMapResponseUnion<OutputSchema>>
       : never;
 
-type QueryInput<QuerySchema extends Schema | SchemaDef | undefined> =
-  z.input<ExtractSchemaFromSchemaDef<NonNullable<QuerySchema>>>;
+type QueryInput<QuerySchema extends Schema | SchemaDef | undefined> = z.input<
+  ExtractSchemaFromSchemaDef<NonNullable<QuerySchema>>
+>;
 
 type InvokeOptions<
   ParamsSchema extends Schema | SchemaDef | undefined = undefined,
@@ -286,9 +246,7 @@ type InvokeOptions<
 > = (ParamsSchema extends undefined
   ? object
   : {
-      params: z.input<
-        ExtractSchemaFromSchemaDef<NonNullable<ParamsSchema>>
-      >;
+      params: z.input<ExtractSchemaFromSchemaDef<NonNullable<ParamsSchema>>>;
     }) &
   (QuerySchema extends undefined
     ? object
@@ -325,26 +283,18 @@ type InvokeMethod<
       ? (
           opts?: InvokeOptions<ParamsSchema, QuerySchema>,
         ) => MaybePromise<InvokeReturn<OutputSchema>>
-      : (
-          opts: InvokeOptions<ParamsSchema, QuerySchema>,
-        ) => MaybePromise<InvokeReturn<OutputSchema>>
+      : (opts: InvokeOptions<ParamsSchema, QuerySchema>) => MaybePromise<InvokeReturn<OutputSchema>>
   : [ParamsSchema, QuerySchema] extends [undefined, undefined]
     ? (
-        rawInput: z.input<
-          ExtractSchemaFromSchemaDef<NonNullable<InputSchema>>
-        >,
+        rawInput: z.input<ExtractSchemaFromSchemaDef<NonNullable<InputSchema>>>,
       ) => MaybePromise<InvokeReturn<OutputSchema>>
     : InvokeOptionsOptional<ParamsSchema, QuerySchema> extends true
       ? (
-          rawInput: z.input<
-            ExtractSchemaFromSchemaDef<NonNullable<InputSchema>>
-          >,
+          rawInput: z.input<ExtractSchemaFromSchemaDef<NonNullable<InputSchema>>>,
           opts?: InvokeOptions<ParamsSchema, QuerySchema>,
         ) => MaybePromise<InvokeReturn<OutputSchema>>
       : (
-          rawInput: z.input<
-            ExtractSchemaFromSchemaDef<NonNullable<InputSchema>>
-          >,
+          rawInput: z.input<ExtractSchemaFromSchemaDef<NonNullable<InputSchema>>>,
           opts: InvokeOptions<ParamsSchema, QuerySchema>,
         ) => MaybePromise<InvokeReturn<OutputSchema>>;
 
@@ -370,27 +320,16 @@ type EndpointControllerClass<
    * carries the raw path or search parameters
    * (`{ params: { ... }, query: { ... } }`).
    */
-  invoke: InvokeMethod<
-    InputSchema,
-    ParamsSchema,
-    QuerySchema,
-    OutputSchema
-  >;
+  invoke: InvokeMethod<InputSchema, ParamsSchema, QuerySchema, OutputSchema>;
 }>;
 
 /** Both maps' entries, when either may be `undefined`. */
-type MergeInjections<A, B> = A extends undefined
-  ? B
-  : B extends undefined
-    ? A
-    : A & B;
+type MergeInjections<A, B> = A extends undefined ? B : B extends undefined ? A : A & B;
 
 /** The keys a router injects, which its endpoints may not declare again. */
 type RouterInjectedKeys<RouterInject, RouterInjectOnRequest> =
   | (RouterInject extends undefined ? never : keyof RouterInject)
-  | (RouterInjectOnRequest extends undefined
-      ? never
-      : keyof RouterInjectOnRequest);
+  | (RouterInjectOnRequest extends undefined ? never : keyof RouterInjectOnRequest);
 
 // A key `Map` may not declare is typed as a message naming it, so the error
 // reads as the cause. `NoInfer` keeps the maps inferred from what they
@@ -399,12 +338,11 @@ export type WithoutKeys<Map, Keys, Reason extends string> = Map & {
   [K in keyof NoInfer<Map> & NoInfer<Keys>]: `\`${K & string}\` ${Reason}`;
 };
 
-type WithoutRouterKeys<Map, RouterInject, RouterInjectOnRequest> =
-  WithoutKeys<
-    Map,
-    RouterInjectedKeys<RouterInject, RouterInjectOnRequest>,
-    'is already injected by its router'
-  >;
+type WithoutRouterKeys<Map, RouterInject, RouterInjectOnRequest> = WithoutKeys<
+  Map,
+  RouterInjectedKeys<RouterInject, RouterInjectOnRequest>,
+  'is already injected by its router'
+>;
 
 type EndpointOptions<
   InjectProviders extends InjectProvidersMap,
@@ -501,9 +439,7 @@ type EndpointOptions<
    * })
    * ```
    */
-  output?: OutputSchema extends ZodNull | ZodNullable<any>
-    ? never
-    : OutputSchema;
+  output?: OutputSchema extends ZodNull | ZodNullable<any> ? never : OutputSchema;
   /**
    * Inject controller providers at class instance level.
    *
@@ -525,11 +461,7 @@ type EndpointOptions<
    * })
    * ```
    */
-  inject?: WithoutRouterKeys<
-    InjectProviders,
-    RouterInject,
-    RouterInjectOnRequest
-  >;
+  inject?: WithoutRouterKeys<InjectProviders, RouterInject, RouterInjectOnRequest>;
   /**
    * Inject parameters at request time (e.g. `@Req()`, `@Session()`).
    *
@@ -558,11 +490,7 @@ type EndpointOptions<
   /**
    * @deprecated Use `injectOnRequest` instead.
    */
-  injectMethod?: WithoutRouterKeys<
-    InjectOnRequestParameters,
-    RouterInject,
-    RouterInjectOnRequest
-  >;
+  injectMethod?: WithoutRouterKeys<InjectOnRequestParameters, RouterInject, RouterInjectOnRequest>;
   /**
    * @deprecated Use `injectOnRequest` instead.
    */
@@ -688,10 +616,8 @@ export type EndpointBuilders<
 export const endpoint: EndpointBuilders = {
   // The builders' generics only shape the types; `defineEndpoint` sees the
   // options as plain values.
-  query: (params) =>
-    defineEndpoint('query', getCallsiteFile(), params as any),
-  mutation: (params) =>
-    defineEndpoint('mutation', getCallsiteFile(), params as any),
+  query: (params) => defineEndpoint('query', getCallsiteFile(), params as any),
+  mutation: (params) => defineEndpoint('mutation', getCallsiteFile(), params as any),
 };
 
 /** An endpoint's `injectOnRequest`, or the deprecated name it gave it. */
@@ -700,9 +626,7 @@ function injectOnRequestOf(params: {
   injectMethod?: InjectOnRequestMap;
   injectAtRequest?: InjectOnRequestMap;
 }): InjectOnRequestMap {
-  return (
-    params.injectOnRequest ?? params.injectMethod ?? params.injectAtRequest
-  );
+  return params.injectOnRequest ?? params.injectMethod ?? params.injectAtRequest;
 }
 
 /**
@@ -716,18 +640,14 @@ export function createRouterEndpoint(
   inject: InjectProvidersMap,
   injectOnRequest: InjectOnRequestMap,
 ): EndpointBuilders<any, any> {
-  const inBoth = Object.keys(inject ?? {}).find((key) =>
-    Object.hasOwn(injectOnRequest ?? {}, key),
-  );
+  const inBoth = Object.keys(inject ?? {}).find((key) => Object.hasOwn(injectOnRequest ?? {}, key));
   if (inBoth) {
     throw new Error(
       `EndpointRouterModule.create() in ${routerFile}: \`${inBoth}\` is in ` +
         'both `inject` and `injectOnRequest`.',
     );
   }
-  const routerKeys = new Set(
-    Object.keys({ ...inject, ...injectOnRequest }),
-  );
+  const routerKeys = new Set(Object.keys({ ...inject, ...injectOnRequest }));
   if (routerKeys.size === 0) {
     return endpoint;
   }
@@ -813,18 +733,9 @@ function defineEndpoint(
   }
   const injectOnRequest = injectOnRequestOf(params);
   class cls {}
-  const setupFn: EndpointSetupFn = ({
-    rootDirectories,
-    basePath,
-    namespaceChain,
-    routerFile,
-  }) => {
+  const setupFn: EndpointSetupFn = ({ rootDirectories, basePath, namespaceChain, routerFile }) => {
     // Before anything is applied: a listed endpoint may be set up again.
-    if (
-      builderRouterFile &&
-      routerFile &&
-      !isSameModule(builderRouterFile, routerFile)
-    ) {
+    if (builderRouterFile && routerFile && !isSameModule(builderRouterFile, routerFile)) {
       const shown = (f: string) => path.relative(process.cwd(), f);
       throw new Error(
         `${shown(file)} is built with the endpoint of ` +
@@ -884,10 +795,9 @@ function defineEndpoint(
     const paramsKey = Symbol('params');
     const queryKey = Symbol('query');
     const resKey = Symbol('res');
-    const methodParamDecorators: Record<
-      string | symbol,
-      ParameterDecorator
-    >[] = [{ [resKey]: Res({ passthrough: true }) }];
+    const methodParamDecorators: Record<string | symbol, ParameterDecorator>[] = [
+      { [resKey]: Res({ passthrough: true }) },
+    ];
     if (inputSchema) {
       methodParamDecorators.push({
         [inputKey]: Body(),
@@ -911,13 +821,9 @@ function defineEndpoint(
       if (outputSchemas) {
         const schema = outputSchemas[endpointResponse.status];
         if (!schema) {
-          throw new Error(
-            `Did not find schema for status code ${endpointResponse.status}`,
-          );
+          throw new Error(`Did not find schema for status code ${endpointResponse.status}`);
         }
-        const parsed = unwrapSchema(schema).safeParse(
-          endpointResponse.body,
-        );
+        const parsed = unwrapSchema(schema).safeParse(endpointResponse.body);
         if (parsed.error) {
           throw new ZodSerializationException(parsed.error);
         }
@@ -975,10 +881,7 @@ function defineEndpoint(
     };
 
     // invoke method
-    (cls.prototype as any).invoke = async function (
-      rawInputOrOpts?: any,
-      maybeOpts?: any,
-    ) {
+    (cls.prototype as any).invoke = async function (rawInputOrOpts?: any, maybeOpts?: any) {
       // When the endpoint has no `input` schema, callers can pass the
       // options object as the first argument: `invoke({ params, query })`.
       const rawInput = inputSchema ? rawInputOrOpts : undefined;
@@ -1008,13 +911,12 @@ function defineEndpoint(
 
     // handler method
     (cls.prototype as any).handler = async function (...params: any[]) {
-      const injectedMethodParams: Record<string | symbol, any> =
-        Object.fromEntries(
-          methodParamDecorators.map((p, i) => {
-            const key = Reflect.ownKeys(p)[0];
-            return [key, params[i]] as const;
-          }),
-        );
+      const injectedMethodParams: Record<string | symbol, any> = Object.fromEntries(
+        methodParamDecorators.map((p, i) => {
+          const key = Reflect.ownKeys(p)[0];
+          return [key, params[i]] as const;
+        }),
+      );
       const handlerParams: Record<string | symbol, any> = {
         response,
         schemas: {},
@@ -1076,9 +978,7 @@ function defineEndpoint(
       // parameters (`:id`) are dropped so the tag stays a clean folder
       // name like `recipes` rather than `recipes/:id`.
       if (httpPathSegments.length > 1) {
-        const tagSegments = httpPathSegments
-          .slice(0, -1)
-          .filter((s) => !s.startsWith(':'));
+        const tagSegments = httpPathSegments.slice(0, -1).filter((s) => !s.startsWith(':'));
         if (tagSegments.length > 0) {
           return tagSegments.join('/');
         }
@@ -1096,9 +996,7 @@ function defineEndpoint(
       // Every endpoint is a POST unless it says otherwise, so the method
       // does not tell a generator reading the document which it is.
       ApiExtension('x-endpoint-kind', kind),
-      ...(namespaceChain.length > 0
-        ? [ApiExtension('x-namespace', namespaceChain)]
-        : []),
+      ...(namespaceChain.length > 0 ? [ApiExtension('x-namespace', namespaceChain)] : []),
       httpMethodDecorators[httpMethod](''),
       // The handler sets the status itself; this is the one the OpenAPI
       // document gives an endpoint without `output`, which a POST would
@@ -1112,11 +1010,7 @@ function defineEndpoint(
     let descriptorInput: ConvertedSchema | undefined;
     let descriptorQuery: EndpointDescriptor['query'];
     if (inputSchema) {
-      const converted = toJsonSchema(
-        inputSchema,
-        'input',
-        httpPathPascalName + 'Input',
-      );
+      const converted = toJsonSchema(inputSchema, 'input', httpPathPascalName + 'Input');
       descriptorInput = {
         json: converted.schema,
         components: converted.components,
@@ -1124,10 +1018,7 @@ function defineEndpoint(
       methodDecorators.push(ApiBody({ schema: converted.schema }));
     }
     if (querySchema) {
-      const converted = convertObject(
-        querySchema,
-        `The query of ${endpointLabel}`,
-      );
+      const converted = convertObject(querySchema, `The query of ${endpointLabel}`);
       descriptorQuery = {
         json: converted.schema,
         components: converted.components,
@@ -1146,10 +1037,7 @@ function defineEndpoint(
     const paramSchemas = new Map<string, JsonSchema>();
     let descriptorParams: ConvertedSchema | undefined;
     if (paramsSchema) {
-      const converted = convertObject(
-        paramsSchema as any,
-        `The params of ${endpointLabel}`,
-      );
+      const converted = convertObject(paramsSchema as any, `The params of ${endpointLabel}`);
       descriptorParams = {
         json: converted.schema,
         components: converted.components,
@@ -1157,25 +1045,15 @@ function defineEndpoint(
       for (const p of converted.parameters) {
         paramSchemas.set(p.name, p.schema);
         // Path parameters are always required in OpenAPI.
-        methodDecorators.push(
-          ApiParam({ name: p.name, required: true, schema: p.schema }),
-        );
+        methodDecorators.push(ApiParam({ name: p.name, required: true, schema: p.schema }));
       }
     }
     const descriptorOutputs: EndpointDescriptor['outputs'] = [];
     if (outputSchemas) {
       for (const [status, schema] of Object.entries(outputSchemas)) {
-        const schemaName =
-          httpPathPascalName +
-          `${status === '200' ? '' : status}` +
-          'Output';
-        const converted = toJsonSchema(
-          unwrapSchema(schema),
-          'output',
-          schemaName,
-        );
-        const description =
-          schema instanceof SchemaDef ? schema.description : undefined;
+        const schemaName = httpPathPascalName + (status === '200' ? '' : status) + 'Output';
+        const converted = toJsonSchema(unwrapSchema(schema), 'output', schemaName);
+        const description = schema instanceof SchemaDef ? schema.description : undefined;
         descriptorOutputs.push({
           status: Number(status),
           description,
@@ -1194,10 +1072,7 @@ function defineEndpoint(
       }
     }
     const methodDecorator = applyDecorators(...methodDecorators);
-    const descriptor = Object.getOwnPropertyDescriptor(
-      cls.prototype,
-      'handler',
-    );
+    const descriptor = Object.getOwnPropertyDescriptor(cls.prototype, 'handler');
     methodDecorator(cls.prototype, 'handler', descriptor);
     Reflect.defineMetadata('endpoints:path', httpPath, cls);
     const endpointDescriptor: EndpointDescriptor = {
@@ -1222,11 +1097,7 @@ function defineEndpoint(
       ...(descriptorInput ? { input: descriptorInput } : {}),
       outputs: descriptorOutputs,
     };
-    Reflect.defineMetadata(
-      DESCRIPTOR_METADATA_KEY,
-      endpointDescriptor,
-      cls,
-    );
+    Reflect.defineMetadata(DESCRIPTOR_METADATA_KEY, endpointDescriptor, cls);
   };
   Reflect.defineMetadata('endpoints:setupFn', setupFn, cls);
   if (moduleAls.getStore()) {

@@ -17,14 +17,10 @@ export class AppointmentRepository {
   }
 
   hasConflict(date: Date) {
-    return this.appointments.some(
-      (appointment) => appointment.date.getTime() === date.getTime(),
-    );
+    return this.appointments.some((appointment) => appointment.date.getTime() === date.getTime());
   }
 
   count(userId: number) {
-    return this.appointments.filter(
-      (appointment) => appointment.userId === userId,
-    ).length;
+    return this.appointments.filter((appointment) => appointment.userId === userId).length;
   }
 }

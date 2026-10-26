@@ -52,20 +52,13 @@ describe('scanRoutingFiles', () => {
       'b.endpoint.mts',
       'c.endpoint.js',
     ]);
-    expect(scanRoutingFiles(dir)).toEqual([
-      'a.endpoint.ts',
-      'b.endpoint.mts',
-      'c.endpoint.js',
-    ]);
+    expect(scanRoutingFiles(dir)).toEqual(['a.endpoint.ts', 'b.endpoint.mts', 'c.endpoint.js']);
   });
 
   test('follows symlinked directories', () => {
     const dir = tree(['real/x.endpoint.ts']);
     fs.symlinkSync(path.join(dir, 'real'), path.join(dir, 'linked'));
-    expect(scanRoutingFiles(dir)).toEqual([
-      'linked/x.endpoint.ts',
-      'real/x.endpoint.ts',
-    ]);
+    expect(scanRoutingFiles(dir)).toEqual(['linked/x.endpoint.ts', 'real/x.endpoint.ts']);
   });
 
   test('a missing directory has no files', () => {
