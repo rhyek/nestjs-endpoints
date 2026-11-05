@@ -1,4 +1,5 @@
-import ts from 'typescript';
+import { createVirtualFileSystem } from 'typescript/unstable/fs';
+import { API } from 'typescript/unstable/sync';
 import { describe, expect, test } from 'vitest';
 import { z } from 'zod';
 import type { EndpointDescriptor } from '../../descriptors.js';
@@ -31,6 +32,24 @@ const collect = (descriptors: EndpointDescriptor[], schemas: Record<string, Json
   collectInputSchemas(descriptors, { schemas, renamed: new Map() });
 
 const ref = (name: string) => ({ $ref: `#/components/schemas/${name}` });
+
+/** TypeScript's syntax errors in `source`, parsed as a `.ts` file. */
+function syntaxErrors(source: string): string[] {
+  const config = '/virtual/tsconfig.json';
+  const file = '/virtual/schemas.ts';
+  const api = new API({
+    fs: createVirtualFileSystem({
+      [config]: JSON.stringify({ files: [file] }),
+      [file]: source,
+    }),
+  });
+  try {
+    const { program } = api.updateSnapshot({ openProjects: [config] }).getProject(config)!;
+    return program.getSyntacticDiagnostics(file).map((d) => d.text);
+  } finally {
+    api.close();
+  }
+}
 
 describe('collectInputSchemas', () => {
   test('a body input is the request body schema, with its $ref resolved', () => {
@@ -342,9 +361,6 @@ describe('buildSchemasModuleSource', () => {
     );
     expect(source).toContain(`import type { InputSchema } from './client-runtime';`);
     expect(source).toContain(`import type { AuthLoginOptions, GreetOptions } from './types';`);
-    const { diagnostics } = ts.transpileModule(source, {
-      reportDiagnostics: true,
-    });
-    expect(diagnostics).toEqual([]);
+    expect(syntaxErrors(source)).toEqual([]);
   });
 });

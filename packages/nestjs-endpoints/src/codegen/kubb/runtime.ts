@@ -65,6 +65,8 @@ export type RequestConfig = Omit<
   throwOnError?: boolean;
   /** The operation's security requirements; set credentials on the axios instance instead. */
   security?: ReadonlyArray<unknown>;
+  /** The body's media type, always JSON here, which axios infers from the body itself. */
+  contentType?: string | { request?: string; response?: string };
   /** Send this call through another client. */
   client?: Client;
 };
@@ -117,6 +119,7 @@ function clientFor(axios: AxiosInstance): Client {
       headers,
       throwOnError = true,
       security: _security,
+      contentType: _contentType,
       client: _client,
       ...rest
     } = config;

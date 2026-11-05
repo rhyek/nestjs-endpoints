@@ -1,6 +1,5 @@
 import {
   factory,
-  findCircularSchemas,
   inferDiscriminatorPropertyName,
   narrowSchema,
   optionality,
@@ -932,16 +931,7 @@ export function buildInputNode(params: {
     );
   });
 
-  return factory.createInput({
-    schemas,
-    operations,
-    meta: {
-      circularNames: [...findCircularSchemas(schemas)],
-      enumNames: schemas
-        .filter((s) => narrowSchema(s, 'enum') && s.name)
-        .map((s) => s.name as string),
-    },
-  });
+  return factory.createInput({ schemas, operations });
 }
 
 /** A Kubb adapter whose source is the `InputNode` built above. */

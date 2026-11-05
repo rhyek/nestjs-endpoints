@@ -1,7 +1,7 @@
 import { mkdtemp, readFile, readdir, rm } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import type { InputNode } from '@kubb/ast';
+import { findCircularSchemas, type InputNode } from '@kubb/ast';
 import { expect, test } from 'vitest';
 import { z } from 'zod';
 import type { EndpointDescriptor } from '../../descriptors.js';
@@ -757,7 +757,7 @@ test('a self-referencing schema is circular', () => {
       outputs: { 200: z.object({ value: z.json() }) },
     }),
   ]);
-  expect(input.meta.circularNames.length).toBeGreaterThan(0);
+  expect(findCircularSchemas(input.schemas).size).toBeGreaterThan(0);
 });
 
 test('an unknown keyword in a shared schema names an operation using it', () => {
@@ -893,37 +893,37 @@ test('Kubb prints the types and clients from the AST', { timeout: 60_000 }, asyn
 import type { ProfileAddress } from './ProfileAddress'
 
 export const profileUpdateInputThemeEnum = {
-    light: "light",
-    dark: "dark",
-    system: "system"
+  light: 'light',
+  dark: 'dark',
+  system: 'system',
 } as const;
 
 export type ProfileUpdateInputThemeEnumKey = (typeof profileUpdateInputThemeEnum)[keyof typeof profileUpdateInputThemeEnum];
 
 export type ProfileUpdateInput = {
-    /**
-     * @minLength 1
-     * @type string
-    */
-    name: string;
-    nickname?: (string | null);
-    /**
-     * @default 'system'
-     * @type string | undefined
-    */
-    theme?: ProfileUpdateInputThemeEnumKey;
-    address: (ProfileAddress | null);
-    /**
-     * @default []
-     * @type array | undefined
-    */
-    tags?: string[];
+  /**
+   * @minLength 1
+   * @type string
+   */
+  name: string;
+  nickname?: string | null;
+  /**
+   * @default 'system'
+   * @type string | undefined
+   */
+  theme?: ProfileUpdateInputThemeEnumKey;
+  address: ProfileAddress | null;
+  /**
+   * @default []
+   * @type array | undefined
+   */
+  tags?: string[];
 };
 `);
   expect(files['ProfileAddress.ts']).toBe(`${banner}
 export type ProfileAddress = {
-    street: string;
-    city: string;
+  street: string;
+  city: string;
 };
 `);
   expect(files['ProfileUpdate.ts']).toBe(`${banner}
@@ -935,49 +935,49 @@ export type ProfileUpdateStatus200 = ProfileUpdateOutput;
 export type ProfileUpdateBody = ProfileUpdateInput;
 
 export type ProfileUpdateOptions = {
-    body: ProfileUpdateBody;
-    path?: never;
-    query?: never;
-    headers?: never;
+  body: ProfileUpdateBody;
+  path?: never;
+  query?: never;
+  headers?: never;
 };
 
 export type ProfileUpdateResponses = {
-    "200": ProfileUpdateStatus200;
+  '200': ProfileUpdateStatus200;
 };
 
 /**
  * @description Union of all possible responses
-*/
+ */
 export type ProfileUpdateResponse = ProfileUpdateStatus200;
 `);
   expect(files['UserFind.ts']).toContain(`export type UserFindQuery = {
-    id: number;
-    at?: string;
+  id: number;
+  at?: string;
 };`);
   // Integers print as `number`, as JSON carries them.
   expect(files['UserFindOutput.ts']).toContain(`id: number;`);
   // A `.meta({ example })` field prints the type it would without it.
   expect(files['UserFindOutput.ts']).toMatch(
-    /\n {4}name: string;\n[\s\S]*\n {4}nickname: string;\n/,
+    /\n {2}name: string;\n[\s\S]*\n {2}nickname: string;\n/,
   );
   expect(files['RecipesView.ts']).toContain(`export type RecipesViewPath = {
-    recipeId: number;
+  recipeId: number;
 };`);
   expect(files['RecipesView.ts']).toContain(`export type RecipesViewStatus200 = unknown;`);
   // The input date is `string` either way, and `string | null` when
   // nullable; the output date is a date-time string.
   expect(files['UserAppointmentCreateInput.ts']).toContain(
     `export type UserAppointmentCreateInput = {
-    date: string;
-    until: (string | null);
+  date: string;
+  until: string | null;
 };`,
   );
   expect(files['UserAppointmentCreate201Output.ts']).toContain(`date: string;`);
   expect(files['UserAppointmentCreate400Output.ts']).toContain(
-    `export type UserAppointmentCreate400Output = (string | {
-    message: string;
-    errorCode: string;
-});`,
+    `export type UserAppointmentCreate400Output = string | {
+  message: string;
+  errorCode: string;
+};`,
   );
   // The request functions, as printed from today's document.
   expect(files['clients/userAppointmentCreate.ts']).toBe(`${banner}
@@ -992,7 +992,7 @@ import { client } from '../client-runtime'
 export function userAppointmentCreate<ThrowOnError extends boolean = true>(options: Options<UserAppointmentCreateOptions, ThrowOnError>): Promise<RequestResult<UserAppointmentCreateResponses, ThrowOnError>> {
   const { client: request = client, ...config } = options
 
-  return request({ method: 'POST', url: '/user/appointment/create', ...config, throwOnError: config.throwOnError ?? true }) as Promise<RequestResult<UserAppointmentCreateResponses, ThrowOnError>>
+  return request({ method: 'POST', url: '/user/appointment/create', contentType: { request: 'application/json' }, ...config, throwOnError: config.throwOnError ?? true }) as Promise<RequestResult<UserAppointmentCreateResponses, ThrowOnError>>
 }
 `);
   expect(files['clients/recipesView.ts']).toContain(`/**
@@ -1094,7 +1094,7 @@ test('a whole body that is a shared id names its enums after the body', async ()
   expect(files['PutUserInput.ts']).toContain('export const putUserInputRoleEnum');
   expect(files['User.ts']).toContain('export const userRoleEnum');
   expect(files['PutUserInput.ts']).toContain(`export type PutUserInput = {
-    readonly id: number;
-    role: PutUserInputRoleEnumKey;
+  readonly id: number;
+  role: PutUserInputRoleEnumKey;
 };`);
 }, 60_000);

@@ -13,6 +13,7 @@
 - **A router's `endpoints` takes a callback of `import()`s**, so endpoints listed by hand can use the router's `endpoint`. See [Router injections](README.md#router-injections).
 - **Endpoints declare search parameters with `query`, on any method**, and react-query operations carry them as `schemas.query`. See [Queries and mutations](README.md#queries-and-mutations).
 - **Each OpenAPI operation carries `x-endpoint-kind` (`query` or `mutation`)**, for generators run against the document. See [Manual codegen](README.md#manual-codegen-with-openapi-spec-file).
+- **Works with TypeScript 7 without installing TypeScript 6 alongside it.**
 
 ### Fixes
 

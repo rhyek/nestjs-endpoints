@@ -1,4 +1,5 @@
-import ts from 'typescript';
+import { createVirtualFileSystem } from 'typescript/unstable/fs';
+import { API } from 'typescript/unstable/sync';
 import { describe, expect, test } from 'vitest';
 import type { EndpointDescriptor } from '../../descriptors.js';
 import type { SharedSchemas } from '../../shared-schemas.js';
@@ -78,6 +79,24 @@ const source = buildReactQueryWrapperSource({
 
 /** The expression the wrapper assigns to `key`, up to the end of its line. */
 const entry = (key: string) => new RegExp(`^\\s*${key}: (.*),$`, 'm').exec(source)?.[1];
+
+/** TypeScript's syntax errors in `source`, parsed as a `.tsx` file. */
+function syntaxErrors(source: string): string[] {
+  const config = '/virtual/tsconfig.json';
+  const file = '/virtual/react-query-client.tsx';
+  const api = new API({
+    fs: createVirtualFileSystem({
+      [config]: JSON.stringify({ compilerOptions: { jsx: 'preserve' }, files: [file] }),
+      [file]: source,
+    }),
+  });
+  try {
+    const { program } = api.updateSnapshot({ openProjects: [config] }).getProject(config)!;
+    return program.getSyntacticDiagnostics(file).map((d) => d.text);
+  } finally {
+    api.close();
+  }
+}
 
 describe('buildReactQueryWrapperSource', () => {
   test('a query operation carries its query key and bound query options', () => {
@@ -332,11 +351,6 @@ describe('buildReactQueryWrapperSource', () => {
   });
 
   test('the emitted wrapper parses', () => {
-    const { diagnostics } = ts.transpileModule(source, {
-      fileName: 'react-query-client.tsx',
-      reportDiagnostics: true,
-      compilerOptions: { jsx: ts.JsxEmit.Preserve },
-    });
-    expect(diagnostics).toEqual([]);
+    expect(syntaxErrors(source)).toEqual([]);
   });
 });

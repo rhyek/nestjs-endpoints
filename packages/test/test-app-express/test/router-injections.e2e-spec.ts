@@ -3,7 +3,7 @@ import { Headers, INestApplication } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { decorated, endpoint, EndpointRouterModule } from 'nestjs-endpoints';
 import request from 'supertest';
-import ts from 'typescript';
+import { API, type Diagnostic } from 'typescript/unstable/sync';
 import { AppModule } from '../src/app.module';
 import misroutedRouter from '../src/misrouted/router.module';
 import workspaceRouter from '../src/workspace/router.module';
@@ -224,20 +224,32 @@ describe('the type error for a key the router already injects', () => {
  * app's tsconfig. Not on disk, so `tscheck` never sees the errors.
  */
 function typeErrors(source: string): string[] {
-  const configPath = path.resolve(import.meta.dirname, '../tsconfig.json');
-  const { config } = ts.readConfigFile(configPath, (f) => ts.sys.readFile(f));
-  const { options } = ts.parseJsonConfigFileContent(config, ts.sys, path.dirname(configPath));
+  const app = path.resolve(import.meta.dirname, '..');
   const file = path.join(import.meta.dirname, 'collision.virtual.ts');
-  const host = ts.createCompilerHost(options);
-  const getSourceFile = host.getSourceFile.bind(host);
-  host.getSourceFile = (name, languageVersion, ...rest) =>
-    name === file
-      ? ts.createSourceFile(name, source, languageVersion)
-      : getSourceFile(name, languageVersion, ...rest);
-  const fileExists = host.fileExists.bind(host);
-  host.fileExists = (name) => name === file || fileExists(name);
-  const program = ts.createProgram([file], options, host);
-  return ts
-    .getPreEmitDiagnostics(program, program.getSourceFile(file))
-    .map((d) => ts.flattenDiagnosticMessageText(d.messageText, '\n'));
+  // A project of just that file, on the app's own config.
+  const config = path.join(app, 'tsconfig.virtual.json');
+  const overlay = new Map([
+    [config, JSON.stringify({ extends: './tsconfig.json', files: [path.relative(app, file)] })],
+    [file, source],
+  ]);
+  const api = new API({
+    cwd: app,
+    // Anything not in the overlay is read from disk.
+    fs: {
+      readFile: (name) => overlay.get(name),
+      fileExists: (name) => overlay.has(name) || undefined,
+    },
+  });
+  try {
+    const { program } = api.updateSnapshot({ openProjects: [config] }).getProject(config)!;
+    return [...program.getSyntacticDiagnostics(file), ...program.getSemanticDiagnostics(file)].map(
+      messageText,
+    );
+  } finally {
+    api.close();
+  }
 }
+
+/** A diagnostic's message followed by the messages chained under it. */
+const messageText = (d: Diagnostic): string =>
+  [d.text, ...(d.messageChain ?? []).map(messageText)].join('\n');
