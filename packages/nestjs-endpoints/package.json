@@ -42,7 +42,7 @@
   },
   "sideEffects": false,
   "engines": {
-    "node": ">=24"
+    "node": ">=24.22"
   },
   "scripts": {
     "dev": "tsc-watch --preserveWatchOutput --onSuccess \"../../scripts/build.sh\"",

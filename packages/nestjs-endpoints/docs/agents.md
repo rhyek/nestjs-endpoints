@@ -36,7 +36,7 @@ surrounding code:
 
 ## 1. Requirements and hard constraints
 
-- Node.js >= 24, NestJS >= 12, TypeScript >= 6, Zod >= 4.1.
+- Node.js >= 24.22, NestJS >= 12, TypeScript >= 6, Zod >= 4.1.
 - **ESM-only.** The consuming project needs `"type": "module"`. CommonJS is not
   supported.
 - Peer deps: `@nestjs/common`, `@nestjs/core`, `@nestjs/swagger`, `zod`.

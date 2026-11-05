@@ -32,7 +32,7 @@
 - **`params` must be a Zod object schema, as `query` is.** Declare it as `z.object({ … })`, one key per path parameter.
 - **This package is now ESM-only.** Set `"type": "module"` in your project; CommonJS is no longer supported.
 - **NestJS >= 12 is required.** Run `nest upgrade` to migrate.
-- **Node.js >= 24 is required.**
+- **Node.js >= 24.22 is required.**
 - **TypeScript >= 6 is required.**
 - **File-based routing needs the endpoint manifest.** Run `npx nestjs-endpoints init`, then add `import './endpoints.gen.js';` to your app module, and commit `src/endpoints.gen.ts`.
 - **Generated client methods and hooks take one object that groups the request into `path`, `query` and `body`**, as in `client.recipesEdit({ path: { recipeId }, body: { name } })`. See [Codegen](README.md#codegen-optional).

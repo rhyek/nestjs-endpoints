@@ -56,7 +56,7 @@ Full runnable example [here](./examples/file-based-routing) — NestJS API with 
 
 ## Requirements
 
-- Node.js >= 24
+- Node.js >= 24.22
 - NestJS >= 12
 - TypeScript >= 6
 - Zod >= 4.1
