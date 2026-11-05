@@ -15,7 +15,7 @@ jobs:
       contents: write
       id-token: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Determine version
         id: version
@@ -38,10 +38,10 @@ jobs:
             echo "version=$version" >> "$GITHUB_OUTPUT"
           fi
 
-      - uses: asdf-vm/actions/install@v3
+      - uses: asdf-vm/actions/install@v4
         if: steps.version.outputs.should_release == 'true'
         with:
-          asdf_branch: v0.15.0
+          asdf_version: 0.16.7
 
       - if: steps.version.outputs.should_release == 'true'
         run: pnpm install --frozen-lockfile
@@ -67,7 +67,7 @@ jobs:
 
       - name: GitHub Release
         if: steps.version.outputs.should_release == 'true'
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           tag_name: ${{ steps.version.outputs.version }}
           target_commitish: ${{ github.sha }}

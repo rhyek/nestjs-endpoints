@@ -14,10 +14,10 @@ jobs:
     name: Checks
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: asdf-vm/actions/install@v3
+      - uses: actions/checkout@v7
+      - uses: asdf-vm/actions/install@v4
         with:
-          asdf_branch: v0.15.0
+          asdf_version: 0.16.7
       - run: pnpm install --frozen-lockfile
       - name: Format
         run: pnpm format:check
