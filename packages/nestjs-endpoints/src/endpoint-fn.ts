@@ -18,23 +18,18 @@ import {
 import { HttpAdapterHost } from '@nestjs/core';
 import { ApiBody, ApiExtension, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { z, ZodType } from 'zod';
-import { DESCRIPTOR_METADATA_KEY, EndpointDescriptor, toOpenApiPath } from './descriptors.js';
-import { ZodSerializationException, ZodValidationException } from './exceptions.js';
-import {
-  getCallsiteFile,
-  getEndpointHttpPath,
-  getHttpPathPascalName,
-  moduleAls,
-} from './helpers.js';
-import { isSameModule } from './manifest/scan.js';
+import { DESCRIPTOR_METADATA_KEY, EndpointDescriptor, toOpenApiPath } from './descriptors';
+import { ZodSerializationException, ZodValidationException } from './exceptions';
+import { getCallsiteFile, getEndpointHttpPath, getHttpPathPascalName, moduleAls } from './helpers';
+import { isSameModule } from './manifest/scan';
 import {
   apiParameters,
   convertObject,
   ObjectSchemaLike,
   loneValuesAsArrays,
-} from './object-parameters.js';
-import { EndpointSetupFn, settings } from './settings.js';
-import { toJsonSchema } from './zod-to-openapi.js';
+} from './object-parameters';
+import { EndpointSetupFn, settings } from './settings';
+import { toJsonSchema } from './zod-to-openapi';
 
 const httpMethodDecorators = {
   get: Get,

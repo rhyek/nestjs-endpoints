@@ -1,9 +1,9 @@
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { createManifest, findManifestCovering, registerEndpointManifest } from './registry.js';
+import { createManifest, findManifestCovering, registerEndpointManifest } from './registry';
 
 // Lookup only: keeping files in sync is covered by sync.spec.ts.
-vi.mock('./sync.js', () => ({
+vi.mock('./sync', () => ({
   syncManifest: (_file: string, keys: readonly string[]) => keys,
 }));
 

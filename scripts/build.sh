@@ -2,6 +2,6 @@
 set -e
 __dirname=$(realpath "$(dirname "$0")")
 
+# tsdown (packages/nestjs-endpoints/tsdown.config.ts) cleans `dist/` before it writes it.
 cd "$__dirname/../packages/nestjs-endpoints"
-rm -rf dist
-pnpm tsc --project tsconfig.build.json
+pnpm tsdown

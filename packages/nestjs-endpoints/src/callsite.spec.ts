@@ -1,5 +1,5 @@
 import { pathToFileURL } from 'node:url';
-import { callsiteFileToPath } from './callsite.js';
+import { callsiteFileToPath } from './callsite';
 
 describe('callsiteFileToPath', () => {
   test('decodes a file:// URL', () => {

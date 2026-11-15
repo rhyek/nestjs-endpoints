@@ -1,10 +1,10 @@
 import { describe, expect, test } from 'vitest';
-import type { EndpointDescriptor } from '../../descriptors.js';
+import type { EndpointDescriptor } from '../../descriptors';
 import {
   buildClientObjectExpression,
   operationSourceName,
   stripNamespaceFromFlatName,
-} from './buckets.js';
+} from './buckets';
 
 /** A minimal descriptor for the bucket builder. */
 function descriptor(

@@ -8,7 +8,7 @@
  */
 import { resolverReactQuery } from '@kubb/plugin-react-query';
 import { casing } from 'kubb/kit';
-import type { EndpointDescriptor, HttpMethod } from '../../descriptors.js';
+import type { EndpointDescriptor, HttpMethod } from '../../descriptors';
 
 /**
  * The operation's request function on the generated flat module

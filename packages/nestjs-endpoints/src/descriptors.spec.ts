@@ -9,8 +9,8 @@ import {
 import { AbstractHttpAdapter, NestFactory, RouterModule } from '@nestjs/core';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { z } from 'zod';
-import { collectDescriptors, EndpointDescriptor, filterDescriptors } from './descriptors.js';
-import { endpoint, schema } from './endpoint-fn.js';
+import { collectDescriptors, EndpointDescriptor, filterDescriptors } from './descriptors';
+import { endpoint, schema } from './endpoint-fn';
 
 const apps: INestApplicationContext[] = [];
 

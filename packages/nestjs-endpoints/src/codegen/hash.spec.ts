@@ -1,8 +1,8 @@
 import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import type { EndpointDescriptor } from '../descriptors.js';
-import { clientHash, printedTagDescriptions, readClientHash } from './hash.js';
+import type { EndpointDescriptor } from '../descriptors';
+import { clientHash, printedTagDescriptions, readClientHash } from './hash';
 
 function descriptor(name: Record<string, unknown> = { type: 'string' }): EndpointDescriptor {
   return {

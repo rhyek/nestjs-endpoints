@@ -5,11 +5,11 @@ import { Writable } from 'node:stream';
 import { fileURLToPath } from 'node:url';
 import { INestApplication } from '@nestjs/common';
 import { DocumentBuilder, SwaggerCustomOptions, SwaggerModule } from '@nestjs/swagger';
-import { collectDescriptors, type EndpointDescriptor } from './descriptors.js';
-import { getCallsiteFile } from './helpers.js';
-import { readOwnVersion } from './package-json.js';
-import { settings } from './settings.js';
-import { mergeSharedSchemas, rewriteOutputRefs, type SharedSchemas } from './shared-schemas.js';
+import { collectDescriptors, type EndpointDescriptor } from './descriptors';
+import { getCallsiteFile } from './helpers';
+import { readOwnVersion } from './package-json';
+import { settings } from './settings';
+import { mergeSharedSchemas, rewriteOutputRefs, type SharedSchemas } from './shared-schemas';
 
 export type SetupOpenAPIOptions = {
   configure?: (documentBuilder: DocumentBuilder) => void;

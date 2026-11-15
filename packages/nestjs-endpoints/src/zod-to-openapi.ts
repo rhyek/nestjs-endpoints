@@ -1,7 +1,7 @@
 import * as z from 'zod';
 import type { ZodType } from 'zod';
 import { createSchema } from 'zod-openapi';
-import { settings } from './settings.js';
+import { settings } from './settings';
 
 const openApiVersion = '3.1.1';
 

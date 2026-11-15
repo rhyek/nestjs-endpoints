@@ -8,7 +8,7 @@ import {
   refreshSkillIfStale,
   renderSkill,
   skillInstallPath,
-} from './skill.js';
+} from './skill';
 
 describe('skill rendering', () => {
   test('stamps the managed banner with the version', () => {

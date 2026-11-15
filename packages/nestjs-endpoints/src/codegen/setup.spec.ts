@@ -4,14 +4,14 @@ import path from 'node:path';
 import { INestApplication, Module } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { z } from 'zod';
-import { endpoint } from '../endpoint-fn.js';
-import { stripExtension } from '../manifest/scan.js';
-import { hashHeader } from './hash.js';
-import { generateAxiosClient } from './kubb/generate.js';
-import { setupCodegen } from './setup.js';
+import { endpoint } from '../endpoint-fn';
+import { stripExtension } from '../manifest/scan';
+import { hashHeader } from './hash';
+import { generateAxiosClient } from './kubb/generate';
+import { setupCodegen } from './setup';
 
-vi.mock('./kubb/generate.js', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('./kubb/generate.js')>()),
+vi.mock('./kubb/generate', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('./kubb/generate')>()),
   generateAxiosClient: vi.fn(),
 }));
 

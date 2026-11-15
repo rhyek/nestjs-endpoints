@@ -18,21 +18,21 @@ import {
   InjectOnRequestMap,
   InjectProvidersMap,
   WithoutKeys,
-} from './endpoint-fn.js';
-import { getCallsiteFile, moduleAls } from './helpers.js';
-import { MANIFEST_FILE_NAME } from './manifest/file.js';
+} from './endpoint-fn';
+import { getCallsiteFile, moduleAls } from './helpers';
+import { MANIFEST_FILE_NAME } from './manifest/file';
 import {
   EndpointManifestLoader,
   findManifestCovering,
   RegisteredManifest,
-} from './manifest/registry.js';
+} from './manifest/registry';
 import {
   endpointFileRegex,
   isSameModule,
   routerModuleFileRegex,
   stripExtension,
-} from './manifest/scan.js';
-import { EndpointSetupFn, settings } from './settings.js';
+} from './manifest/scan';
+import { EndpointSetupFn, settings } from './settings';
 
 /**
  * Express 5 / path-to-regexp v8, used by every NestJS version this library

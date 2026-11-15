@@ -1,5 +1,5 @@
-import type { EndpointDescriptor } from './descriptors.js';
-import type { JsonSchema } from './zod-to-openapi.js';
+import type { EndpointDescriptor } from './descriptors';
+import type { JsonSchema } from './zod-to-openapi';
 
 export type SharedSchemas = {
   /** Every component name → schema, with output `$ref`s rewritten. */

@@ -1,5 +1,7 @@
 - Please read the README.md file to understand what this project is about.
 - The only deployable lives at packages/nestjs-endpoints
+  - It builds with tsdown in unbundle mode (`packages/nestjs-endpoints/tsdown.config.ts`, run by `scripts/build.sh`; `pnpm dev` watches): one `dist/*.js`, `.d.ts` and their maps per source file, as `tsc` would lay it out. It type-checks while it writes the declarations, so a type error fails the build.
+  - Its sources import each other without an extension (`from './helpers'`); the build writes them out as `./helpers.js`. The test apps, benchmarks, examples and docs keep `.js`: they're written the way a consumer on Node ESM writes them.
 - There are four test projects at packages/test:
   - All test-app-\* projects are meant to test backend calls both regular http calls and using the generated axios client
   - I only write tests for those in packages/test/test-app-express, since scripts/test.sh copies the app and test source files to the other test-app-\* projects.

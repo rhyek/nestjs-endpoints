@@ -1,5 +1,5 @@
 import z from 'zod';
-import { toJsonSchema } from './zod-to-openapi.js';
+import { toJsonSchema } from './zod-to-openapi';
 
 describe('toJsonSchema with a ref', () => {
   test.each([

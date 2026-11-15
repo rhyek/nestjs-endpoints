@@ -2,15 +2,15 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { INestApplication } from '@nestjs/common';
 import type { OpenAPIObject } from '@nestjs/swagger';
-import { collectDescriptors, filterDescriptors } from '../descriptors.js';
-import { getCallsiteFile } from '../helpers.js';
-import { stripExtension } from '../manifest/scan.js';
-import { readOwnVersion } from '../package-json.js';
-import { buildOpenAPI, hasRelativeOutputFile, SetupOpenAPIOptions } from '../setup-openapi.js';
-import { mergeSharedSchemas, reachableSchemas, rootsOf } from '../shared-schemas.js';
-import { clientHash, printedTagDescriptions, readClientHash } from './hash.js';
+import { collectDescriptors, filterDescriptors } from '../descriptors';
+import { getCallsiteFile } from '../helpers';
+import { stripExtension } from '../manifest/scan';
+import { readOwnVersion } from '../package-json';
+import { buildOpenAPI, hasRelativeOutputFile, SetupOpenAPIOptions } from '../setup-openapi';
+import { mergeSharedSchemas, reachableSchemas, rootsOf } from '../shared-schemas';
+import { clientHash, printedTagDescriptions, readClientHash } from './hash';
 // Types only: Kubb and the generators load when a client is generated.
-import type { ReactQueryPluginOptions } from './kubb/generate.js';
+import type { ReactQueryPluginOptions } from './kubb/generate';
 
 export async function setupCodegen(
   app: INestApplication,
@@ -130,8 +130,7 @@ export async function setupCodegen(
         return;
       }
       try {
-        const { generateAxiosClient, generateReactQueryClient } =
-          await import('./kubb/generate.js');
+        const { generateAxiosClient, generateReactQueryClient } = await import('./kubb/generate');
         if (client.type === 'axios') {
           await generateAxiosClient({
             descriptors: clientDescriptors,

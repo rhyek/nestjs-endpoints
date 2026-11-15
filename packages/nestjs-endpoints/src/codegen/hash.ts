@@ -1,9 +1,9 @@
 import { createHash } from 'node:crypto';
 import fs from 'node:fs/promises';
-import type { EndpointDescriptor } from '../descriptors.js';
-import { settings } from '../settings.js';
-import { sortedCopy } from '../shared-schemas.js';
-import type { JsonSchema } from '../zod-to-openapi.js';
+import type { EndpointDescriptor } from '../descriptors';
+import { settings } from '../settings';
+import { sortedCopy } from '../shared-schemas';
+import type { JsonSchema } from '../zod-to-openapi';
 
 /**
  * Change detection for generated clients: a hash of everything a client is

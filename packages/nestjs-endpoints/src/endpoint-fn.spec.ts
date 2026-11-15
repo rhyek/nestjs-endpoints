@@ -1,12 +1,12 @@
 import z from 'zod';
-import { createRouterEndpoint, decorated, endpoint, type EndpointBuilders } from './endpoint-fn.js';
-import { ZodValidationException } from './exceptions.js';
-import { loneValuesAsArrays } from './object-parameters.js';
+import { createRouterEndpoint, decorated, endpoint, type EndpointBuilders } from './endpoint-fn';
+import { ZodValidationException } from './exceptions';
+import { loneValuesAsArrays } from './object-parameters';
 
 // The reader `loneValuesAsArrays` decides on is wrapped, to count the
 // decisions and the requests the reader reads.
-vi.mock('./object-parameters.js', async (importOriginal) => {
-  const original = await importOriginal<typeof import('./object-parameters.js')>();
+vi.mock('./object-parameters', async (importOriginal) => {
+  const original = await importOriginal<typeof import('./object-parameters')>();
   return {
     ...original,
     loneValuesAsArrays: vi.fn((parameters: Parameters<typeof original.loneValuesAsArrays>[0]) => {

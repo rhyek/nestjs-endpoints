@@ -6,9 +6,9 @@ import {
   generateManifest,
   markGenerated,
   readImportExtension,
-} from './manifest/file.js';
-import { readOwnVersion } from './package-json.js';
-import { installSkill, isSkillInstalled, refreshSkillIfStale } from './skill.js';
+} from './manifest/file';
+import { readOwnVersion } from './package-json';
+import { installSkill, isSkillInstalled, refreshSkillIfStale } from './skill';
 
 const USAGE = `nestjs-endpoints <command>
 

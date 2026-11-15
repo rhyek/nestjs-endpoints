@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { scanRoutingFiles, stripExtension } from './scan.js';
+import { scanRoutingFiles, stripExtension } from './scan';
 
 function tree(files: string[]): string {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ne-scan-'));

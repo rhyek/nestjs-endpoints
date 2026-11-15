@@ -10,8 +10,8 @@
  * `exclude`, then `include`, then the first matching `override`, whose
  * `query: false` or `mutation: false` still turns a kind off.
  */
-import type { EndpointDescriptor } from '../../descriptors.js';
-import type { EndpointKind } from '../../endpoint-fn.js';
+import type { EndpointDescriptor } from '../../descriptors';
+import type { EndpointKind } from '../../endpoint-fn';
 
 type KindOption = false | Record<string, unknown> | undefined;
 

@@ -4,14 +4,14 @@ import { pluginReactQuery } from '@kubb/plugin-react-query';
 import { pluginTs } from '@kubb/plugin-ts';
 import { createKubb, type UserConfig } from 'kubb';
 import { ast, defineExtension, injectFile } from 'kubb/kit';
-import type { EndpointDescriptor } from '../../descriptors.js';
-import { stripExtension } from '../../manifest/scan.js';
-import type { SharedSchemas } from '../../shared-schemas.js';
-import { hashHeader } from '../hash.js';
-import { adapterEndpoints, buildInputNode } from './adapter.js';
-import { buildSchemasModuleSource, collectInputSchemas } from './input-schemas.js';
-import { kindOverrides } from './operation-kind.js';
-import { buildAxiosWrapperSource, buildReactQueryWrapperSource } from './wrapper.js';
+import type { EndpointDescriptor } from '../../descriptors';
+import { stripExtension } from '../../manifest/scan';
+import type { SharedSchemas } from '../../shared-schemas';
+import { hashHeader } from '../hash';
+import { adapterEndpoints, buildInputNode } from './adapter';
+import { buildSchemasModuleSource, collectInputSchemas } from './input-schemas';
+import { kindOverrides } from './operation-kind';
+import { buildAxiosWrapperSource, buildReactQueryWrapperSource } from './wrapper';
 
 /**
  * Options forwarded to `@kubb/plugin-react-query` (the public `options` field on

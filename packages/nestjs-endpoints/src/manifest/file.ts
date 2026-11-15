@@ -1,7 +1,7 @@
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
-import { scanRoutingFiles } from './scan.js';
+import { scanRoutingFiles } from './scan';
 
 /**
  * How the manifest's `import()` specifiers spell extensions.

@@ -6,9 +6,9 @@ import { ApplicationConfig, ModulesContainer } from '@nestjs/core';
 // Not re-exported by `@nestjs/core`'s index; `@nestjs/swagger` builds the
 // document's paths with the same factory.
 import { RoutePathFactory } from '@nestjs/core/router/route-path-factory.js';
-import type { EndpointKind } from './endpoint-fn.js';
-import type { ObjectConversion } from './object-parameters.js';
-import type { ConvertedSchema, JsonSchema } from './zod-to-openapi.js';
+import type { EndpointKind } from './endpoint-fn';
+import type { ObjectConversion } from './object-parameters';
+import type { ConvertedSchema, JsonSchema } from './zod-to-openapi';
 
 /** What an endpoint's setup knows about it, for codegen to read. */
 export type EndpointDescriptor = {

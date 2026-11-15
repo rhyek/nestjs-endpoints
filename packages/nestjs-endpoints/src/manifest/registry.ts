@@ -1,7 +1,7 @@
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { DEFAULT_IMPORT_EXTENSION, ImportExtension } from './file.js';
-import { syncManifest } from './sync.js';
+import { DEFAULT_IMPORT_EXTENSION, ImportExtension } from './file';
+import { syncManifest } from './sync';
 
 export type EndpointManifestLoader = () => Promise<unknown>;
 

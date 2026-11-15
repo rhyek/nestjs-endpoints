@@ -7,9 +7,9 @@
  * without properties has no search parameters to describe.
  */
 import { resolverTs } from '@kubb/plugin-ts';
-import type { EndpointDescriptor } from '../../descriptors.js';
-import { refPrefix, type SharedSchemas } from '../../shared-schemas.js';
-import { operationSourceName } from './buckets.js';
+import type { EndpointDescriptor } from '../../descriptors';
+import { refPrefix, type SharedSchemas } from '../../shared-schemas';
+import { operationSourceName } from './buckets';
 
 export type InputSchemaEntry = {
   operationId: string;

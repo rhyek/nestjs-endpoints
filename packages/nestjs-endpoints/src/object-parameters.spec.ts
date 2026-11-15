@@ -1,5 +1,5 @@
 import z from 'zod';
-import { convertObject, loneValuesAsArrays, type ObjectParameter } from './object-parameters.js';
+import { convertObject, loneValuesAsArrays, type ObjectParameter } from './object-parameters';
 
 describe('convertObject', () => {
   test('splits one conversion', () => {

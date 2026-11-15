@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'vitest';
-import type { EndpointDescriptor } from '../../descriptors.js';
-import { kindOverrides, operationKinds } from './operation-kind.js';
+import type { EndpointDescriptor } from '../../descriptors';
+import { kindOverrides, operationKinds } from './operation-kind';
 
 /** A minimal descriptor for the kind classifier. */
 function descriptor(

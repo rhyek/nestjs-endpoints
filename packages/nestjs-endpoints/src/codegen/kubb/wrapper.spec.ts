@@ -1,9 +1,9 @@
 import { createVirtualFileSystem } from 'typescript/unstable/fs';
 import { API } from 'typescript/unstable/sync';
 import { describe, expect, test } from 'vitest';
-import type { EndpointDescriptor } from '../../descriptors.js';
-import type { SharedSchemas } from '../../shared-schemas.js';
-import { buildAxiosWrapperSource, buildReactQueryWrapperSource } from './wrapper.js';
+import type { EndpointDescriptor } from '../../descriptors';
+import type { SharedSchemas } from '../../shared-schemas';
+import { buildAxiosWrapperSource, buildReactQueryWrapperSource } from './wrapper';
 
 /** A minimal descriptor for the wrapper builder. */
 function descriptor(

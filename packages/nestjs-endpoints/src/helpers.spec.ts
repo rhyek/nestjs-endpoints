@@ -2,7 +2,7 @@ import path from 'node:path';
 import { ApiQuery } from '@nestjs/swagger';
 import { vi } from 'vitest';
 import z from 'zod';
-import { ApiQueries, getEndpointHttpPath } from './helpers.js';
+import { ApiQueries, getEndpointHttpPath } from './helpers';
 
 vi.mock('@nestjs/swagger', () => ({
   ApiQuery: vi.fn(() => () => {}),

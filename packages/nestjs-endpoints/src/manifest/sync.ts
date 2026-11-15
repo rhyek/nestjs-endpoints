@@ -2,8 +2,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { Logger } from '@nestjs/common';
-import { ImportExtension, writeManifest } from './file.js';
-import { scanRoutingFiles } from './scan.js';
+import { ImportExtension, writeManifest } from './file';
+import { scanRoutingFiles } from './scan';
 
 /**
  * - `off`: production. The manifest is trusted; the source tree may not even

@@ -1,8 +1,8 @@
 import { AsyncLocalStorage } from 'node:async_hooks';
 import path from 'node:path';
 import callsites from 'callsites';
-import { callsiteFileToPath } from './callsite.js';
-import { objectParameters, type ObjectSchemaLike } from './object-parameters.js';
+import { callsiteFileToPath } from './callsite';
+import { objectParameters, type ObjectSchemaLike } from './object-parameters';
 
 /**
  * Expand one filename-derived path segment into one or more URL segments.

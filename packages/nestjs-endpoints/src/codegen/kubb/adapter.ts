@@ -9,8 +9,8 @@ import type {
   StatusCode,
 } from '@kubb/ast';
 import { casing, childName, defineExtension, enumPropName, type Adapter } from 'kubb/kit';
-import type { EndpointDescriptor } from '../../descriptors.js';
-import type { ValueShape } from '../../object-parameters.js';
+import type { EndpointDescriptor } from '../../descriptors';
+import type { ValueShape } from '../../object-parameters';
 import {
   reachableSchemas,
   refPrefix,
@@ -18,8 +18,8 @@ import {
   rootsOf,
   type SharedSchemas,
   unalias,
-} from '../../shared-schemas.js';
-import type { JsonSchema } from '../../zod-to-openapi.js';
+} from '../../shared-schemas';
+import type { JsonSchema } from '../../zod-to-openapi';
 
 /**
  * Turns the endpoints' descriptors into Kubb's AST, so Kubb's plugins print

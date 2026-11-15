@@ -2,9 +2,9 @@ import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, expect, test } from 'vitest';
-import type { EndpointDescriptor } from '../../descriptors.js';
-import { mergeSharedSchemas } from '../../shared-schemas.js';
-import { generateReactQueryClient } from './generate.js';
+import type { EndpointDescriptor } from '../../descriptors';
+import { mergeSharedSchemas } from '../../shared-schemas';
+import { generateReactQueryClient } from './generate';
 
 let dir: string;
 

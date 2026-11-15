@@ -7,7 +7,7 @@ import {
   readImportExtension,
   renderManifest,
   writeManifest,
-} from './file.js';
+} from './file';
 
 describe('renderManifest', () => {
   test('js: specifiers carry the compiled extension', () => {

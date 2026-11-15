@@ -2,10 +2,10 @@ import { createVirtualFileSystem } from 'typescript/unstable/fs';
 import { API } from 'typescript/unstable/sync';
 import { describe, expect, test } from 'vitest';
 import { z } from 'zod';
-import type { EndpointDescriptor } from '../../descriptors.js';
-import { convertObject } from '../../object-parameters.js';
-import type { JsonSchema } from '../../zod-to-openapi.js';
-import { buildSchemasModuleSource, collectInputSchemas } from './input-schemas.js';
+import type { EndpointDescriptor } from '../../descriptors';
+import { convertObject } from '../../object-parameters';
+import type { JsonSchema } from '../../zod-to-openapi';
+import { buildSchemasModuleSource, collectInputSchemas } from './input-schemas';
 
 /** A minimal descriptor, with `json` as its input when given. */
 function descriptor(

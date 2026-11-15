@@ -1,8 +1,8 @@
-import type { EndpointDescriptor } from '../../descriptors.js';
-import { reachableSchemas, rootsOf, type SharedSchemas } from '../../shared-schemas.js';
-import { tagDescriptions } from '../hash.js';
-import { buildClientObjectExpression } from './buckets.js';
-import { operationKinds, type OperationKindOptions } from './operation-kind.js';
+import type { EndpointDescriptor } from '../../descriptors';
+import { reachableSchemas, rootsOf, type SharedSchemas } from '../../shared-schemas';
+import { tagDescriptions } from '../hash';
+import { buildClientObjectExpression } from './buckets';
+import { operationKinds, type OperationKindOptions } from './operation-kind';
 
 /**
  * The wrappers build on the runtime `@kubb/plugin-axios` writes into the

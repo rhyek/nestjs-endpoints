@@ -4,11 +4,11 @@ import path from 'node:path';
 import { findCircularSchemas, type InputNode } from '@kubb/ast';
 import { expect, test } from 'vitest';
 import { z } from 'zod';
-import type { EndpointDescriptor } from '../../descriptors.js';
-import { convertObject } from '../../object-parameters.js';
-import { mergeSharedSchemas } from '../../shared-schemas.js';
-import { toJsonSchema } from '../../zod-to-openapi.js';
-import { adapterEndpoints, buildInputNode, schemaToNode } from './adapter.js';
+import type { EndpointDescriptor } from '../../descriptors';
+import { convertObject } from '../../object-parameters';
+import { mergeSharedSchemas } from '../../shared-schemas';
+import { toJsonSchema } from '../../zod-to-openapi';
+import { adapterEndpoints, buildInputNode, schemaToNode } from './adapter';
 
 const at = { operationId: 'Op', pointer: '#' };
 

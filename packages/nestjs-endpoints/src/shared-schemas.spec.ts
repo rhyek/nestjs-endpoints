@@ -1,8 +1,8 @@
 import { expect, test } from 'vitest';
 import * as z from 'zod';
-import type { EndpointDescriptor } from './descriptors.js';
-import { mergeSharedSchemas, reachableSchemas, rewriteOutputRefs } from './shared-schemas.js';
-import { toJsonSchema } from './zod-to-openapi.js';
+import type { EndpointDescriptor } from './descriptors';
+import { mergeSharedSchemas, reachableSchemas, rewriteOutputRefs } from './shared-schemas';
+import { toJsonSchema } from './zod-to-openapi';
 
 function descriptor(
   operationId: string,

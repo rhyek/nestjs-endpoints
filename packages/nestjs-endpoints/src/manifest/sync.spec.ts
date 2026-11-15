@@ -3,9 +3,9 @@ import os from 'node:os';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { Logger } from '@nestjs/common';
-import { readImportExtension, writeManifest } from './file.js';
-import { findManifestCovering, registerEndpointManifest } from './registry.js';
-import { closeManifestWatchers, syncManifest, syncMode } from './sync.js';
+import { readImportExtension, writeManifest } from './file';
+import { findManifestCovering, registerEndpointManifest } from './registry';
+import { closeManifestWatchers, syncManifest, syncMode } from './sync';
 
 const DEV = {};
 const TEST = { NODE_ENV: 'test' };

@@ -1,7 +1,7 @@
 import { Req } from '@nestjs/common';
-import { decorated, endpoint } from './endpoint-fn.js';
-import { EndpointRouter, EndpointRouterModule, LazyPromise } from './endpoint-router.module.js';
-import { moduleAls } from './helpers.js';
+import { decorated, endpoint } from './endpoint-fn';
+import { EndpointRouter, EndpointRouterModule, LazyPromise } from './endpoint-router.module';
+import { moduleAls } from './helpers';
 
 describe('a router no endpoint manifest covers', () => {
   test('fails at bootstrap with the fix', async () => {

@@ -1,8 +1,8 @@
 import { applyDecorators } from '@nestjs/common';
 import { ApiParam, ApiQuery } from '@nestjs/swagger';
 import { z, ZodPipe, ZodTransform } from 'zod';
-import { unalias } from './shared-schemas.js';
-import { ConvertedSchema, JsonSchema, registerComponents, toJsonSchema } from './zod-to-openapi.js';
+import { unalias } from './shared-schemas';
+import { ConvertedSchema, JsonSchema, registerComponents, toJsonSchema } from './zod-to-openapi';
 
 /** An object schema, bare or behind a transform or preprocess step. */
 export type ObjectSchemaLike =
