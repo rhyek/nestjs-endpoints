@@ -4,7 +4,9 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
+import { defineConfig } from 'oxlint';
 import { afterAll, beforeAll, expect, test } from 'vitest';
+import { base, commonJsRestrictedImports } from './oxlint';
 
 // Runs the real oxlint (and tsgolint, for the type-aware rules) over a fixture whose
 // `oxlint.config.ts` extends this package the way a consumer's does. oxlint refuses a config that
@@ -36,8 +38,27 @@ const files: Record<string, string> = {
     'export declare function redirect(opts: { to: string }): Redirect;',
   ].join('\n'),
   'oxlint.config.ts': [
-    `import { base, react, ignorePatterns } from ${JSON.stringify(join(packageDir, 'src/oxlint.ts'))};`,
-    'export default { extends: [base, react], ignorePatterns: [...ignorePatterns, "src/gen/**"] };',
+    `import { base, commonJsRestrictedImports, react, ignorePatterns } from ${JSON.stringify(join(packageDir, 'src/oxlint.ts'))};`,
+    'export default {',
+    '  extends: [base, react],',
+    '  ignorePatterns: [...ignorePatterns, "src/gen/**"],',
+    '  overrides: [',
+    // A consumer's own `no-restricted-imports`, with and without the shared paths spread in.
+    '    {',
+    '      files: ["src/own-paths/**"],',
+    '      rules: {',
+    '        "eslint/no-restricted-imports": [',
+    '          "error",',
+    '          { paths: [...commonJsRestrictedImports, "node:vm"] },',
+    '        ],',
+    '      },',
+    '    },',
+    '    {',
+    '      files: ["src/replaced-paths/**"],',
+    '      rules: { "eslint/no-restricted-imports": ["error", { paths: ["node:vm"] }] },',
+    '    },',
+    '  ],',
+    '};',
   ].join('\n'),
   'src/throws.ts': [
     "import { redirect } from '@tanstack/router-core';",
@@ -86,6 +107,35 @@ const files: Record<string, string> = {
     'later();',
   ].join('\n'),
   'src/gen/out.ts': 'console.log(1);',
+  // One CommonJS form per file, each read by its own test.
+  'src/cjs/create-require.ts': [
+    "import { createRequire } from 'node:module';",
+    '',
+    'export const load = createRequire(import.meta.url);',
+  ].join('\n'),
+  'src/cjs/create-require-bare.ts': [
+    "import { createRequire } from 'module';",
+    '',
+    'export const load = createRequire(import.meta.url);',
+  ].join('\n'),
+  'src/cjs/require.ts': "export const fs: unknown = require('node:fs');",
+  'src/cjs/require-resolve.ts': "export const path = require.resolve('node:fs');",
+  'src/cjs/import-equals.ts': ["import fs = require('node:fs');", '', 'export { fs };'].join('\n'),
+  'src/cjs/module-exports.ts': 'module.exports = { size: 1 };',
+  'src/cjs/exports.ts': 'exports.size = 1;',
+  'src/cjs/dirname.ts': 'export const here = [__dirname, __filename];',
+  'src/own-paths/create-require.ts': [
+    "import { createRequire } from 'node:module';",
+    "import { runInThisContext } from 'node:vm';",
+    '',
+    'export const load = [createRequire, runInThisContext];',
+  ].join('\n'),
+  'src/replaced-paths/create-require.ts': [
+    "import { createRequire } from 'node:module';",
+    "import { runInThisContext } from 'node:vm';",
+    '',
+    'export const load = [createRequire, runInThisContext];',
+  ].join('\n'),
 };
 
 type Diagnostic = { code: string; filename: string; message: string };
@@ -151,4 +201,54 @@ test("node:test's test() may float, any other promise may not", () => {
 
 test("the consumer's ignorePatterns, spread with the shared ones, are honoured", () => {
   expect(codesIn('src/gen/out.ts')).toEqual([]);
+});
+
+test.each([
+  ['create-require.ts', ['eslint(no-restricted-imports)']],
+  ['create-require-bare.ts', ['eslint(no-restricted-imports)', 'unicorn(prefer-node-protocol)']],
+  [
+    'require.ts',
+    ['import(no-commonjs)', 'typescript(no-require-imports)', 'unicorn(prefer-module)'],
+  ],
+  ['require-resolve.ts', ['unicorn(prefer-module)']],
+  ['import-equals.ts', ['typescript(no-require-imports)']],
+  // oxlint's `no-commonjs` reports `module.exports =` twice, at the same position.
+  ['module-exports.ts', ['import(no-commonjs)', 'import(no-commonjs)', 'unicorn(prefer-module)']],
+  ['exports.ts', ['import(no-commonjs)', 'unicorn(prefer-module)']],
+  ['dirname.ts', ['unicorn(prefer-module)', 'unicorn(prefer-module)']],
+])('ES modules only: src/cjs/%s', (file, codes) => {
+  expect(codesIn(`src/cjs/${file}`)).toEqual(codes);
+});
+
+test("a consumer's own no-restricted-imports keeps the createRequire ban by spreading it", () => {
+  expect(codesIn('src/own-paths/create-require.ts')).toEqual([
+    'eslint(no-restricted-imports)',
+    'eslint(no-restricted-imports)',
+  ]);
+  // Without the spread, the consumer's paths replace the shared ones.
+  expect(codesIn('src/replaced-paths/create-require.ts')).toEqual([
+    'eslint(no-restricted-imports)',
+  ]);
+});
+
+test('commonJsRestrictedImports is what base bans', () => {
+  expect(base.rules['eslint/no-restricted-imports']).toEqual([
+    'error',
+    { paths: commonJsRestrictedImports },
+  ]);
+  expect(commonJsRestrictedImports.map(({ name, importNames }) => [name, importNames])).toEqual([
+    ['node:module', ['createRequire']],
+    ['module', ['createRequire']],
+  ]);
+});
+
+// A consumer's config spreads the constant into its own `paths`; this compiles under `pnpm
+// typecheck` only while the constant's type fits oxlint's.
+export const consumerConfig = defineConfig({
+  rules: {
+    'eslint/no-restricted-imports': [
+      'error',
+      { paths: [...commonJsRestrictedImports, { name: 'node:vm', message: 'No eval.' }] },
+    ],
+  },
 });

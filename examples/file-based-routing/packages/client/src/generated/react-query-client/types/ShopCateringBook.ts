@@ -11,17 +11,17 @@ export type ShopCateringBookStatus200 = ShopCateringBookOutput;
 export type ShopCateringBookBody = ShopCateringBookInput;
 
 export type ShopCateringBookOptions = {
-    body: ShopCateringBookBody;
-    path?: never;
-    query?: never;
-    headers?: never;
+  body: ShopCateringBookBody;
+  path?: never;
+  query?: never;
+  headers?: never;
 };
 
 export type ShopCateringBookResponses = {
-    "200": ShopCateringBookStatus200;
+  '200': ShopCateringBookStatus200;
 };
 
 /**
  * @description Union of all possible responses
-*/
+ */
 export type ShopCateringBookResponse = ShopCateringBookStatus200;

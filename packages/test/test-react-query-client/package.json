@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "description": "",
   "main": "index.js",
+  "type": "module",
   "scripts": {
     "dev": "VITE_WEB_API_PORT=3000 vite",
     "test": "VITE_WEB_API_PORT=3000 vitest",

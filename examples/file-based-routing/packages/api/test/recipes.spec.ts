@@ -1,3 +1,4 @@
+import { NodeAdapter } from '@nestjs/platform-node';
 import { Test } from '@nestjs/testing';
 import 'reflect-metadata';
 import viewRecipeEndpoint from '../src/endpoints/shop/recipes/$recipeId.view/endpoint';
@@ -20,7 +21,7 @@ async function buildModule() {
     ],
     providers: [RecipesRepository],
   }).compile();
-  const app = moduleRef.createNestApplication();
+  const app = moduleRef.createNestApplication(new NodeAdapter());
   await app.init();
   return app;
 }

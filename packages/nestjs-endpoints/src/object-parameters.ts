@@ -1,7 +1,8 @@
+import { applyDecorators } from '@nestjs/common';
+import { ApiParam, ApiQuery } from '@nestjs/swagger';
 import { z, ZodPipe, ZodTransform } from 'zod';
-import { JsonSchema, toJsonSchema } from './zod-to-openapi.js';
-
-const refPrefix = '#/components/schemas/';
+import { unalias } from './shared-schemas.js';
+import { ConvertedSchema, JsonSchema, registerComponents, toJsonSchema } from './zod-to-openapi.js';
 
 /** An object schema, bare or behind a transform or preprocess step. */
 export type ObjectSchemaLike =
@@ -26,7 +27,36 @@ export type ObjectParameter = {
   name: string;
   required: boolean;
   schema: JsonSchema;
+  /** What the parameter's value is; see {@link valueShape}. */
+  shape: ValueShape;
 };
+
+/** What a parameter's value is: an array, an object, or a single value. */
+export type ValueShape = 'array' | 'object' | 'value';
+
+/**
+ * What `schema` describes: an array, an object, or a single value. A nullable
+ * array or object (`oneOf` with `null`) counts as one; any other union is a
+ * single value.
+ */
+export function valueShape(schema: JsonSchema, components: Record<string, JsonSchema>): ValueShape {
+  const typesOf = (member: JsonSchema): unknown[] => {
+    const { type } = unalias(member, components);
+    return Array.isArray(type) ? type : [type];
+  };
+  const resolved = unalias(schema, components);
+  const members = (resolved.oneOf ?? resolved.anyOf ?? [resolved]) as JsonSchema[];
+  const types = members.flatMap(typesOf).filter((type) => type !== 'null');
+  for (const shape of ['array', 'object'] as const) {
+    if (types.length && types.every((type) => type === shape)) {
+      return shape;
+    }
+  }
+  return 'value';
+}
+
+/** An object schema's conversion, and its properties as parameters. */
+export type ObjectConversion = ConvertedSchema & { parameters: ObjectParameter[] };
 
 /**
  * One `toJsonSchema(…, 'input')` of an object schema, unwrapped from any
@@ -37,45 +67,83 @@ export type ObjectParameter = {
  * conversion is not an object, e.g. `The query of endpoint "Search" (POST
  * /search)`.
  */
-export function convertObject(
-  zodObject: ObjectSchemaLike,
-  at = 'The schema',
-): {
-  schema: JsonSchema;
-  parameters: ObjectParameter[];
-  components: Record<string, JsonSchema>;
-} {
-  const { schema, components } = toJsonSchema(unwrapObject(zodObject), 'input');
-  let object = schema;
-  const seen = new Set<string>();
-  while (typeof object.$ref === 'string' && !seen.has(object.$ref)) {
-    seen.add(object.$ref);
-    const name = object.$ref.slice(refPrefix.length);
-    if (!object.$ref.startsWith(refPrefix) || !components[name]) {
-      break;
-    }
-    object = components[name];
-  }
+export function convertObject(zodObject: ObjectSchemaLike, at = 'The schema'): ObjectConversion {
+  const { json, components } = toJsonSchema(unwrapObject(zodObject), 'input');
+  const object = unalias(json, components);
   const properties = object.properties as Record<string, JsonSchema> | undefined;
   if (object.type !== 'object' || !properties) {
     throw new Error(
       `${at} must be an object schema, so that its properties can be ` +
-        `parameters; it converts to ${JSON.stringify(schema)}`,
+        `parameters; it converts to ${JSON.stringify(json)}`,
     );
   }
   const required = new Set((object.required ?? []) as string[]);
   return {
-    schema,
+    json,
     parameters: Object.entries(properties).map(([name, property]) => ({
       name,
       required: required.has(name),
       schema: property,
+      shape: valueShape(property, components),
     })),
     components,
   };
 }
 
-/** One entry per property of an object schema, from a single conversion. */
-export function objectParameters(zodObject: ObjectSchemaLike): ObjectParameter[] {
-  return convertObject(zodObject).parameters;
+/**
+ * The `@ApiQuery()` or `@ApiParam()` decorators of an object's parameters.
+ * Path parameters are always required in OpenAPI. An object search parameter
+ * is a `deepObject` (`?add[a]=1&add[b]=2`).
+ */
+export function apiParameters(where: 'query' | 'path', parameters: ObjectParameter[]) {
+  return parameters.map(({ name, required, schema, shape }) =>
+    where === 'query'
+      ? ApiQuery({
+          name,
+          required,
+          schema,
+          ...(shape === 'object' && { style: 'deepObject', explode: true }),
+        })
+      : ApiParam({ name, required: true, schema }),
+  );
+}
+
+/**
+ * How an endpoint reads its search parameters before validating them, decided
+ * once from its `query` schema's parameters: a lone value of an array
+ * parameter (`?tags=a`, which a query string parser reads as a string) as a
+ * one-item array. `null` when the query has no array parameter, so the search
+ * parameters are validated as they come, with no work per request.
+ */
+export function loneValuesAsArrays(
+  parameters: readonly ObjectParameter[],
+): ((query: unknown) => unknown) | null {
+  const arrays = parameters.filter((p) => p.shape === 'array').map((p) => p.name);
+  if (!arrays.length) {
+    return null;
+  }
+  return (rawQuery) => {
+    if (!rawQuery || typeof rawQuery !== 'object') {
+      return rawQuery;
+    }
+    let query: Record<string, unknown> | undefined;
+    for (const name of arrays) {
+      const value = (rawQuery as Record<string, unknown>)[name];
+      if (value !== undefined && !Array.isArray(value)) {
+        query ??= { ...(rawQuery as Record<string, unknown>) };
+        query[name] = [value];
+      }
+    }
+    return query ?? rawQuery;
+  };
+}
+
+/**
+ * `ApiQueries()` and `ApiParams()`: an object schema's properties as the
+ * operation's parameters, with the components they name added to the document.
+ */
+export function objectParameters(where: 'query' | 'path', zodObject: ObjectSchemaLike, at: string) {
+  const { parameters, components } = convertObject(zodObject, at);
+  registerComponents(components);
+  return applyDecorators(...apiParameters(where, parameters));
 }

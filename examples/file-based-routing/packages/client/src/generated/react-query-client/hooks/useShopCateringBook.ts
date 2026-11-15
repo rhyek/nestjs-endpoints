@@ -3,7 +3,7 @@
 * Do not edit manually.
 */
 
-import type { RequestConfig, ResponseErrorConfig } from '../client-runtime'
+import type { RequestConfig, ResponseErrorConfig } from '../.kubb/client'
 import type { ShopCateringBookOptions, ShopCateringBookStatus200 } from '../types/ShopCateringBook'
 import type { UseMutationOptions, UseMutationResult, QueryClient } from '@tanstack/react-query'
 import { shopCateringBook } from '../clients/shopCateringBook'
@@ -11,22 +11,22 @@ import { mutationOptions, useMutation } from '@tanstack/react-query'
 
 export const shopCateringBookMutationKey = () => [{ url: '/shop/catering/book' }] as const
 
-export function shopCateringBookMutationOptions<TContext = unknown>(config: Partial<Omit<RequestConfig, 'path' | 'query' | 'body' | 'headers' | 'url'>> = {}) {
+export function shopCateringBookMutationOptions<TContext = unknown>(config: Partial<Omit<RequestConfig, 'path' | 'query' | 'body' | 'headers' | 'cookies' | 'url' | 'throwOnError'>> = {}) {
   const mutationKey = shopCateringBookMutationKey()
   return mutationOptions<ShopCateringBookStatus200, ResponseErrorConfig<Error>, ShopCateringBookOptions, TContext>({
     mutationKey,
     mutationFn: async({ body }) => {
-      return (await shopCateringBook({ ...config, body, throwOnError: true })).data
+      return shopCateringBook({ ...config, body, throwOnError: true }).unwrap()
     },
   })
 }
 
 /**
- * {@link /shop/catering/book}
+ * `POST /shop/catering/book`
  */
 export function useShopCateringBook<TContext>(options: {
   mutation?: UseMutationOptions<ShopCateringBookStatus200, ResponseErrorConfig<Error>, ShopCateringBookOptions, TContext> & { client?: QueryClient },
-  client?: Partial<Omit<RequestConfig, 'path' | 'query' | 'body' | 'headers' | 'url'>>,
+  client?: Partial<Omit<RequestConfig, 'path' | 'query' | 'body' | 'headers' | 'cookies' | 'url' | 'throwOnError'>>,
 } = {}) {
   const { mutation = {}, client: config = {} } = options ?? {}
   const { client: queryClient, ...mutationOptions } = mutation;

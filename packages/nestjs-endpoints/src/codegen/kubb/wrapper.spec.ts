@@ -3,7 +3,7 @@ import { API } from 'typescript/unstable/sync';
 import { describe, expect, test } from 'vitest';
 import type { EndpointDescriptor } from '../../descriptors.js';
 import type { SharedSchemas } from '../../shared-schemas.js';
-import { buildReactQueryWrapperSource } from './wrapper.js';
+import { buildAxiosWrapperSource, buildReactQueryWrapperSource } from './wrapper.js';
 
 /** A minimal descriptor for the wrapper builder. */
 function descriptor(
@@ -70,7 +70,7 @@ const source = buildReactQueryWrapperSource({
   shared,
   opsImport: './c/clients',
   hooksImport: './c/hooks',
-  runtimeImport: './c/client-runtime',
+  runtimeImport: './c/.kubb/client',
   typesImport: './c/types',
   schemasImport: './c/schemas',
   pluginOptions: undefined,
@@ -102,10 +102,10 @@ describe('buildReactQueryWrapperSource', () => {
   test('a query operation carries its query key and bound query options', () => {
     expect(entry('greet')).toContain('queryKey: _hooks.greetQueryKey');
     expect(entry('greet')).toContain(
-      'queryOptions: bindQueryOptions(_hooks.greetQueryOptions, _request, true)',
+      'queryOptions: bindOptions(_hooks.greetQueryOptions, _client, 1)',
     );
     expect(entry('articlesLatest')).toContain(
-      'queryOptions: bindQueryOptions(_hooks.articlesLatestQueryOptions, _request, false)',
+      'queryOptions: bindOptions(_hooks.articlesLatestQueryOptions, _client, 0)',
     );
     expect(entry('greet')).not.toContain('mutation');
   });
@@ -113,10 +113,10 @@ describe('buildReactQueryWrapperSource', () => {
   test('a mutation operation carries its mutation key and bound mutation options', () => {
     expect(entry('authLogin')).toContain('mutationKey: _hooks.authLoginMutationKey');
     expect(entry('authLogin')).toContain(
-      'mutationOptions: bindMutationOptions(_hooks.authLoginMutationOptions, _request)',
+      'mutationOptions: bindOptions(_hooks.authLoginMutationOptions, _client, 0)',
     );
     expect(entry('authLogout')).toContain(
-      'mutationOptions: bindMutationOptions(_hooks.authLogoutMutationOptions, _request)',
+      'mutationOptions: bindOptions(_hooks.authLogoutMutationOptions, _client, 0)',
     );
     expect(entry('authLogin')).not.toContain('query');
   });
@@ -133,9 +133,9 @@ describe('buildReactQueryWrapperSource', () => {
     for (const name of ['greet', 'articlesLatest', 'authLogin', 'authLogout']) {
       // One call binds the client and attaches the tree, so the request
       // function keeps its generic signature (`throwOnError: false`).
-      expect(entry(name)).toMatch(new RegExp(`^bindOperation\\(_ops\\.${name}, _request, \\{`));
+      expect(entry(name)).toMatch(new RegExp(`^bindOperation\\(_ops\\.${name}, _client, \\{`));
     }
-    expect(entry('list')).toMatch(/^bindOperation\(_ops\.userAdminList, _request, \{/);
+    expect(entry('list')).toMatch(/^bindOperation\(_ops\.userAdminList, _client, \{/);
   });
 
   test('hooks and root keys are unchanged', () => {
@@ -146,14 +146,14 @@ describe('buildReactQueryWrapperSource', () => {
     expect(source).toMatch(/"user-admin": \{/);
   });
 
-  test('it imports only the binders and schemas its operations use', () => {
+  test('it declares only the binders and imports only the schemas its operations use', () => {
     const build = (only: EndpointDescriptor[]) =>
       buildReactQueryWrapperSource({
         descriptors: only,
         shared,
         opsImport: './c/clients',
         hooksImport: './c/hooks',
-        runtimeImport: './c/client-runtime',
+        runtimeImport: './c/.kubb/client',
         typesImport: './c/types',
         schemasImport: './c/schemas',
         pluginOptions: undefined,
@@ -167,8 +167,8 @@ describe('buildReactQueryWrapperSource', () => {
         path: '/articles/latest',
       }),
     ]);
-    expect(queriesOnly).toContain('  bindQueryOptions,\n');
-    expect(queriesOnly).not.toContain('bindMutationOptions');
+    expect(queriesOnly).toContain('function bindOptions');
+    expect(queriesOnly).not.toContain('mutationOptions');
     expect(queriesOnly).not.toContain('_schemas');
     const mutationsOnly = build([
       descriptor({
@@ -178,11 +178,11 @@ describe('buildReactQueryWrapperSource', () => {
         path: '/auth/logout',
       }),
     ]);
-    expect(mutationsOnly).toContain('  bindMutationOptions,\n');
-    expect(mutationsOnly).not.toContain('bindQueryOptions');
-    // Every kind of operation in the descriptors: all of them.
-    expect(source).toContain('  bindQueryOptions,\n');
-    expect(source).toContain('  bindMutationOptions,\n');
+    expect(mutationsOnly).toContain('function bindOptions');
+    expect(mutationsOnly).not.toContain('queryOptions');
+    // No query or mutation helpers: no binder for them.
+    const neither = build([]);
+    expect(neither).not.toContain('bindOptions');
   });
 
   test('an operation Kubb gives neither query nor mutation helpers keeps only its call', () => {
@@ -213,7 +213,7 @@ describe('buildReactQueryWrapperSource', () => {
         shared,
         opsImport: './c/clients',
         hooksImport: './c/hooks',
-        runtimeImport: './c/client-runtime',
+        runtimeImport: './c/.kubb/client',
         typesImport: './c/types',
         schemasImport: './c/schemas',
         pluginOptions,
@@ -224,14 +224,14 @@ describe('buildReactQueryWrapperSource', () => {
     expect(defaults).toContain('useItemSave: bindHook(_hooks.useItemSave, 0)');
 
     const noQueries = build({ query: false });
-    expect(noQueries).toMatch(/^\s*greet: bindClient\(_ops\.greet, _request\),$/m);
+    expect(noQueries).toMatch(/^\s*greet: bindClient\(_ops\.greet, _client\),$/m);
     expect(noQueries).not.toContain('useGreet');
-    expect(noQueries).not.toContain('bindQueryOptions');
+    expect(noQueries).not.toContain('queryOptions');
 
     // Still its input schema, without mutation helpers Kubb didn't generate.
     const noMutations = build({ mutation: false });
     expect(noMutations).toMatch(
-      /^\s*itemSave: bindOperation\(_ops\.itemSave, _request, \{ schemas: _schemas\.itemSave \}\),$/m,
+      /^\s*itemSave: bindOperation\(_ops\.itemSave, _client, \{ schemas: _schemas\.itemSave \}\),$/m,
     );
     expect(noMutations).not.toContain('useItemSave');
 
@@ -245,7 +245,7 @@ describe('buildReactQueryWrapperSource', () => {
         },
       ],
     });
-    expect(pingOff).toMatch(/^\s*ping: bindClient\(_ops\.ping, _request\),$/m);
+    expect(pingOff).toMatch(/^\s*ping: bindClient\(_ops\.ping, _client\),$/m);
     expect(pingOff).not.toContain('usePing');
     expect(pingOff).toContain('useGreet');
 
@@ -253,12 +253,12 @@ describe('buildReactQueryWrapperSource', () => {
     const excluded = build({
       exclude: [{ type: 'operationId', pattern: '^Greet$' }],
     });
-    expect(excluded).toMatch(/^\s*greet: bindClient\(_ops\.greet, _request\),$/m);
+    expect(excluded).toMatch(/^\s*greet: bindClient\(_ops\.greet, _client\),$/m);
     expect(excluded).not.toContain('useGreet');
   });
 
   test('InputSchema is exported for consumers to name', () => {
-    expect(source).toContain(`export type { InputSchema } from './c/client-runtime';`);
+    expect(source).toContain(`export type { InputSchema } from './c/schemas';`);
   });
 
   test("the app's own InputSchema type is not hidden by the client's", () => {
@@ -282,7 +282,7 @@ describe('buildReactQueryWrapperSource', () => {
       },
       opsImport: './c/clients',
       hooksImport: './c/hooks',
-      runtimeImport: './c/client-runtime',
+      runtimeImport: './c/.kubb/client',
       typesImport: './c/types',
       schemasImport: './c/schemas',
       pluginOptions: undefined,
@@ -311,13 +311,13 @@ describe('buildReactQueryWrapperSource', () => {
       },
       opsImport: './c/clients',
       hooksImport: './c/hooks',
-      runtimeImport: './c/client-runtime',
+      runtimeImport: './c/.kubb/client',
       typesImport: './c/types',
       schemasImport: './c/schemas',
       pluginOptions: undefined,
       inputSchemaNames: new Set(),
     });
-    expect(filtered).toContain(`export type { InputSchema } from './c/client-runtime';`);
+    expect(filtered).toContain(`export type { InputSchema } from './c/schemas';`);
   });
 
   test('a query without search parameters binds its hook without a request', () => {
@@ -338,7 +338,7 @@ describe('buildReactQueryWrapperSource', () => {
       shared,
       opsImport: './c/clients',
       hooksImport: './c/hooks',
-      runtimeImport: './c/client-runtime',
+      runtimeImport: './c/.kubb/client',
       typesImport: './c/types',
       schemasImport: './c/schemas',
       pluginOptions: undefined,
@@ -346,11 +346,46 @@ describe('buildReactQueryWrapperSource', () => {
     });
     expect(emptyQuery).toContain('useEverything: bindHook(_hooks.useEverything, 0)');
     expect(emptyQuery).toContain(
-      'queryOptions: bindQueryOptions(_hooks.everythingQueryOptions, _request, false)',
+      'queryOptions: bindOptions(_hooks.everythingQueryOptions, _client, 0)',
     );
   });
 
   test('the emitted wrapper parses', () => {
     expect(syntaxErrors(source)).toEqual([]);
+  });
+});
+
+describe('buildAxiosWrapperSource', () => {
+  const build = (shared: SharedSchemas, only = descriptors) =>
+    buildAxiosWrapperSource({
+      descriptors: only,
+      shared,
+      clientsImport: './c/clients',
+      runtimeImport: './c/.kubb/client',
+      typesImport: './c/types',
+    });
+
+  test("each client sends through its own axios instance, with Kubb's runtime", () => {
+    const axiosSource = build(shared);
+    expect(axiosSource).toContain('createClient({ transport: createAxiosTransport(axios) })');
+    expect(axiosSource).toMatch(/^\s*greet: bindClient\(_ops\.greet, _client\),$/m);
+    expect(axiosSource).toContain('axios: _axios,');
+    expect(syntaxErrors(axiosSource)).toEqual([]);
+  });
+
+  test("Kubb's ResponseError is exported, unless the app's own type has its name", () => {
+    expect(build(shared)).toContain(
+      `export { isResponseError, ResponseError } from './c/.kubb/client';`,
+    );
+    const withOwn = build({ schemas: { ResponseError: { type: 'object' } }, renamed: new Map() }, [
+      descriptor({
+        operationId: 'Fail',
+        kind: 'mutation',
+        method: 'post',
+        path: '/fail',
+        input: { json: { $ref: '#/components/schemas/ResponseError' }, components: {} },
+      }),
+    ]);
+    expect(withOwn).toContain(`export { isResponseError } from './c/.kubb/client';`);
   });
 });

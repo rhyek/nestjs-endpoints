@@ -27,9 +27,7 @@ export function UserPage() {
         <div>Loading...</div>
       ) : (
         <>
-          {error && (
-            <div>Error: {(error.response?.data as { message: string } | undefined)?.message}</div>
-          )}
+          {error && <div>Error: {(error.data as { message: string } | undefined)?.message}</div>}
           {data && (
             <div>
               <div>Name: {data.name}</div>

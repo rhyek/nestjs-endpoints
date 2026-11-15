@@ -7,7 +7,7 @@ import type { ShopRecipesEditInput } from './ShopRecipesEditInput'
 import type { ShopRecipesEditOutput } from './ShopRecipesEditOutput'
 
 export type ShopRecipesEditPath = {
-    recipeId: number;
+  recipeId: number;
 };
 
 export type ShopRecipesEditStatus200 = ShopRecipesEditOutput;
@@ -15,17 +15,17 @@ export type ShopRecipesEditStatus200 = ShopRecipesEditOutput;
 export type ShopRecipesEditBody = ShopRecipesEditInput;
 
 export type ShopRecipesEditOptions = {
-    body: ShopRecipesEditBody;
-    path: ShopRecipesEditPath;
-    query?: never;
-    headers?: never;
+  body: ShopRecipesEditBody;
+  path: ShopRecipesEditPath;
+  query?: never;
+  headers?: never;
 };
 
 export type ShopRecipesEditResponses = {
-    "200": ShopRecipesEditStatus200;
+  '200': ShopRecipesEditStatus200;
 };
 
 /**
  * @description Union of all possible responses
-*/
+ */
 export type ShopRecipesEditResponse = ShopRecipesEditStatus200;

@@ -1,7 +1,7 @@
 import z from 'zod';
-import { toJsonSchema, zodToOpenApi } from './zod-to-openapi.js';
+import { toJsonSchema } from './zod-to-openapi.js';
 
-describe('zodToOpenApi', () => {
+describe('toJsonSchema with a ref', () => {
   test.each([
     {
       params: {
@@ -418,8 +418,8 @@ describe('zodToOpenApi', () => {
       },
     },
   ])('should return the correct openapi schema for %$', ({ params, expected }) => {
-    const result = zodToOpenApi(params);
-    expect(result).toEqual(expected);
+    const { json: schema, components } = toJsonSchema(params.schema, params.schemaType, params.ref);
+    expect({ openApiSchema: schema, schemaComponents: components }).toEqual(expected);
   });
 });
 
@@ -433,7 +433,7 @@ describe('toJsonSchema', () => {
   const outputDate = { type: 'string', format: 'date-time' };
 
   test('input date is an ISO date-time or date', () => {
-    const { schema } = toJsonSchema(z.coerce.date(), 'input');
+    const { json: schema } = toJsonSchema(z.coerce.date(), 'input');
     expect(schema).toEqual(inputDate);
     const parsed = z.fromJSONSchema(schema);
     expect(parsed.safeParse('2024-01-01').success).toBe(true);
@@ -442,14 +442,14 @@ describe('toJsonSchema', () => {
   });
 
   test('output date is a date-time', () => {
-    expect(toJsonSchema(z.date(), 'output').schema).toEqual({
+    expect(toJsonSchema(z.date(), 'output').json).toEqual({
       type: 'string',
       format: 'date-time',
     });
   });
 
   test('nullable input date nests', () => {
-    const { schema } = toJsonSchema(z.object({ d: z.coerce.date().nullable() }), 'input');
+    const { json: schema } = toJsonSchema(z.object({ d: z.coerce.date().nullable() }), 'input');
     expect((schema as any).properties.d).toEqual({
       oneOf: [inputDate, { type: 'null' }],
     });
@@ -457,7 +457,7 @@ describe('toJsonSchema', () => {
 
   test.each(['input', 'output'] as const)('%s date keeps its own annotations', (io) => {
     const date = io === 'input' ? inputDate : outputDate;
-    expect(toJsonSchema(z.date().describe('Birthday'), io).schema).toEqual({
+    expect(toJsonSchema(z.date().describe('Birthday'), io).json).toEqual({
       description: 'Birthday',
       ...date,
     });
@@ -469,7 +469,7 @@ describe('toJsonSchema', () => {
           deprecated: true,
         }),
         io,
-      ).schema,
+      ).json,
     ).toEqual({
       description: 'Birthday',
       examples: ['2024-01-01T00:00:00Z'],
@@ -517,7 +517,7 @@ describe('toJsonSchema', () => {
   });
 
   test('bigint keeps its meta type', () => {
-    const { schema } = toJsonSchema(
+    const { json: schema } = toJsonSchema(
       z.object({ b: z.coerce.bigint().meta({ type: 'string' } as any) }),
       'input',
     );
@@ -525,13 +525,13 @@ describe('toJsonSchema', () => {
   });
 
   test('unions are oneOf', () => {
-    const { schema } = toJsonSchema(z.union([z.string(), z.number()]), 'input');
+    const { json: schema } = toJsonSchema(z.union([z.string(), z.number()]), 'input');
     expect(schema.oneOf).toBeDefined();
     expect(schema.anyOf).toBeUndefined();
   });
 
   test('meta id lands in components', () => {
-    const { schema, components } = toJsonSchema(
+    const { json: schema, components } = toJsonSchema(
       z.object({ a: z.object({ x: z.string() }).meta({ id: 'Addr' }) }),
       'input',
     );
@@ -546,12 +546,15 @@ describe('toJsonSchema', () => {
   });
 
   test('zod-openapi meta override still applies', () => {
-    const { schema } = toJsonSchema(z.string().meta({ override: { format: 'email' } }), 'input');
+    const { json: schema } = toJsonSchema(
+      z.string().meta({ override: { format: 'email' } }),
+      'input',
+    );
     expect(schema.format).toBe('email');
   });
 
   test('ref names the schema', () => {
-    const { schema, components } = toJsonSchema(z.object({}), 'output', 'XOutput');
+    const { json: schema, components } = toJsonSchema(z.object({}), 'output', 'XOutput');
     expect(schema).toEqual({ $ref: '#/components/schemas/XOutput' });
     expect(components.XOutput).toBeDefined();
   });

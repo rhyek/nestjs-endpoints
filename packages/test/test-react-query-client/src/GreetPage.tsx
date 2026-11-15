@@ -30,9 +30,7 @@ export function GreetPage() {
 
       {status === 'pending' && name && <div>Loading...</div>}
 
-      {error && (
-        <div>Error: {(error.response?.data as { message: string } | undefined)?.message}</div>
-      )}
+      {error && <div>Error: {(error.data as { message: string } | undefined)?.message}</div>}
 
       {data && <div data-testid="greeting">{data}</div>}
     </div>

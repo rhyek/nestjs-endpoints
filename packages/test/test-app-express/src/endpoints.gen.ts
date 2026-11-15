@@ -17,6 +17,8 @@ registerEndpointManifest(import.meta.url, {
       import('./endpoints/greet.endpoint.js'),
     'endpoints/oauth/callback.endpoint.ts': () =>
       import('./endpoints/oauth/callback.endpoint.js'),
+    'endpoints/oauth/oauth2callback.endpoint.ts': () =>
+      import('./endpoints/oauth/oauth2callback.endpoint.js'),
     'endpoints/optional-params.endpoint.ts': () =>
       import('./endpoints/optional-params.endpoint.js'),
     'endpoints/profile/update.endpoint.ts': () =>

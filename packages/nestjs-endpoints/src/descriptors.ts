@@ -6,15 +6,9 @@ import { ApplicationConfig, ModulesContainer } from '@nestjs/core';
 // Not re-exported by `@nestjs/core`'s index; `@nestjs/swagger` builds the
 // document's paths with the same factory.
 import { RoutePathFactory } from '@nestjs/core/router/route-path-factory.js';
-import type { HttpMethod } from './codegen/http-methods.js';
 import type { EndpointKind } from './endpoint-fn.js';
-import type { JsonSchema } from './zod-to-openapi.js';
-
-/** One `toJsonSchema` result: the schema and the components it names. */
-export type ConvertedSchema = {
-  json: JsonSchema;
-  components: Record<string, JsonSchema>;
-};
+import type { ObjectConversion } from './object-parameters.js';
+import type { ConvertedSchema, JsonSchema } from './zod-to-openapi.js';
 
 /** What an endpoint's setup knows about it, for codegen to read. */
 export type EndpointDescriptor = {
@@ -34,14 +28,12 @@ export type EndpointDescriptor = {
    * The `query` object's conversion (a ref when it has a `.meta({ id })`),
    * and its search parameters, one per property.
    */
-  query?: ConvertedSchema & {
-    parameters: { name: string; required: boolean; schema: JsonSchema }[];
-  };
+  query?: ObjectConversion;
   namespaceChain: string[];
   tags: string[];
   summary: string;
   /** The `params` object's conversion, when the endpoint declares `params`. */
-  params?: ConvertedSchema;
+  params?: ObjectConversion;
   /** The body: a ref to `<operationId>Input`. */
   input?: ConvertedSchema;
   outputs: {
@@ -61,16 +53,16 @@ export function toOpenApiPath(httpPath: string): string {
     .join('/');
 }
 
-const requestMethods: Record<HttpMethod, RequestMethod | undefined> = {
+const requestMethods = {
   get: RequestMethod.GET,
   post: RequestMethod.POST,
   put: RequestMethod.PUT,
   delete: RequestMethod.DELETE,
   patch: RequestMethod.PATCH,
-  head: RequestMethod.HEAD,
-  options: RequestMethod.OPTIONS,
-  trace: undefined,
 };
+
+/** The HTTP methods an endpoint can declare. */
+export type HttpMethod = keyof typeof requestMethods;
 
 /**
  * The descriptors of the endpoints mounted in `app`, by path then method.

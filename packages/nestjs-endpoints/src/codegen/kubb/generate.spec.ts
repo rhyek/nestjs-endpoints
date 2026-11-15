@@ -92,5 +92,5 @@ test("the hooks, their options and customOptions' hook options follow each opera
   expect(hookOptions).not.toMatch(/itemsCount/i);
 
   // The wrapper refers to the helpers Kubb generated, and no others.
-  expect(await read('client.tsx')).toContain('itemsCount: bindClient(_ops.itemsCount, _request),');
+  expect(await read('client.tsx')).toContain('itemsCount: bindClient(_ops.itemsCount, _client),');
 }, 60_000);

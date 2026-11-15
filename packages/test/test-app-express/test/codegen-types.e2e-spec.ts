@@ -2,7 +2,7 @@ import { mkdtemp, readFile, rm, stat } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { NestFactory } from '@nestjs/core';
-import { setupCodegen, type z } from 'nestjs-endpoints';
+import { setupCodegen, setupOpenAPI, type z } from 'nestjs-endpoints';
 import { toJsonSchema } from '../../../nestjs-endpoints/dist/zod-to-openapi.js';
 import { createApiClient } from '../generated/react-query-client';
 import type * as Types from '../generated/react-query-client/types';
@@ -21,7 +21,7 @@ type JsonSchema = Record<string, unknown>;
 
 /** The endpoint's conversion with every `$ref` replaced by its target. */
 function resolved(schema: z.ZodType): unknown {
-  const { schema: root, components } = toJsonSchema(schema, 'input');
+  const { json: root, components } = toJsonSchema(schema, 'input');
   const walk = (node: unknown): unknown => {
     if (Array.isArray(node)) {
       return node.map(walk);
@@ -140,11 +140,32 @@ describe('setupCodegen', () => {
   test('a second run with nothing changed leaves the client alone', async () => {
     const outputFile = path.join(dir, 'client.ts');
     await run(outputFile);
-    const runtime = path.join(outputDirOf(outputFile), 'client-runtime.ts');
+    const runtime = path.join(outputDirOf(outputFile), '.kubb', 'client.ts');
     const before = [await stat(outputFile), await stat(runtime)];
     await new Promise((r) => setTimeout(r, 20));
     await run(outputFile);
     const after = [await stat(outputFile), await stat(runtime)];
     expect(after.map((s) => s.mtimeMs)).toEqual(before.map((s) => s.mtimeMs));
+  });
+
+  test("a relative openapi outputFile resolves against the caller's file", async () => {
+    // A folder next to this file: resolved against any other directory, the
+    // relative path names a file elsewhere.
+    const local = await mkdtemp(path.join(import.meta.dirname, '.relative-openapi-'));
+    const app = await NestFactory.create(AppModule, { logger: false });
+    try {
+      await setupCodegen(app, {
+        openapi: { outputFile: path.join(path.basename(local), 'codegen.json') },
+        clients: [{ type: 'axios', outputFile: path.join(dir, 'client.ts') }],
+      });
+      await setupOpenAPI(app, {
+        outputFile: path.join(path.basename(local), 'openapi.json'),
+      });
+      await expect(stat(path.join(local, 'codegen.json'))).resolves.toBeTruthy();
+      await expect(stat(path.join(local, 'openapi.json'))).resolves.toBeTruthy();
+    } finally {
+      await app.close();
+      await rm(local, { recursive: true, force: true });
+    }
   });
 });

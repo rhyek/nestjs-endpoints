@@ -3,7 +3,7 @@
 * Do not edit manually.
 */
 
-import type { RequestConfig, ResponseErrorConfig } from '../client-runtime'
+import type { RequestConfig, ResponseErrorConfig } from '../.kubb/client'
 import type { ShopStatsStatus200 } from '../types/ShopStats'
 import type { QueryKey, QueryClient, QueryObserverOptions, UseQueryResult } from '@tanstack/react-query'
 import { shopStats } from '../clients/shopStats'
@@ -13,22 +13,22 @@ export const shopStatsQueryKey = () => [{ url: '/shop/stats' }] as const
 
 type ShopStatsQueryKey = ReturnType<typeof shopStatsQueryKey>
 
-export function shopStatsQueryOptions(config: Partial<Omit<RequestConfig, 'path' | 'query' | 'body' | 'headers' | 'url'>> = {}) {
+export function shopStatsQueryOptions(config: Partial<Omit<RequestConfig, 'path' | 'query' | 'body' | 'headers' | 'cookies' | 'url' | 'throwOnError'>> = {}) {
   const queryKey = shopStatsQueryKey()
   return queryOptions<ShopStatsStatus200, ResponseErrorConfig<Error>, ShopStatsStatus200, typeof queryKey>({
    queryKey,
    queryFn: async ({ signal }) => {
-      return (await shopStats({ ...config, signal: config.signal ?? signal, throwOnError: true })).data
+      return shopStats({ ...config, signal: config.signal ?? signal, throwOnError: true }).unwrap()
    },
   })
 }
 
 /**
- * {@link /shop/stats}
+ * `POST /shop/stats`
  */
 export function useShopStats<TData = ShopStatsStatus200, TQueryData = ShopStatsStatus200, TQueryKey extends QueryKey = ShopStatsQueryKey>(options: {
   query?: Partial<QueryObserverOptions<ShopStatsStatus200, ResponseErrorConfig<Error>, TData, TQueryData, TQueryKey>> & { client?: QueryClient },
-  client?: Partial<Omit<RequestConfig, 'path' | 'query' | 'body' | 'headers' | 'url'>>
+  client?: Partial<Omit<RequestConfig, 'path' | 'query' | 'body' | 'headers' | 'cookies' | 'url' | 'throwOnError'>>
 } = {}) {
   const { query: queryConfig = {}, client: config = {} } = options ?? {}
   const { client: queryClient, ...resolvedOptions } = queryConfig

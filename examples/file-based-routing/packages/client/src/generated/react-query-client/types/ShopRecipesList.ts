@@ -8,17 +8,17 @@ import type { ShopRecipesListOutput } from './ShopRecipesListOutput'
 export type ShopRecipesListStatus200 = ShopRecipesListOutput;
 
 export type ShopRecipesListOptions = {
-    body?: never;
-    path?: never;
-    query?: never;
-    headers?: never;
+  body?: never;
+  path?: never;
+  query?: never;
+  headers?: never;
 };
 
 export type ShopRecipesListResponses = {
-    "200": ShopRecipesListStatus200;
+  '200': ShopRecipesListStatus200;
 };
 
 /**
  * @description Union of all possible responses
-*/
+ */
 export type ShopRecipesListResponse = ShopRecipesListStatus200;

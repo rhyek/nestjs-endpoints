@@ -4,5 +4,5 @@
 */
 
 export type ShopHomepageOutput = {
-    tagline: string;
+  tagline: string;
 };

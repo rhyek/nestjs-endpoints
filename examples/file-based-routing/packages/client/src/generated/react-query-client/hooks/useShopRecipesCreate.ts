@@ -3,7 +3,7 @@
 * Do not edit manually.
 */
 
-import type { RequestConfig, ResponseErrorConfig } from '../client-runtime'
+import type { RequestConfig, ResponseErrorConfig } from '../.kubb/client'
 import type { ShopRecipesCreateOptions, ShopRecipesCreateStatus200 } from '../types/ShopRecipesCreate'
 import type { UseMutationOptions, UseMutationResult, QueryClient } from '@tanstack/react-query'
 import { shopRecipesCreate } from '../clients/shopRecipesCreate'
@@ -11,22 +11,22 @@ import { mutationOptions, useMutation } from '@tanstack/react-query'
 
 export const shopRecipesCreateMutationKey = () => [{ url: '/shop/recipes/create' }] as const
 
-export function shopRecipesCreateMutationOptions<TContext = unknown>(config: Partial<Omit<RequestConfig, 'path' | 'query' | 'body' | 'headers' | 'url'>> = {}) {
+export function shopRecipesCreateMutationOptions<TContext = unknown>(config: Partial<Omit<RequestConfig, 'path' | 'query' | 'body' | 'headers' | 'cookies' | 'url' | 'throwOnError'>> = {}) {
   const mutationKey = shopRecipesCreateMutationKey()
   return mutationOptions<ShopRecipesCreateStatus200, ResponseErrorConfig<Error>, ShopRecipesCreateOptions, TContext>({
     mutationKey,
     mutationFn: async({ body }) => {
-      return (await shopRecipesCreate({ ...config, body, throwOnError: true })).data
+      return shopRecipesCreate({ ...config, body, throwOnError: true }).unwrap()
     },
   })
 }
 
 /**
- * {@link /shop/recipes/create}
+ * `POST /shop/recipes/create`
  */
 export function useShopRecipesCreate<TContext>(options: {
   mutation?: UseMutationOptions<ShopRecipesCreateStatus200, ResponseErrorConfig<Error>, ShopRecipesCreateOptions, TContext> & { client?: QueryClient },
-  client?: Partial<Omit<RequestConfig, 'path' | 'query' | 'body' | 'headers' | 'url'>>,
+  client?: Partial<Omit<RequestConfig, 'path' | 'query' | 'body' | 'headers' | 'cookies' | 'url' | 'throwOnError'>>,
 } = {}) {
   const { mutation = {}, client: config = {} } = options ?? {}
   const { client: queryClient, ...mutationOptions } = mutation;

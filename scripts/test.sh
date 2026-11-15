@@ -18,7 +18,8 @@ pnpm --filter "./packages/test/*" --filter "!test-app-express" --filter "!test-r
 "
 
 pnpm --filter "./packages/test/*" run codegen
-pnpm -r run tscheck
+# The benchmark apps are measured by hand (`pnpm bench`), not tested.
+pnpm --filter '!./benchmarks/*' run tscheck
 
 pnpm --filter "test-app-*" run test:e2e --no-cache
 

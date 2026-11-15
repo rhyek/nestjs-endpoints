@@ -3,15 +3,15 @@
 * Do not edit manually.
 */
 
-import type { Options, RequestResult } from '../client-runtime'
+import type { Options, Unwrappable, RequestResult } from '../.kubb/client'
 import type { ShopRecipesViewOptions, ShopRecipesViewResponses } from '../types/ShopRecipesView'
-import { client } from '../client-runtime'
+import { client, withUnwrap, resolveThrowOnError } from '../.kubb/client'
 
 /**
- * {@link /shop/recipes/:recipeId/view}
+ * `POST /shop/recipes/{recipeId}/view`
  */
-export function shopRecipesView<ThrowOnError extends boolean = true>(options: Options<ShopRecipesViewOptions, ThrowOnError>): Promise<RequestResult<ShopRecipesViewResponses, ThrowOnError>> {
-  const { client: request = client, ...config } = options
+export function shopRecipesView<ThrowOnError extends boolean = true>(options: Options<ShopRecipesViewOptions, ThrowOnError>): Unwrappable<RequestResult<ShopRecipesViewResponses, ThrowOnError>> {
+  const { client: apiClient = client, ...config } = options
 
-  return request({ method: 'POST', url: '/shop/recipes/{recipeId}/view', ...config, throwOnError: config.throwOnError ?? true }) as Promise<RequestResult<ShopRecipesViewResponses, ThrowOnError>>
+  return withUnwrap(apiClient<ShopRecipesViewResponses, ThrowOnError>({ method: 'POST', url: '/shop/recipes/{recipeId}/view', ...config, throwOnError: resolveThrowOnError(config.throwOnError, true) }))
 }

@@ -2,13 +2,14 @@
 
 The shared oxlint and oxfmt configuration. For lint, it gives the rules of ESLint's `recommended`
 and typescript-eslint's `recommendedTypeChecked` that oxlint has (it has no such presets, only
-categories), plus the rules that catch bugs rather than enforce a style. For
-formatting, it gives the house style: single quotes, trailing commas, 100 columns, imports sorted.
+categories), plus the rules that catch bugs rather than enforce a style, and a ban on CommonJS.
+For formatting, it gives the house style: single quotes, trailing commas, 100 columns, imports
+sorted.
 
-| Import                     | What                                                                                                                                                                                 |
-| -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `@rhyek/oxc-config/oxlint` | `base`, every TypeScript repo's rules, type-aware ones included; `react`, the React and accessibility rules, added after `base`; `ignorePatterns`, to spread into the consumer's own |
-| `@rhyek/oxc-config/oxfmt`  | `oxfmtConfig`, to spread into the consumer's config; `ignorePatterns`, to spread into its `ignorePatterns`                                                                           |
+| Import                     | What                                                                                                                                                                                                                                                                         |
+| -------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `@rhyek/oxc-config/oxlint` | `base`, every TypeScript repo's rules, type-aware ones included; `react`, the React and accessibility rules, added after `base`; `ignorePatterns`, to spread into the consumer's own; `commonJsRestrictedImports`, to spread into the consumer's own `no-restricted-imports` |
+| `@rhyek/oxc-config/oxfmt`  | `oxfmtConfig`, to spread into the consumer's config; `ignorePatterns`, to spread into its `ignorePatterns`                                                                                                                                                                   |
 
 What a consumer needs: `oxlint`, `oxlint-tsgolint` (the type-aware rules) and `oxfmt` as its own
 dev dependencies, this package referenced from its root `package.json`
@@ -44,6 +45,30 @@ take no runtime imports. Which rules are on, and why some obvious ones are off (
 family, `no-unnecessary-type-assertion`, whose fix removes casts that types depend on,
 `consistent-type-imports`, which breaks Nest's dependency injection), is written beside
 each rule in `src/oxlint.ts`.
+
+`base` is ES modules only: no `require()`, `import x = require()`, `module.exports`, `exports.x`,
+`__dirname` or `__filename`, and no `createRequire` from `node:module` or `module`. What replaces
+them: `import`, `import()`, `import.meta.resolve`, `import.meta.dirname` and
+`import.meta.filename`. The `createRequire` ban is `eslint/no-restricted-imports`, and a rule's
+options do not merge through `extends`: a consumer that sets its own `no-restricted-imports`, in
+`rules` or in an `overrides` entry, replaces the shared one. It spreads `commonJsRestrictedImports`
+into its `paths` to keep the ban.
+
+```ts
+// oxlint.config.ts
+import { base, commonJsRestrictedImports } from '@rhyek/oxc-config/oxlint';
+import { defineConfig } from 'oxlint';
+
+export default defineConfig({
+  extends: [base],
+  rules: {
+    'eslint/no-restricted-imports': [
+      'error',
+      { paths: [...commonJsRestrictedImports, { name: 'lodash', message: 'Use es-toolkit.' }] },
+    ],
+  },
+});
+```
 
 Verify: `pnpm test && pnpm typecheck` in this directory. The spec runs the real oxlint over a
 fixture, and oxlint refuses a config naming a rule it lacks, so an upgrade that renames a rule

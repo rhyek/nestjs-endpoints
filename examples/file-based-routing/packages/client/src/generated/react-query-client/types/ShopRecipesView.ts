@@ -6,23 +6,23 @@
 import type { ShopRecipesViewOutput } from './ShopRecipesViewOutput'
 
 export type ShopRecipesViewPath = {
-    recipeId: number;
+  recipeId: number;
 };
 
 export type ShopRecipesViewStatus200 = ShopRecipesViewOutput;
 
 export type ShopRecipesViewOptions = {
-    body?: never;
-    path: ShopRecipesViewPath;
-    query?: never;
-    headers?: never;
+  body?: never;
+  path: ShopRecipesViewPath;
+  query?: never;
+  headers?: never;
 };
 
 export type ShopRecipesViewResponses = {
-    "200": ShopRecipesViewStatus200;
+  '200': ShopRecipesViewStatus200;
 };
 
 /**
  * @description Union of all possible responses
-*/
+ */
 export type ShopRecipesViewResponse = ShopRecipesViewStatus200;

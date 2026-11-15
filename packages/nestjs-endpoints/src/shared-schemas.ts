@@ -8,24 +8,54 @@ export type SharedSchemas = {
   renamed: ReadonlyMap<string, string>;
 };
 
-const refPrefix = '#/components/schemas/';
+/** Where every `$ref` zod emits points: `#/components/schemas/<id>`. */
+export const refPrefix = '#/components/schemas/';
 
-function canonical(value: unknown): string {
-  return JSON.stringify(sortKeys(value));
-}
-
-function sortKeys(value: unknown): unknown {
+/**
+ * A copy of `value` with sorted keys and without `undefined` fields, for
+ * comparing and hashing. Functions and regular expressions, which JSON drops,
+ * become their source, so a change to a pattern or a callback is a change.
+ */
+export function sortedCopy(value: unknown): unknown {
+  if (typeof value === 'function' || value instanceof RegExp) {
+    return String(value);
+  }
   if (Array.isArray(value)) {
-    return value.map(sortKeys);
+    return value.map(sortedCopy);
   }
   if (value && typeof value === 'object') {
     return Object.fromEntries(
       Object.entries(value)
+        .filter(([, v]) => v !== undefined)
         .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
-        .map(([k, v]) => [k, sortKeys(v)]),
+        .map(([k, v]) => [k, sortedCopy(v)]),
     );
   }
   return value;
+}
+
+function canonical(value: unknown): string {
+  return JSON.stringify(sortedCopy(value));
+}
+
+/**
+ * `schema` with its `$ref`s to `named` schemas followed, its own keywords
+ * kept over the target's. A ref to nothing in `named`, or back to a schema
+ * on the way, stays a ref.
+ */
+export function unalias(schema: JsonSchema, named: Record<string, JsonSchema>): JsonSchema {
+  const seen = new Set<string>();
+  let current = schema;
+  while (typeof current.$ref === 'string') {
+    const target = current.$ref.slice(refPrefix.length);
+    if (!current.$ref.startsWith(refPrefix) || seen.has(target) || !named[target]) {
+      return current;
+    }
+    seen.add(target);
+    const { $ref: _ref, ...own } = current;
+    current = { ...named[target], ...own };
+  }
+  return current;
 }
 
 /**
@@ -179,6 +209,21 @@ function collectRefs(value: unknown, into: Set<string>) {
       }
     }
   }
+}
+
+/**
+ * An operation's own schemas (input, parameters, responses), whose `$ref`s
+ * lead to the shared schemas it uses; output refs point at renamed twins.
+ */
+export function rootsOf(d: EndpointDescriptor, renamed: SharedSchemas['renamed']) {
+  return [
+    d.input?.json,
+    d.params?.json,
+    ...d.pathParams.map((p) => p.schema),
+    d.query?.json,
+    ...(d.query?.parameters ?? []).map((q) => q.schema),
+    ...d.outputs.map((o) => rewriteOutputRefs(o.schema.json, renamed)),
+  ].filter((r) => r !== undefined);
 }
 
 /** The shared schemas `roots` refer to, directly or through other schemas. */

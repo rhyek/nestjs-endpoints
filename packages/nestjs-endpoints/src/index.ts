@@ -9,8 +9,8 @@ export {
 } from './endpoint-fn.js';
 export { ZodValidationException, ZodSerializationException } from './exceptions.js';
 export * from './helpers.js';
-export * from './setup-openapi.js';
-export * from './codegen/index.js';
+export { setupOpenAPI, type SetupOpenAPIOptions } from './setup-openapi.js';
+export { setupCodegen } from './codegen/setup.js';
 export {
   EndpointRouterModule,
   // eslint-disable-next-line typescript/no-deprecated -- the alias itself, still exported

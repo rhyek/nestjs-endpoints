@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { endpoint, z } from 'nestjs-endpoints';
 import request from 'supertest';
+import { createApp } from './create-app';
 
 describe('raw input', () => {
   test('raw input is available in the handler', async () => {
@@ -26,10 +27,8 @@ describe('raw input', () => {
       imports: [TestModule],
     }).compile();
 
-    const app = moduleFixture.createNestApplication();
+    const { app } = await createApp(moduleFixture);
     try {
-      await app.init();
-      await app.listen(0, '127.0.0.1');
       const req = request(app.getHttpServer());
 
       await req

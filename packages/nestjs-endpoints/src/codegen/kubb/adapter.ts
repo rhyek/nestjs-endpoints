@@ -1,10 +1,4 @@
-import {
-  factory,
-  inferDiscriminatorPropertyName,
-  narrowSchema,
-  optionality,
-  refName,
-} from '@kubb/ast';
+import { ast, factory } from '@kubb/ast';
 import type {
   HttpMethod,
   InputNode,
@@ -14,9 +8,17 @@ import type {
   SchemaNode,
   StatusCode,
 } from '@kubb/ast';
-import type { Adapter } from 'kubb/kit';
+import { casing, childName, defineExtension, enumPropName, type Adapter } from 'kubb/kit';
 import type { EndpointDescriptor } from '../../descriptors.js';
-import { reachableSchemas, rewriteOutputRefs, type SharedSchemas } from '../../shared-schemas.js';
+import type { ValueShape } from '../../object-parameters.js';
+import {
+  reachableSchemas,
+  refPrefix,
+  rewriteOutputRefs,
+  rootsOf,
+  type SharedSchemas,
+  unalias,
+} from '../../shared-schemas.js';
 import type { JsonSchema } from '../../zod-to-openapi.js';
 
 /**
@@ -26,7 +28,6 @@ import type { JsonSchema } from '../../zod-to-openapi.js';
  * plugins print the same types for the same schema.
  */
 
-const refPrefix = '#/components/schemas/';
 const jsonContentType = 'application/json';
 
 /**
@@ -114,32 +115,6 @@ const typelessKeywords = [
 ];
 
 const numericFormats = new Set(['int32', 'int64', 'uint64', 'float', 'double']);
-
-/** Kubb's PascalCase, so derived names match the ones it derives. */
-function pascalCase(text: string): string {
-  return text
-    .trim()
-    .replace(/([a-z\d])([A-Z])/g, '$1 $2')
-    .replace(/([A-Z]+)([A-Z][a-z])/g, '$1 $2')
-    .replace(/(\d)([a-z])/g, '$1 $2')
-    .split(/[\s\-_./\\:]+/)
-    .filter(Boolean)
-    .map((word) =>
-      word.length > 1 && word === word.toUpperCase()
-        ? word
-        : word.charAt(0).toUpperCase() + word.slice(1),
-    )
-    .join('')
-    .replace(/[^a-zA-Z0-9]/g, '');
-}
-
-function childName(parent: string | undefined, prop: string) {
-  return parent ? pascalCase(`${parent} ${prop}`) : undefined;
-}
-
-function enumName(parent: string | undefined, prop: string) {
-  return pascalCase([parent, prop, 'enum'].filter(Boolean).join(' '));
-}
 
 function escapePointer(token: string) {
   return token.replaceAll('~', '~0').replaceAll('/', '~1');
@@ -246,7 +221,7 @@ function simplifyUnion(members: SchemaNode[]): SchemaNode[] {
     return members;
   }
   return members.filter((member) => {
-    const node = narrowSchema(member, 'enum');
+    const node = ast.schema.narrow(member, 'enum');
     if (!node?.primitive) {
       return true;
     }
@@ -345,7 +320,8 @@ function parse(schema: JsonSchema, ctx: Context): SchemaNode {
     return parse(flattened, ctx);
   }
 
-  const nullable = isNullable(schema) || undefined;
+  // `null` itself is not nullable: Kubb would print it as `null | null`.
+  const nullable = (schema.type !== 'null' && isNullable(schema)) || undefined;
   const base = {
     name: ctx.name,
     nullable,
@@ -377,7 +353,7 @@ function parse(schema: JsonSchema, ctx: Context): SchemaNode {
     const resolved = ctx.resolve?.(schema.$ref);
     return node({
       type: 'ref',
-      name: refName(schema.$ref),
+      name: ast.ref.getName(schema.$ref),
       ref: schema.$ref,
       ...(resolved !== undefined ? { schema: resolved } : {}),
     });
@@ -437,7 +413,7 @@ function parse(schema: JsonSchema, ctx: Context): SchemaNode {
             type: 'union',
             strategy: schema.oneOf ? 'one' : 'any',
             members: simplified,
-            discriminatorPropertyName: inferDiscriminatorPropertyName(members),
+            discriminatorPropertyName: ast.schema.inferDiscriminator(members),
           });
     if (!schema.properties) {
       return union;
@@ -592,7 +568,7 @@ function parse(schema: JsonSchema, ctx: Context): SchemaNode {
     const items = schema.items as JsonSchema | undefined;
     const itemName =
       (items?.enum as unknown[] | undefined)?.length && ctx.name
-        ? enumName(undefined, ctx.name)
+        ? enumPropName(undefined, ctx.name, 'enum')
         : ctx.name;
     return node({
       type: 'array',
@@ -633,14 +609,14 @@ function parseObject(
     ([prop, propSchema]) => {
       const parsed = parse(propSchema, {
         ...at(ctx, 'properties', prop),
-        name: childName(ctx.name, prop),
+        name: childName(ctx.name, prop) ?? undefined,
       });
       // An inline enum on a property gets a name of its own, which plugin-ts
       // prints as a const and a `…Key` type; a boolean enum stays inline.
-      const named = narrowSchema(parsed, 'enum')
+      const named = ast.schema.narrow(parsed, 'enum')
         ? {
             ...parsed,
-            name: parsed.primitive === 'boolean' ? null : enumName(ctx.name, prop),
+            name: parsed.primitive === 'boolean' ? null : enumPropName(ctx.name, prop, 'enum'),
           }
         : parsed;
       return factory.createProperty({
@@ -684,21 +660,6 @@ export function schemaToNode(
   return parse(schema, { ...at, name: at.name });
 }
 
-/**
- * An operation's own schemas (input, parameters, responses), whose `$ref`s
- * lead to the shared schemas it uses; output refs point at renamed twins.
- */
-export function rootsOf(d: EndpointDescriptor, renamed: SharedSchemas['renamed']) {
-  return [
-    d.input?.json,
-    d.params?.json,
-    ...d.pathParams.map((p) => p.schema),
-    d.query?.json,
-    ...(d.query?.parameters ?? []).map((q) => q.schema),
-    ...d.outputs.map((o) => rewriteOutputRefs(o.schema.json, renamed)),
-  ].filter((r) => r !== undefined);
-}
-
 /** Named schemas before the ones that refer to them. */
 function sortByRefs(schemas: Record<string, JsonSchema>) {
   const sorted: string[] = [];
@@ -723,21 +684,6 @@ function sortByRefs(schemas: Record<string, JsonSchema>) {
     visit(name, new Set());
   }
   return sorted;
-}
-
-/** `schema` with its `$ref`s followed, its own keywords kept over the target's. */
-function unalias(schema: JsonSchema, named: Record<string, JsonSchema>): JsonSchema {
-  const seen = new Set<string>();
-  let current = schema;
-  while (typeof current.$ref === 'string') {
-    const target = current.$ref.slice(refPrefix.length);
-    if (!current.$ref.startsWith(refPrefix) || seen.has(target) || !named[target]) {
-      return current;
-    }
-    seen.add(target);
-    current = { ...named[target], ...omit(current, ['$ref']) };
-  }
-  return current;
 }
 
 /**
@@ -836,7 +782,7 @@ export function buildInputNode(params: {
   const schemas = [...parsedByName.values()];
 
   const operations: OperationNode[] = descriptors.map((d) => {
-    const operationName = pascalCase(d.operationId);
+    const operationName = casing.pascal(d.operationId);
     const ctx = (pointer: string, name?: string): Context => ({
       operationId: d.operationId,
       pointer,
@@ -848,22 +794,28 @@ export function buildInputNode(params: {
       name: string,
       schema: JsonSchema,
       required: boolean,
+      shape?: ValueShape,
     ): ParameterNode =>
       factory.createParameter({
         name,
         in: location,
+        // An object search parameter travels as `?add[a]=1&add[b]=2`, as the
+        // OpenAPI document describes it.
+        ...(shape === 'object' && { style: 'deepObject' as const, explode: true }),
         schema: parse(
           schema,
           ctx(
             `#/${location === 'path' ? 'params' : 'query'}/properties/${escapePointer(name)}`,
-            pascalCase(`${operationName} ${name}`),
+            casing.pascal(`${operationName} ${name}`),
           ),
         ),
         required,
       });
     const parameters = [
       ...d.pathParams.map((p) => parameter('path', p.name, p.schema, true)),
-      ...(d.query?.parameters ?? []).map((q) => parameter('query', q.name, q.schema, q.required)),
+      ...(d.query?.parameters ?? []).map((q) =>
+        parameter('query', q.name, q.schema, q.required, q.shape),
+      ),
     ];
 
     const requestBody = d.input
@@ -872,7 +824,7 @@ export function buildInputNode(params: {
           content: [
             factory.createContent({
               contentType: jsonContentType,
-              schema: optionality(
+              schema: ast.schema.applyOptionality(
                 parse(d.input.json, ctx('#/input', `${operationName}Request`)),
                 true,
               ),
@@ -935,8 +887,8 @@ export function buildInputNode(params: {
 }
 
 /** A Kubb adapter whose source is the `InputNode` built above. */
-export function adapterEndpoints(kit: typeof import('kubb/kit'), input: InputNode): Adapter {
-  return kit.defineExtension({
+export function adapterEndpoints(input: InputNode): Adapter {
+  return defineExtension({
     kind: 'adapter',
     meta: { name: 'nestjs-endpoints' },
     build: () => ({

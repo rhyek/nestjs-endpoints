@@ -4,9 +4,9 @@
 */
 
 export type ShopRecipesCreateInput = {
-    /**
-     * @minLength 1
-     * @type string
-    */
-    name: string;
+  /**
+   * @minLength 1
+   * @type string
+   */
+  name: string;
 };

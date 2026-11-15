@@ -5,8 +5,9 @@ import { INestApplication, Module } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { z } from 'zod';
 import { endpoint } from '../endpoint-fn.js';
+import { stripExtension } from '../manifest/scan.js';
 import { hashHeader } from './hash.js';
-import { generateAxiosClient, outputDirFor } from './kubb/generate.js';
+import { generateAxiosClient } from './kubb/generate.js';
 import { setupCodegen } from './setup.js';
 
 vi.mock('./kubb/generate.js', async (importOriginal) => ({
@@ -18,7 +19,7 @@ const generate = vi.mocked(generateAxiosClient);
 
 /** What a build writes: the wrapper with its hash, and the output dir. */
 async function writeClient(outputFile: string, hash: string) {
-  await mkdir(outputDirFor(outputFile), { recursive: true });
+  await mkdir(stripExtension(outputFile), { recursive: true });
   await writeFile(outputFile, hashHeader(hash) + 'export {};\n');
 }
 

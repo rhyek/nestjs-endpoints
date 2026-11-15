@@ -448,7 +448,7 @@ test('annotation keywords are carried, or ignored where the AST has no field', (
 });
 
 test('z.base64() converts despite its contentEncoding', () => {
-  const { schema } = toJsonSchema(z.base64(), 'input');
+  const { json: schema } = toJsonSchema(z.base64(), 'input');
   expect(schema.contentEncoding).toBe('base64');
   expect(schemaToNode(schema, at)).toMatchObject({
     type: 'string',
@@ -474,34 +474,14 @@ function descriptorOf(
   },
 ): EndpointDescriptor {
   const method = parts.method ?? 'post';
-  let input: EndpointDescriptor['input'];
-  let query: EndpointDescriptor['query'];
-  if (parts.query) {
-    const converted = convertObject(parts.query);
-    query = {
-      json: converted.schema,
-      components: converted.components,
-      parameters: converted.parameters,
-    };
-  }
-  if (parts.input) {
-    const c = toJsonSchema(parts.input, 'input', operationId + 'Input');
-    input = { json: c.schema, components: c.components };
-  }
-  let params: EndpointDescriptor['params'];
-  const paramSchemas = new Map<string, Record<string, unknown>>();
-  if (parts.params) {
-    const converted = convertObject(parts.params);
-    params = { json: converted.schema, components: converted.components };
-    for (const p of converted.parameters) {
-      paramSchemas.set(p.name, p.schema);
-    }
-  }
+  const query = parts.query && convertObject(parts.query);
+  const input = parts.input && toJsonSchema(parts.input, 'input', operationId + 'Input');
+  const params = parts.params && convertObject(parts.params);
   const pathParams =
     parts.pathParams ??
     [...(parts.path ?? '').matchAll(/\{(\w+)\}/g)].map(([, name]) => ({
       name,
-      schema: paramSchemas.get(name) ?? { type: 'string' },
+      schema: params?.parameters.find((p) => p.name === name)?.schema ?? { type: 'string' },
     }));
   return {
     operationId,
@@ -516,15 +496,8 @@ function descriptorOf(
     ...(params ? { params } : {}),
     ...(input ? { input } : {}),
     outputs: Object.entries(parts.outputs ?? {}).map(([status, s]) => {
-      const c = toJsonSchema(
-        s,
-        'output',
-        operationId + (status === '200' ? '' : status) + 'Output',
-      );
-      return {
-        status: Number(status),
-        schema: { json: c.schema, components: c.components },
-      };
+      const ref = operationId + (status === '200' ? '' : status) + 'Output';
+      return { status: Number(status), schema: toJsonSchema(s, 'output', ref) };
     }),
   };
 }
@@ -787,23 +760,22 @@ test('an unknown keyword in a shared schema names an operation using it', () => 
 });
 
 /**
- * Runs Kubb with the adapter, plugin-ts and plugin-client; returns each
+ * Runs Kubb with the adapter, plugin-ts and plugin-axios; returns each
  * file by its name, the clients under `clients/`.
  */
 async function printTypes(input: InputNode): Promise<Record<string, string>> {
   const dir = await mkdtemp(path.join(os.tmpdir(), 'nestjs-endpoints-adapter-'));
   try {
-    const [{ createKubb }, kit, { pluginTs }, { pluginClient }] = await Promise.all([
+    const [{ createKubb }, { pluginTs }, { pluginAxios }] = await Promise.all([
       import('kubb'),
-      import('kubb/kit'),
       import('@kubb/plugin-ts'),
-      import('@kubb/plugin-client'),
+      import('@kubb/plugin-axios'),
     ]);
     const outDir = path.join(dir, 'out');
     const build = createKubb({
       root: dir,
       input: {},
-      adapter: adapterEndpoints(kit, input),
+      adapter: adapterEndpoints(input),
       output: {
         path: outDir,
         clean: true,
@@ -811,7 +783,7 @@ async function printTypes(input: InputNode): Promise<Record<string, string>> {
         format: false,
         lint: false,
       },
-      plugins: [pluginTs(), pluginClient({ importPath: '../client-runtime' })],
+      plugins: [pluginTs(), pluginAxios()],
     });
     try {
       await build.build();
@@ -981,27 +953,27 @@ export type ProfileUpdateResponse = ProfileUpdateStatus200;
   );
   // The request functions, as printed from today's document.
   expect(files['clients/userAppointmentCreate.ts']).toBe(`${banner}
-import type { Options, RequestResult } from '../client-runtime'
+import type { Options, Unwrappable, RequestResult } from '../.kubb/client'
 import type { UserAppointmentCreateOptions, UserAppointmentCreateResponses } from '../types/UserAppointmentCreate'
-import { client } from '../client-runtime'
+import { client, withUnwrap, resolveThrowOnError } from '../.kubb/client'
 
 /**
+ * \`POST /user/appointment/create\`
  * @summary Create an appointment
- * {@link /user/appointment/create}
  */
-export function userAppointmentCreate<ThrowOnError extends boolean = true>(options: Options<UserAppointmentCreateOptions, ThrowOnError>): Promise<RequestResult<UserAppointmentCreateResponses, ThrowOnError>> {
-  const { client: request = client, ...config } = options
+export function userAppointmentCreate<ThrowOnError extends boolean = true>(options: Options<UserAppointmentCreateOptions, ThrowOnError>): Unwrappable<RequestResult<UserAppointmentCreateResponses, ThrowOnError>> {
+  const { client: apiClient = client, ...config } = options
 
-  return request({ method: 'POST', url: '/user/appointment/create', contentType: { request: 'application/json' }, ...config, throwOnError: config.throwOnError ?? true }) as Promise<RequestResult<UserAppointmentCreateResponses, ThrowOnError>>
+  return withUnwrap(apiClient<UserAppointmentCreateResponses, ThrowOnError>({ method: 'POST', url: '/user/appointment/create', contentType: { request: 'application/json' }, ...config, throwOnError: resolveThrowOnError(config.throwOnError, true) }))
 }
 `);
   expect(files['clients/recipesView.ts']).toContain(`/**
- * {@link /recipes/:recipeId/view}
+ * \`GET /recipes/{recipeId}/view\`
  */
-export function recipesView<ThrowOnError extends boolean = true>(options: Options<RecipesViewOptions, ThrowOnError>): Promise<RequestResult<RecipesViewResponses, ThrowOnError>> {
-  const { client: request = client, ...config } = options
+export function recipesView<ThrowOnError extends boolean = true>(options: Options<RecipesViewOptions, ThrowOnError>): Unwrappable<RequestResult<RecipesViewResponses, ThrowOnError>> {
+  const { client: apiClient = client, ...config } = options
 
-  return request({ method: 'GET', url: '/recipes/{recipeId}/view', ...config, throwOnError: config.throwOnError ?? true }) as Promise<RequestResult<RecipesViewResponses, ThrowOnError>>
+  return withUnwrap(apiClient<RecipesViewResponses, ThrowOnError>({ method: 'GET', url: '/recipes/{recipeId}/view', ...config, throwOnError: resolveThrowOnError(config.throwOnError, true) }))
 }`);
 });
 

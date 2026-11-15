@@ -8,7 +8,8 @@ import type { OxlintConfig } from 'oxlint';
 // holds most, and the rest (`no-fallthrough`, `no-explicit-any`, `require-await`,
 // `only-throw-error`, …) fire only when named. `base` turns every one of them on, by category or
 // by name, except the `no-unsafe-*` rules and `no-unnecessary-type-assertion` (see below), and
-// adds the rules below that catch bugs rather than enforce a style.
+// adds the rules below that catch bugs rather than enforce a style, and the ones that keep the code
+// ES modules only.
 //
 // oxlint does not format, and none of these rules fights a formatter: the `style` category, where
 // such rules live, stays off.
@@ -23,6 +24,16 @@ export const ignorePatterns = [
   // shared repo and every other consumer, so these files are linted there.
   'synced-utils/**',
 ];
+
+// What `base`'s `eslint/no-restricted-imports` bans: `createRequire`, under either name of Node's
+// `module`. A rule's options do not merge through `extends`, so a consumer that sets its own
+// `no-restricted-imports`, in `rules` or in an `overrides` entry, replaces these: it spreads them
+// into its own `paths`.
+export const commonJsRestrictedImports = ['node:module', 'module'].map((name) => ({
+  name,
+  importNames: ['createRequire'],
+  message: 'ES modules only: import the module instead.',
+}));
 
 export const base = {
   // `vitest`'s rules fire only on test and expect calls, so it is on everywhere: a test helper
@@ -162,6 +173,18 @@ export const base = {
         fix: { imports: 'safe-fix', variables: 'off' },
       },
     ],
+
+    // --- ES modules only --------------------------------------------------------------------
+    // No `require`, `module.exports` or `__dirname`, and no `createRequire` to reach CommonJS from
+    // a module: `import`, `import()`, `import.meta.resolve` and `import.meta.dirname` do their
+    // jobs.
+    // `typescript/no-require-imports` (above) reports `require()` and `import x = require()`.
+    // `module.exports` and `exports.x`, and a `require()` outside a condition too.
+    'import/no-commonjs': 'error',
+    // The globals CommonJS defines: `require`, `module`, `exports`, `__dirname` and `__filename`.
+    'unicorn/prefer-module': 'error',
+    // `createRequire` from `node:module` or `module`, through `commonJsRestrictedImports` (above).
+    'eslint/no-restricted-imports': ['error', { paths: commonJsRestrictedImports }],
 
     // --- `suspicious` rules turned off ------------------------------------------------------
     // Nest modules and DTOs are empty or static-only classes.

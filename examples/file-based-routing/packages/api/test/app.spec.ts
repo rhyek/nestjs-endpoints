@@ -1,3 +1,4 @@
+import { NodeAdapter } from '@nestjs/platform-node';
 import { Test } from '@nestjs/testing';
 import { AppModule } from '../src/app.module';
 
@@ -8,7 +9,9 @@ test('the app serves its file-based routes', async () => {
   const moduleRef = await Test.createTestingModule({
     imports: [AppModule],
   }).compile();
-  const app = moduleRef.createNestApplication({ logger: false });
+  const app = moduleRef.createNestApplication(new NodeAdapter(), {
+    logger: false,
+  });
   await app.listen(0, '127.0.0.1');
   try {
     const res = await fetch(`${await app.getUrl()}/shop/recipes/list`, {

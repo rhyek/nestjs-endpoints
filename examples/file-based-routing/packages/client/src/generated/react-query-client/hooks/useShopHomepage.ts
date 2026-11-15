@@ -3,7 +3,7 @@
 * Do not edit manually.
 */
 
-import type { RequestConfig, ResponseErrorConfig } from '../client-runtime'
+import type { RequestConfig, ResponseErrorConfig } from '../.kubb/client'
 import type { ShopHomepageStatus200 } from '../types/ShopHomepage'
 import type { QueryKey, QueryClient, QueryObserverOptions, UseQueryResult } from '@tanstack/react-query'
 import { shopHomepage } from '../clients/shopHomepage'
@@ -13,22 +13,22 @@ export const shopHomepageQueryKey = () => [{ url: '/shop/homepage' }] as const
 
 type ShopHomepageQueryKey = ReturnType<typeof shopHomepageQueryKey>
 
-export function shopHomepageQueryOptions(config: Partial<Omit<RequestConfig, 'path' | 'query' | 'body' | 'headers' | 'url'>> = {}) {
+export function shopHomepageQueryOptions(config: Partial<Omit<RequestConfig, 'path' | 'query' | 'body' | 'headers' | 'cookies' | 'url' | 'throwOnError'>> = {}) {
   const queryKey = shopHomepageQueryKey()
   return queryOptions<ShopHomepageStatus200, ResponseErrorConfig<Error>, ShopHomepageStatus200, typeof queryKey>({
    queryKey,
    queryFn: async ({ signal }) => {
-      return (await shopHomepage({ ...config, signal: config.signal ?? signal, throwOnError: true })).data
+      return shopHomepage({ ...config, signal: config.signal ?? signal, throwOnError: true }).unwrap()
    },
   })
 }
 
 /**
- * {@link /shop/homepage}
+ * `POST /shop/homepage`
  */
 export function useShopHomepage<TData = ShopHomepageStatus200, TQueryData = ShopHomepageStatus200, TQueryKey extends QueryKey = ShopHomepageQueryKey>(options: {
   query?: Partial<QueryObserverOptions<ShopHomepageStatus200, ResponseErrorConfig<Error>, TData, TQueryData, TQueryKey>> & { client?: QueryClient },
-  client?: Partial<Omit<RequestConfig, 'path' | 'query' | 'body' | 'headers' | 'url'>>
+  client?: Partial<Omit<RequestConfig, 'path' | 'query' | 'body' | 'headers' | 'cookies' | 'url' | 'throwOnError'>>
 } = {}) {
   const { query: queryConfig = {}, client: config = {} } = options ?? {}
   const { client: queryClient, ...resolvedOptions } = queryConfig

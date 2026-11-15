@@ -124,8 +124,8 @@ test('a query with a meta id is split into search parameters', async () => {
   });
   const [d] = await describeApp([search]);
   expect(d.query!.parameters).toEqual([
-    { name: 'q', required: true, schema: { type: 'string' } },
-    { name: 'n', required: false, schema: { type: 'number' } },
+    { name: 'q', required: true, schema: { type: 'string' }, shape: 'value' },
+    { name: 'n', required: false, schema: { type: 'number' }, shape: 'value' },
   ]);
   expect(d.query!.json).toEqual({
     $ref: '#/components/schemas/NamedSearchQuery',
@@ -143,7 +143,9 @@ test('a query given through schema() is split into search parameters', async () 
     handler: ({ query: { q } }) => q,
   });
   const [d] = await describeApp([search]);
-  expect(d.query!.parameters).toEqual([{ name: 'q', required: true, schema: { type: 'string' } }]);
+  expect(d.query!.parameters).toEqual([
+    { name: 'q', required: true, schema: { type: 'string' }, shape: 'value' },
+  ]);
 });
 
 test('input and query together are a body and search parameters', async () => {

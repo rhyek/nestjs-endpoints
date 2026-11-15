@@ -1,6 +1,9 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { endpointFileRegex, routerModuleFileRegex } from '../consts.js';
+
+export const endpointFileRegex = /\bendpoint\.(js|ts|mjs|mts)$/;
+
+export const routerModuleFileRegex = /\brouter\.module\.(js|ts|mjs|mts)$/;
 
 /**
  * Most preferred first. When two files share a stem (`a.endpoint.ts` beside a

@@ -4,11 +4,11 @@
 */
 
 export type ShopCateringBookInput = {
-    /**
-     * @description
-     * Format: `email`
-     * @type string
-    */
-    email: string;
-    date: string;
+  /**
+   * @description
+   * Format: `email`
+   * @type string
+   */
+  email: string;
+  date: string;
 };

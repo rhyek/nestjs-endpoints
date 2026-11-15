@@ -46,8 +46,6 @@ surrounding code:
   file's location on disk, which a bundle collapses into one file.
 - **File-based routing needs the endpoint manifest** `src/endpoints.gen.ts`,
   imported once by the app (§5.6). `npx nestjs-endpoints init` creates it.
-- Output schemas must not be `null` or `.nullable()` at the top level (NestJS
-  will not send a bare `null` body). Wrap it: `z.object({ user: userSchema.nullable() })`.
 
 ---
 
@@ -121,7 +119,8 @@ Assume `rootDirectory: './endpoints'` and no `basePath`.
 
 ### 2.4 Generated client call conventions
 
-`fn` = axios method (returns a full `AxiosResponse`, so read `.data`).
+`fn` = request function (resolves to `{ status, data, error, headers, … }`, so
+read `.data`; `fn(…).unwrap()` resolves to the body alone).
 `useFn` = the paired React Query hook.
 
 Each operation takes one object grouping its request: `path` (path `params`),
@@ -140,8 +139,9 @@ headers on `client.axios`.
 | …plus path `params` | `fn({ path, body })` | `useFn().mutateAsync({ path, body })` |
 | …path `params`, no `input` | `fn({ path })` | `useFn().mutateAsync({ path })` |
 
-The axios method's object also takes axios request config (`signal`,
-`timeout`, …); every hook takes a trailing optional
+The request function's object also takes `signal`, `throwOnError`, and axios
+request config under `options` (`fn({ body, options: { timeout: 5000 } })`);
+every hook takes a trailing optional
 `{ query?, mutation?, client? }` options object, which is a mutation hook's
 only argument: `useFn({ mutation: { onSuccess } })`.
 
@@ -226,6 +226,9 @@ Rules that bite if you forget them:
 - Input validation failure → `ZodValidationException` → HTTP **400** with
   `{ statusCode, message: 'Validation failed', errors: ZodIssue[] }`.
 - Output validation failure → `ZodSerializationException` → HTTP **500**.
+- **A `null` output is sent as the JSON `null`** on every adapter, so a
+  nullable `output` (`userSchema.nullable()`) reads as `null` in the generated
+  clients. An interceptor around the endpoint sees it as the string `'null'`.
 - `z` is re-exported from `nestjs-endpoints`, so `import { endpoint, z } from
   'nestjs-endpoints'` is the idiomatic single import. Importing `zod` directly
   works too.
@@ -252,8 +255,10 @@ export default endpoint.query({
 });
 ```
 
-Nested-object search parameters (`?add[a]=1&add[b]=2`) need the adapter
-configured for extended query parsing — see the NestJS
+An array search parameter takes repeated keys (`?tags=a&tags=b`), and a single
+`?tags=a` reads as a one-item array. Nested-object search parameters travel as
+`?add[a]=1&add[b]=2`, which needs the adapter configured for extended query
+parsing — see the NestJS
 [query-parameters docs](https://docs.nestjs.com/controllers#query-parameters).
 
 ### 3.3 What the handler receives
@@ -858,6 +863,8 @@ but not in the SDK. `openapi` is optional and takes the same options as
 `outputFile` and served at its `ui.path`. Without it, no document is written or
 served. Kubb is the engine; the react-query client needs
 `@tanstack/react-query` >= 5.82 in the consuming app, plus `axios` and `react`.
+Every client needs `axios` >= 1.20, and its generated code type-checks with the `dom`
+lib: a Node-only project adds it to its tsconfig (`"lib": ["esnext", "dom"]`).
 
 Per-client options:
 
@@ -881,12 +888,12 @@ directory is missing. The wrapper's first line,
 generated/
 ├── axios-client.ts            ← the ONLY file you import
 └── axios-client/              ← Kubb output; treat as build artifact
-    ├── client-runtime.ts
+    ├── .kubb/client.ts        ← Kubb's axios runtime
     ├── clients/…
     └── types/…
 ```
 
-For react-query, the sibling directory also holds `hooks/`.
+For react-query, the sibling directory also holds `hooks/` and `schemas.ts`.
 **Import only from the top-level wrapper file.** The sibling tree is internal,
 is wiped and rewritten on every regeneration, and its per-operation hooks are
 unbound (they have no client).
@@ -899,6 +906,8 @@ The wrapper exports:
 | `ApiClient` type | ✔ | ✔ |
 | `useApiClient()` | — | ✔ |
 | `ApiClientProvider` | — | ✔ |
+| `ResponseError`, `isResponseError` | ✔ | ✔ |
+| `InputSchema` type | — | ✔ |
 | operation types (`UserCreateInput`, …) | ✔ | ✔ |
 
 ### 8.3 Per-client namespace filtering
@@ -942,7 +951,7 @@ setups:
 ### 9.1 axios
 
 ```ts
-import { createApiClient } from './generated/axios-client';
+import { createApiClient, isResponseError } from './generated/axios-client';
 
 const client = createApiClient({ baseURL: process.env.API_BASE_URL });
 // …or hand it an axios instance you already built:
@@ -954,12 +963,31 @@ client.axios.defaults.headers.common['x-tenant'] = 't1';
 const { data: user } = await client.user.create({
   body: { name: 'Tom', email: 'tom@x.com' },
 });
+
+try {
+  await client.user.find({ body: { id: 1 } });
+} catch (err) {
+  if (isResponseError(err) && err.status === 404) {
+    // err.data is the response body
+  }
+}
 ```
 
-Methods resolve to the full `AxiosResponse` and **reject on non-2xx**, exactly
-like axios — so error handling is `try/catch` + `err.response.status`. Pass
-`throwOnError: false` to get the error response back instead. Set request
-headers on `client.axios`; an operation's `headers` is typed `never`.
+The requests are made by Kubb's axios client
+([`@kubb/plugin-axios`](https://kubb.dev/extensions/kubb-labs/plugin-axios)).
+A call resolves to `{ status, data, error, contentType, headers, request, response }`
+(`headers` is a web `Headers`) and **throws a `ResponseError` on non-2xx**:
+error handling is `try/catch` + `isResponseError(err)`, then `err.status` and
+`err.data`. Pass `throwOnError: false` to resolve on every status instead, with
+the error body in `error` and `data` undefined. A failure with no response (the
+server unreachable) throws axios' own error.
+
+Every call goes through the client's axios instance (`client.axios`): its
+defaults (`baseURL`, `headers`, `withCredentials`, …) and request interceptors
+apply. The client decodes each response itself, and axios hands it every
+status, so read results and errors from the call, not from axios response
+interceptors. Set request headers on `client.axios`; an operation's `headers`
+is typed `never`.
 
 ### 9.2 react-query
 
@@ -998,7 +1026,7 @@ function Recipes() {
     await list.refetch();
   };
 
-  // The imperative axios method sits on the same bucket:
+  // The request function sits on the same bucket:
   const purge = () => client.shop.recipes.purge();
 
   return <ul>{list.data?.map((r) => <li key={r.id}>{r.name}</li>)}</ul>;
@@ -1007,12 +1035,12 @@ function Recipes() {
 
 Notes:
 
-- Hooks return **unwrapped data** (`list.data` is the payload). The axios methods
-  on the same bucket return the full `AxiosResponse`.
+- Hooks return **unwrapped data** (`list.data` is the payload). The request
+  functions on the same bucket resolve to the full result (`{ status, data, … }`).
 - Pass React Query options through the trailing argument:
   `client.useGreet({ body: { name } }, { query: { enabled: !!name, retry: false } })`.
-- Errors are typed as `ResponseErrorConfig<Error>` — read
-  `error.response?.data`.
+- Errors are `ResponseError`s, typed as `ResponseErrorConfig<Error>` — read
+  `error.status` and `error.data`.
 - `useApiClient()` must be called under `<ApiClientProvider>`; it throws
   otherwise. The object it returns is memoized per context value.
 - Suspense and infinite variants (opt in through `options`) are generated into
@@ -1021,7 +1049,7 @@ Notes:
 
 #### Query options, mutation options and the input schemas
 
-Each operation's axios method also carries what TanStack Query and a form need,
+Each operation's request function also carries what TanStack Query and a form need,
 bound to the client instance it came from (its base URL and interceptors):
 
 | Property | On | What it is |
@@ -1080,7 +1108,7 @@ neither; an operation without `input`, and without a `query` that has
 properties, has no `schemas`. They are plain JSON data, so they are in your
 bundle, a few KB per operation. Their type, `InputSchema<T>` (exported by the
 client, or, when your app has its own schema of that name, from
-`<output-dir>/client-runtime`), carries the request body or query
+`<output-dir>/schemas`), carries the request body or query
 type in an optional `'~type'` property that is never there at runtime, so a
 form library can infer the form's values from the schema alone. That type is the input side of the
 zod schema: a field with a default, or a `.nullish()` one, may be left out.

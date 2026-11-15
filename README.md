@@ -48,7 +48,7 @@ const { data: greeting } = client.useGreet({ body: { name: 'Satie' } });
 - **OpenAPI 3.1.1:** generated via `@nestjs/swagger` + [zod-openapi](https://github.com/samchungy/zod-openapi). Integrated [Scalar](https://scalar.com) doc viewer (Swagger UI as fallback).
 - **End-to-end type safety:** `axios` and `@tanstack/react-query` client libraries auto-generated with [Kubb](https://kubb.dev/).
 - **Namespaced SDK:** opt-in router namespaces surface generated hooks and methods as a nested client object that mirrors the router hierarchy (`client.shop.recipes.create(...)` and `client.shop.recipes.useCreate(...)` side by side); each client can be filtered to a subset of namespaces.
-- **Adapter-agnostic:** Express or Fastify.
+- **Adapter-agnostic:** Express, Fastify, or `node:http` through `@nestjs/platform-node`.
 
 ## Example
 
@@ -268,7 +268,7 @@ export default endpoint.query({
 });
 ```
 
-Search parameters arrive as strings: read numbers with `z.coerce.number()` and booleans with `z.stringbool()`. For nested-object search parameters, [configure](https://docs.nestjs.com/controllers#query-parameters) the Express or Fastify adapter accordingly.
+Search parameters arrive as strings: read numbers with `z.coerce.number()` and booleans with `z.stringbool()`. An array takes repeated keys (`?tags=a&tags=b`), and a single `?tags=a` reads as a one-item array. Nested objects travel as `?add[a]=1&add[b]=2`, which needs the Express, Fastify, or Node adapter [configured](https://docs.nestjs.com/controllers#query-parameters) for it.
 
 An endpoint answers `200` unless its handler returns another status with `response(status, body)`.
 
@@ -537,7 +537,7 @@ const created = client.shop.recipes.useCreate();
 
 ## Codegen (optional)
 
-Generate a type-safe client SDK (axios and/or react-query) from your endpoints' zod schemas. Uses [Kubb](https://kubb.dev/) under the hood and works with both scanned and manually-imported endpoints. The SDK covers endpoints only: routes of plain Nest controllers appear in the OpenAPI document but not in the SDK. The react-query client requires `@tanstack/react-query` >= 5.82.
+Generate a type-safe client SDK (axios and/or react-query) from your endpoints' zod schemas. Uses [Kubb](https://kubb.dev/) under the hood and works with both scanned and manually-imported endpoints. The SDK covers endpoints only: routes of plain Nest controllers appear in the OpenAPI document but not in the SDK. The clients require `axios` >= 1.20, and the react-query client `@tanstack/react-query` >= 5.82. The generated code type-checks with the `dom` lib, which a Node-only project adds to its tsconfig (`"lib": ["esnext", "dom"]`).
 
 Optional: install `@scalar/api-reference` to get a [Scalar](https://scalar.com)-powered docs viewer (nicer UI, auto-generated `x-tagGroups`) when you use [`setupCodegen`'s `openapi.ui`](#using-setupcodegen) option. Without it, Swagger UI is used as the fallback.
 
@@ -582,12 +582,12 @@ Each generated output file exports `createApiClient`, an `ApiClient` type, and (
 
 A client is regenerated when what it is generated from changes (its endpoints' schemas, its routers' descriptions, its `type`, `namespaces` and `options`, the nestjs-endpoints version) or when its `outputFile` or the output directory beside it is missing; `forceGenerate: true` regenerates every client.
 
-Each operation takes one object that groups its request by where it goes — `path`, `query` and `body`, typed from the endpoint's `params`, `query` and `input`. axios methods resolve to the `AxiosResponse` and reject with an `AxiosError` on a non-2xx status.
+Each operation takes one object that groups its request by where it goes — `path`, `query` and `body`, typed from the endpoint's `params`, `query` and `input`. The requests are made by [Kubb's axios client](https://kubb.dev/extensions/kubb-labs/plugin-axios): a call resolves to `{ status, data, error, headers, … }`, or to the body alone with `.unwrap()`, and throws a `ResponseError` (`error.status`, `error.data`) on a non-2xx status. With `throwOnError: false` it resolves on every status instead, with the error body in `error`. Each client file exports `ResponseError` and `isResponseError`, which narrows a caught error to it.
 
 ### axios
 
 ```ts
-import { createApiClient } from './generated/axios-client';
+import { createApiClient, isResponseError } from './generated/axios-client';
 
 const client = createApiClient({
   baseURL: process.env.API_BASE_URL,
@@ -599,7 +599,17 @@ client.axios.defaults.headers.common['x-test'] = 'test-2';
 const { data: user } = await client.user.create({
   body: { name: 'Tom', email: 'tom@gmail.com' },
 });
+
+try {
+  await client.user.find({ body: { id: 1 } });
+} catch (error) {
+  if (isResponseError(error) && error.status === 404) {
+    // error.data is the response body
+  }
+}
 ```
+
+`createApiClient` takes axios defaults or an axios instance, and every call goes through that instance: its defaults (`baseURL`, `headers`, `withCredentials`, …) and request interceptors apply to every call. The client decodes each response itself, so read results and errors from the call rather than from axios response interceptors. A call takes axios config of its own under `options` (`client.user.find({ body, options: { timeout: 5000 } })`).
 
 ### react-query
 

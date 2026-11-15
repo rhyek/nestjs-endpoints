@@ -1,9 +1,14 @@
 #!/usr/bin/env node
 import fs from 'node:fs';
 import path from 'node:path';
-import { readImportExtension } from './manifest/file.js';
-import { DEFAULT_SOURCE_DIR, generateManifest, markGenerated } from './manifest/generate.js';
-import { installSkill, isSkillInstalled, readOwnVersion, refreshSkillIfStale } from './skill.js';
+import {
+  DEFAULT_SOURCE_DIR,
+  generateManifest,
+  markGenerated,
+  readImportExtension,
+} from './manifest/file.js';
+import { readOwnVersion } from './package-json.js';
+import { installSkill, isSkillInstalled, refreshSkillIfStale } from './skill.js';
 
 const USAGE = `nestjs-endpoints <command>
 

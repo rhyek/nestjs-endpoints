@@ -33,19 +33,6 @@ export function contentHash(s: string): string {
   return crypto.createHash('sha256').update(s).digest('hex');
 }
 
-/** Reads this package's own version (for the skill banner). Falls back to '0.0.0'. */
-export function readOwnVersion(): string {
-  try {
-    const pkgPath = path.join(import.meta.dirname, '../package.json');
-    const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf8')) as {
-      version?: string;
-    };
-    return pkg.version ?? '0.0.0';
-  } catch {
-    return '0.0.0';
-  }
-}
-
 /** `true` when `a` is an older semver-ish (`x.y.z`) version than `b`. */
 function isOlder(a: string, b: string): boolean {
   const pa = a.split('.').map(Number);

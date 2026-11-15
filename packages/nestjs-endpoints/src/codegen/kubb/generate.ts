@@ -1,13 +1,16 @@
 import path from 'node:path';
-import type { UserConfig } from 'kubb';
+import { pluginAxios } from '@kubb/plugin-axios';
+import { pluginReactQuery } from '@kubb/plugin-react-query';
+import { pluginTs } from '@kubb/plugin-ts';
+import { createKubb, type UserConfig } from 'kubb';
+import { ast, defineExtension, injectFile } from 'kubb/kit';
 import type { EndpointDescriptor } from '../../descriptors.js';
+import { stripExtension } from '../../manifest/scan.js';
 import type { SharedSchemas } from '../../shared-schemas.js';
 import { hashHeader } from '../hash.js';
 import { adapterEndpoints, buildInputNode } from './adapter.js';
-import { emitPlugin } from './emit-plugin.js';
 import { buildSchemasModuleSource, collectInputSchemas } from './input-schemas.js';
 import { kindOverrides } from './operation-kind.js';
-import { AXIOS_CLIENT_RUNTIME_SOURCE, REACT_QUERY_CLIENT_RUNTIME_SOURCE } from './runtime.js';
 import { buildAxiosWrapperSource, buildReactQueryWrapperSource } from './wrapper.js';
 
 /**
@@ -17,7 +20,7 @@ import { buildAxiosWrapperSource, buildReactQueryWrapperSource } from './wrapper
  * are managed by nestjs-endpoints and omitted.
  */
 export type ReactQueryPluginOptions = OmitEach<
-  NonNullable<Parameters<typeof import('@kubb/plugin-react-query').pluginReactQuery>[0]>,
+  NonNullable<Parameters<typeof pluginReactQuery>[0]>,
   'client' | 'hooks'
 >;
 
@@ -25,53 +28,75 @@ export type ReactQueryPluginOptions = OmitEach<
 type OmitEach<T, K extends PropertyKey> = T extends unknown ? Omit<T, K> : never;
 
 /**
- * The sibling directory that holds the Kubb-generated tree + runtime for a
- * client. The consumer-facing entry lives at `outputFile`
- * (`generated/axios-client.ts`); this is the folder beside it
- * (`generated/axios-client/`). Single source of truth, shared with
- * `setupCodegen`'s cleanup + existence checks so they can't drift.
+ * Inline Kubb plugin that emits our own artifacts as part of the same build:
+ * the modules in `files` (into the output dir: for react-query, `schemas.ts`)
+ * and the namespaced wrapper (at `outputFile`).
+ * Nothing is written, post-processed, or deleted by us outside the pipeline —
+ * `output.clean` prunes only Kubb's own output directory, and the wrapper at
+ * `outputFile` is rewritten in full each run.
  */
-export function outputDirFor(outputFile: string): string {
-  const ext = path.extname(outputFile);
-  return ext ? outputFile.slice(0, -ext.length) : outputFile;
+function emitPlugin(params: {
+  name: string;
+  outDir: string;
+  outputFile: string;
+  /** Modules for the output dir, by file name. */
+  files: { baseName: string; source: string }[];
+  wrapperSource: string;
+}) {
+  const { name, outDir, outputFile, files, wrapperSource } = params;
+  const { createSource, createText } = ast.factory;
+  const raw = (baseName: string, filePath: string, value: string) =>
+    injectFile({
+      baseName: baseName as `${string}.${string}`,
+      path: filePath,
+      sources: [
+        createSource({
+          name: path.parse(baseName).name,
+          nodes: [createText(value)],
+          isExportable: true,
+          isIndexable: false,
+        }),
+      ],
+    });
+  return defineExtension({
+    kind: 'plugin',
+    meta: { name },
+    setup(options) {
+      for (const { baseName, source } of files) {
+        raw(baseName, path.join(outDir, baseName), source);
+      }
+      raw(path.basename(outputFile), outputFile, wrapperSource);
+      return options;
+    },
+  })({});
 }
-
-function resolveLayout(outputFile: string) {
-  const outDir = outputDirFor(outputFile);
-  return { outDir, dirName: path.basename(outDir) };
-}
-
-/** Load Kubb and the plugins every client uses. */
-async function loadKubb() {
-  const [{ createKubb }, kit, { pluginTs }, { pluginClient }] = await Promise.all([
-    import('kubb'),
-    import('kubb/kit'),
-    import('@kubb/plugin-ts'),
-    import('@kubb/plugin-client'),
-  ]);
-  return { createKubb, kit, pluginTs, pluginClient };
-}
-
-type Kubb = Awaited<ReturnType<typeof loadKubb>>;
 
 /**
- * Run one Kubb generation pass. `root` is the cwd (where the consumer's
+ * Run one Kubb generation pass into the directory beside `outputFile`
+ * (`generated/axios-client/` for `generated/axios-client.ts`), with the
+ * wrapper itself at `outputFile`. `root` is the cwd (where the consumer's
  * `outputFile` lives, e.g. `process.cwd() + '/generated/...'`) so Kubb writes
- * the tree exactly at `outDir` with no duplicated, cwd-relative copy.
+ * the tree exactly at the output directory with no duplicated, cwd-relative
+ * copy.
  */
-async function runKubbBuild(
-  kubb: Kubb,
-  source: { descriptors: EndpointDescriptor[]; shared: SharedSchemas },
-  outDir: string,
-  plugins: NonNullable<UserConfig['plugins']>,
-): Promise<void> {
-  const { createKubb, kit, pluginTs, pluginClient } = kubb;
+async function runKubbBuild(params: {
+  name: string;
+  source: { descriptors: EndpointDescriptor[]; shared: SharedSchemas };
+  outputFile: string;
+  /** Modules for the output dir besides Kubb's, by file name. */
+  files: { baseName: string; source: string }[];
+  wrapperSource: string;
+  hash: string;
+  plugins: NonNullable<UserConfig['plugins']>;
+}): Promise<void> {
+  const { name, source, outputFile, files, wrapperSource, hash, plugins } = params;
+  const outDir = stripExtension(outputFile);
   const build = createKubb({
     root: process.cwd(),
     // Kubb requires an `input` beside an adapter; ours ignores it and reads
     // the descriptors.
     input: {},
-    adapter: adapterEndpoints(kit, buildInputNode(source)),
+    adapter: adapterEndpoints(buildInputNode(source)),
     output: {
       path: outDir,
       clean: true,
@@ -84,9 +109,17 @@ async function runKubbBuild(
     },
     plugins: [
       pluginTs(),
-      // The request functions, generated against our own runtime module.
-      pluginClient({ importPath: '../client-runtime' }),
+      // The request functions, and the axios runtime they call
+      // (`.kubb/client.ts`), which the wrapper builds its clients from.
+      pluginAxios(),
       ...plugins,
+      emitPlugin({
+        name,
+        outDir,
+        outputFile,
+        files,
+        wrapperSource: hashHeader(hash) + wrapperSource,
+      }),
     ],
   });
   try {
@@ -95,6 +128,11 @@ async function runKubbBuild(
     // The app keeps running after codegen; release what the build holds.
     build.dispose();
   }
+}
+
+/** The directory name of the generated tree, as the wrapper imports it. */
+function treeDir(outputFile: string): string {
+  return `./${path.basename(stripExtension(outputFile))}`;
 }
 
 /** Generate the axios client for one `setupCodegen` entry using Kubb. */
@@ -108,39 +146,31 @@ export async function generateAxiosClient(params: {
   hash: string;
 }): Promise<void> {
   const { descriptors, shared, outputFile, hash } = params;
-  const { outDir, dirName } = resolveLayout(outputFile);
-  const kubb = await loadKubb();
-
-  const wrapperSource = buildAxiosWrapperSource({
-    descriptors,
-    clientsImport: `./${dirName}/clients`,
-    typesImport: `./${dirName}/types`,
-    runtimeImport: `./${dirName}/client-runtime`,
-  });
-
-  await runKubbBuild(kubb, { descriptors, shared }, outDir, [
-    emitPlugin(kubb.kit, {
-      name: 'plugin-nestjs-endpoints-axios',
-      outDir,
-      outputFile,
-      files: [
-        {
-          baseName: 'client-runtime.ts',
-          source: AXIOS_CLIENT_RUNTIME_SOURCE,
-        },
-      ],
-      wrapperSource: hashHeader(hash) + wrapperSource,
+  const dir = treeDir(outputFile);
+  await runKubbBuild({
+    name: 'plugin-nestjs-endpoints-axios',
+    source: { descriptors, shared },
+    outputFile,
+    files: [],
+    wrapperSource: buildAxiosWrapperSource({
+      descriptors,
+      shared,
+      clientsImport: `${dir}/clients`,
+      typesImport: `${dir}/types`,
+      runtimeImport: `${dir}/.kubb/client`,
     }),
-  ]);
+    hash,
+    plugins: [],
+  });
 }
 
 /**
  * Generate the react-query client for one `setupCodegen` entry using Kubb.
  *
- * The hooks call the same request functions the axios methods expose, and
- * unwrap the response's data themselves. They read their bound client from
- * React context via `bindHook`. Each operation's input and query schemas go
- * into `schemas.ts` beside the runtime.
+ * The hooks call the same request functions the client's methods expose, and
+ * unwrap the response's data themselves. They read their client from React
+ * context via `bindHook`. Each operation's input and query schemas go into
+ * `schemas.ts` in the generated tree.
  */
 export async function generateReactQueryClient(params: {
   /** The client's descriptors, already filtered to its namespaces. */
@@ -153,53 +183,42 @@ export async function generateReactQueryClient(params: {
   hash: string;
 }): Promise<void> {
   const { descriptors, shared, outputFile, options, hash } = params;
-  const { outDir, dirName } = resolveLayout(outputFile);
-  const [kubb, { pluginReactQuery }] = await Promise.all([
-    loadKubb(),
-    import('@kubb/plugin-react-query'),
-  ]);
-
+  const dir = treeDir(outputFile);
   const inputSchemas = collectInputSchemas(descriptors, shared);
-  const wrapperSource = buildReactQueryWrapperSource({
-    descriptors,
-    shared,
-    opsImport: `./${dirName}/clients`,
-    hooksImport: `./${dirName}/hooks`,
-    runtimeImport: `./${dirName}/client-runtime`,
-    typesImport: `./${dirName}/types`,
-    schemasImport: `./${dirName}/schemas`,
-    pluginOptions: options,
-    inputSchemaNames: new Set(inputSchemas.keys()),
+  await runKubbBuild({
+    name: 'plugin-nestjs-endpoints-react-query',
+    source: { descriptors, shared },
+    outputFile,
+    files: [
+      {
+        baseName: 'schemas.ts',
+        source: buildSchemasModuleSource({
+          entries: inputSchemas.values(),
+          typesImport: './types',
+        }),
+      },
+    ],
+    wrapperSource: buildReactQueryWrapperSource({
+      descriptors,
+      shared,
+      opsImport: `${dir}/clients`,
+      hooksImport: `${dir}/hooks`,
+      runtimeImport: `${dir}/.kubb/client`,
+      typesImport: `${dir}/types`,
+      schemasImport: `${dir}/schemas`,
+      pluginOptions: options,
+      inputSchemaNames: new Set(inputSchemas.keys()),
+    }),
+    hash,
+    plugins: [
+      pluginReactQuery({
+        ...options,
+        // The builder, not the HTTP method, decides each operation's kind.
+        override: kindOverrides(descriptors, options) as NonNullable<
+          ReactQueryPluginOptions['override']
+        >,
+        hooks: true,
+      }),
+    ],
   });
-
-  await runKubbBuild(kubb, { descriptors, shared }, outDir, [
-    pluginReactQuery({
-      ...options,
-      // The builder, not the HTTP method, decides each operation's kind.
-      override: kindOverrides(descriptors, options) as NonNullable<
-        ReactQueryPluginOptions['override']
-      >,
-      hooks: true,
-    }),
-    emitPlugin(kubb.kit, {
-      name: 'plugin-nestjs-endpoints-react-query',
-      outDir,
-      outputFile,
-      files: [
-        {
-          baseName: 'client-runtime.ts',
-          source: REACT_QUERY_CLIENT_RUNTIME_SOURCE,
-        },
-        {
-          baseName: 'schemas.ts',
-          source: buildSchemasModuleSource({
-            entries: inputSchemas.values(),
-            runtimeImport: './client-runtime',
-            typesImport: './types',
-          }),
-        },
-      ],
-      wrapperSource: hashHeader(hash) + wrapperSource,
-    }),
-  ]);
 }

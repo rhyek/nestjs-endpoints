@@ -3,7 +3,7 @@
 * Do not edit manually.
 */
 
-import type { RequestConfig, ResponseErrorConfig } from '../client-runtime'
+import type { RequestConfig, ResponseErrorConfig } from '../.kubb/client'
 import type { ShopRecipesViewOptions, ShopRecipesViewStatus200 } from '../types/ShopRecipesView'
 import type { QueryKey, QueryClient, QueryObserverOptions, UseQueryResult } from '@tanstack/react-query'
 import { shopRecipesView } from '../clients/shopRecipesView'
@@ -13,22 +13,22 @@ export const shopRecipesViewQueryKey = ({ path }: Omit<ShopRecipesViewOptions, '
 
 type ShopRecipesViewQueryKey = ReturnType<typeof shopRecipesViewQueryKey>
 
-export function shopRecipesViewQueryOptions({ path }: ShopRecipesViewOptions, config: Partial<Omit<RequestConfig, 'path' | 'query' | 'body' | 'headers' | 'url'>> = {}) {
+export function shopRecipesViewQueryOptions({ path }: ShopRecipesViewOptions, config: Partial<Omit<RequestConfig, 'path' | 'query' | 'body' | 'headers' | 'cookies' | 'url' | 'throwOnError'>> = {}) {
   const queryKey = shopRecipesViewQueryKey({ path })
   return queryOptions<ShopRecipesViewStatus200, ResponseErrorConfig<Error>, ShopRecipesViewStatus200, typeof queryKey>({
    queryKey,
    queryFn: async ({ signal }) => {
-      return (await shopRecipesView({ ...config, path, signal: config.signal ?? signal, throwOnError: true })).data
+      return shopRecipesView({ ...config, path, signal: config.signal ?? signal, throwOnError: true }).unwrap()
    },
   })
 }
 
 /**
- * {@link /shop/recipes/:recipeId/view}
+ * `POST /shop/recipes/{recipeId}/view`
  */
 export function useShopRecipesView<TData = ShopRecipesViewStatus200, TQueryData = ShopRecipesViewStatus200, TQueryKey extends QueryKey = ShopRecipesViewQueryKey>({ path }: { path: ShopRecipesViewOptions['path'] | (() => ShopRecipesViewOptions['path']) }, options: {
   query?: Partial<QueryObserverOptions<ShopRecipesViewStatus200, ResponseErrorConfig<Error>, TData, TQueryData, TQueryKey>> & { client?: QueryClient },
-  client?: Partial<Omit<RequestConfig, 'path' | 'query' | 'body' | 'headers' | 'url'>>
+  client?: Partial<Omit<RequestConfig, 'path' | 'query' | 'body' | 'headers' | 'cookies' | 'url' | 'throwOnError'>>
 } = {}) {
   const { query: queryConfig = {}, client: config = {} } = options ?? {}
   const { client: queryClient, ...resolvedOptions } = queryConfig

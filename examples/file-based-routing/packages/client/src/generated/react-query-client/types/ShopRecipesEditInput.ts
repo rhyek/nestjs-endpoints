@@ -4,9 +4,9 @@
 */
 
 export type ShopRecipesEditInput = {
-    /**
-     * @minLength 1
-     * @type string
-    */
-    name: string;
+  /**
+   * @minLength 1
+   * @type string
+   */
+  name: string;
 };

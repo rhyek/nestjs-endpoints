@@ -11,17 +11,17 @@ export type ShopRecipesCreateStatus200 = ShopRecipesCreateOutput;
 export type ShopRecipesCreateBody = ShopRecipesCreateInput;
 
 export type ShopRecipesCreateOptions = {
-    body: ShopRecipesCreateBody;
-    path?: never;
-    query?: never;
-    headers?: never;
+  body: ShopRecipesCreateBody;
+  path?: never;
+  query?: never;
+  headers?: never;
 };
 
 export type ShopRecipesCreateResponses = {
-    "200": ShopRecipesCreateStatus200;
+  '200': ShopRecipesCreateStatus200;
 };
 
 /**
  * @description Union of all possible responses
-*/
+ */
 export type ShopRecipesCreateResponse = ShopRecipesCreateStatus200;

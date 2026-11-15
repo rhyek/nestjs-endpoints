@@ -11,6 +11,7 @@ import { App } from '../src/App';
 import { GreetPage } from '../src/GreetPage';
 import { OptionalParamsPage } from '../src/OptionalParamsPage';
 import { SearchPage } from '../src/SearchPage';
+import { UserFindPage } from '../src/UserFindPage';
 import { UserPage } from '../src/UserPage';
 
 function SpreadGreet() {
@@ -95,6 +96,17 @@ describe('Client', () => {
         tags: [],
         page: 2,
       });
+    });
+  });
+
+  test('a null output is null in the query data', async () => {
+    render(
+      <App>
+        <UserFindPage />
+      </App>,
+    );
+    await vitest.waitFor(async () => {
+      expect(await screen.findByTestId('user-find')).toHaveTextContent('No such user');
     });
   });
 

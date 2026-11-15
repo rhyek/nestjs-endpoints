@@ -1,6 +1,13 @@
 import { Writable } from 'node:stream';
-import { ArgumentsHost, Catch } from '@nestjs/common';
-import { APP_FILTER, BaseExceptionFilter } from '@nestjs/core';
+import {
+  ArgumentsHost,
+  CallHandler,
+  Catch,
+  ExecutionContext,
+  Injectable,
+  NestInterceptor,
+} from '@nestjs/common';
+import { APP_FILTER, APP_INTERCEPTOR, BaseExceptionFilter, HttpAdapterHost } from '@nestjs/core';
 import { Test, TestingModule } from '@nestjs/testing';
 import {
   endpoint,
@@ -9,6 +16,7 @@ import {
   ZodSerializationException,
   ZodValidationException,
 } from 'nestjs-endpoints';
+import { tap } from 'rxjs';
 import request from 'supertest';
 import { AppModule } from '../src/app.module';
 import { AppointmentRepositoryToken } from '../src/endpoints/user/appointment/appointment-repository.interface';
@@ -137,16 +145,45 @@ describe('api', { concurrent: true }, () => {
   });
 
   test('user find can return null value', async () => {
-    const { req, httpAdapter } = await setup();
-    // await req.post('/user/find').send({ id: 1 }).expect(200, null);
-    // http://github.com/nestjs/nest/issues/10415
-    await req
+    const { req } = await setup();
+    const resp = await req
       .post('/user/find')
       .send({ id: 1 })
       .expect(200)
-      .then((resp) => {
-        expect(resp.body).toBe(httpAdapter === 'express' ? '' : null);
-      });
+      .expect('Content-Type', /^application\/json\b/);
+    expect(resp.text).toBe('null');
+    expect(resp.body).toBeNull();
+  });
+
+  test('a null output keeps the headers an interceptor sets after the handler', async () => {
+    @Injectable()
+    class HeaderAfterHandlerInterceptor implements NestInterceptor {
+      constructor(private readonly adapterHost: HttpAdapterHost) {}
+
+      intercept(context: ExecutionContext, next: CallHandler) {
+        const response = context.switchToHttp().getResponse();
+        return next
+          .handle()
+          .pipe(
+            tap(() => this.adapterHost.httpAdapter.setHeader(response, 'x-after-handler', 'yes')),
+          );
+      }
+    }
+    const moduleFixture = await Test.createTestingModule({
+      imports: [AppModule],
+      providers: [{ provide: APP_INTERCEPTOR, useClass: HeaderAfterHandlerInterceptor }],
+    }).compile();
+    const { app } = await createApp(moduleFixture);
+    try {
+      const resp = await request(app.getHttpServer())
+        .post('/user/find')
+        .send({ id: 1 })
+        .expect(200);
+      expect(resp.headers['x-after-handler']).toBe('yes');
+      expect(resp.body).toBeNull();
+    } finally {
+      await app.close();
+    }
   });
 
   test('can return created user', async () => {
@@ -498,7 +535,23 @@ describe('api', { concurrent: true }, () => {
       .query({ 'add[a]': 5, 'add[b]': 7 })
       .expect(200)
       .then((resp) => {
-        expect(resp.body).toBe(12);
+        expect(resp.body).toEqual({ sum: 12, tags: [] });
+      });
+  });
+
+  test('an array search parameter takes repeated keys, and one value as a one-item array', async () => {
+    const { req } = await setup();
+    await req
+      .get('/complex-get?add[a]=1&add[b]=2&tags=a&tags=b')
+      .expect(200)
+      .then((resp) => {
+        expect(resp.body).toEqual({ sum: 3, tags: ['a', 'b'] });
+      });
+    await req
+      .get('/complex-get?add[a]=1&add[b]=2&tags=a')
+      .expect(200)
+      .then((resp) => {
+        expect(resp.body).toEqual({ sum: 3, tags: ['a'] });
       });
   });
 

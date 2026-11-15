@@ -1,10 +1,14 @@
 import path from 'node:path';
 import { NestFactory } from '@nestjs/core';
+import { NestNodeApplication, NodeAdapter } from '@nestjs/platform-node';
 import { setupCodegen } from 'nestjs-endpoints';
 import { AppModule } from './app.module';
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create<NestNodeApplication>(
+    AppModule,
+    new NodeAdapter(),
+  );
   app.enableCors({ origin: '*' });
 
   const clientDir = path.resolve(

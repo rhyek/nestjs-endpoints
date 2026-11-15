@@ -67,7 +67,9 @@ describe('collectInputSchemas', () => {
       ],
       { AuthLoginInput: login },
     );
-    expect([...entries.values()]).toEqual([{ sourceName: 'authLogin', schemas: { input: login } }]);
+    expect([...entries]).toEqual([
+      ['authLogin', { operationId: 'AuthLogin', schemas: { input: login } }],
+    ]);
   });
 
   test('nested $refs are resolved at every depth, inside properties, items, oneOf and allOf', () => {
@@ -157,9 +159,7 @@ describe('collectInputSchemas', () => {
   });
 
   test('a query keeps object-level keywords, beside the body', () => {
-    const { schema, parameters, components } = convertObject(
-      z.object({ q: z.string() }).strict().describe('Filters'),
-    );
+    const query = convertObject(z.object({ q: z.string() }).strict().describe('Filters'));
     const body = { type: 'object', properties: { n: { type: 'number' } } };
     const entries = collect(
       [
@@ -168,10 +168,10 @@ describe('collectInputSchemas', () => {
           kind: 'query',
           path: '/search',
           json: body,
-          query: { json: schema, components, parameters },
+          query,
         }),
       ],
-      components,
+      query.components,
     );
     const { schemas } = entries.get('search')!;
     expect(schemas.input).toEqual(body);
@@ -184,19 +184,17 @@ describe('collectInputSchemas', () => {
   });
 
   test('a query with a meta id is resolved', () => {
-    const { schema, parameters, components } = convertObject(
-      z.object({ q: z.string() }).meta({ id: 'Filters' }),
-    );
+    const query = convertObject(z.object({ q: z.string() }).meta({ id: 'Filters' }));
     const entries = collect(
       [
         descriptor({
           operationId: 'Search',
           kind: 'query',
           method: 'get',
-          query: { json: schema, components, parameters },
+          query,
         }),
       ],
-      components,
+      query.components,
     );
     expect(entries.get('search')!.schemas).toEqual({
       query: {
@@ -219,11 +217,7 @@ describe('collectInputSchemas', () => {
         operationId: 'Everything',
         method: 'get',
         path: '/everything',
-        query: {
-          json: convertObject(z.object({})).schema,
-          components: {},
-          parameters: [],
-        },
+        query: convertObject(z.object({})),
       }),
       descriptor({
         operationId: 'RecipesDelete',
@@ -329,7 +323,7 @@ describe('buildSchemasModuleSource', () => {
   const source = buildSchemasModuleSource({
     entries: [
       {
-        sourceName: 'authLogin',
+        operationId: 'AuthLogin',
         schemas: {
           input: {
             type: 'object',
@@ -338,7 +332,7 @@ describe('buildSchemasModuleSource', () => {
         },
       },
       {
-        sourceName: 'greet',
+        operationId: 'Greet',
         schemas: {
           input: { type: 'object' },
           query: {
@@ -348,7 +342,6 @@ describe('buildSchemasModuleSource', () => {
         },
       },
     ],
-    runtimeImport: './client-runtime',
     typesImport: './types',
   });
 
@@ -359,8 +352,27 @@ describe('buildSchemasModuleSource', () => {
     expect(source).toContain(
       `export const greet: { input: InputSchema<NonNullable<GreetOptions['body']>>; query: InputSchema<NonNullable<GreetOptions['query']>> } =`,
     );
-    expect(source).toContain(`import type { InputSchema } from './client-runtime';`);
+    expect(source).toContain(`export type InputSchema<T> = {`);
     expect(source).toContain(`import type { AuthLoginOptions, GreetOptions } from './types';`);
     expect(syntaxErrors(source)).toEqual([]);
+  });
+
+  test('names each export and request type as Kubb names them', () => {
+    const named = buildSchemasModuleSource({
+      entries: [
+        { operationId: 'OauthOauth2callback', schemas: { input: { type: 'object' } } },
+        { operationId: 'Delete', schemas: { input: { type: 'object' } } },
+      ],
+      typesImport: './types',
+    });
+    expect(named).toContain(
+      `export const oauthOauth2Callback: { input: InputSchema<NonNullable<OauthOauth2CallbackOptions['body']>> } =`,
+    );
+    expect(named).toContain(
+      `export const _delete: { input: InputSchema<NonNullable<DeleteOptions['body']>> } =`,
+    );
+    expect(named).toContain(
+      `import type { DeleteOptions, OauthOauth2CallbackOptions } from './types';`,
+    );
   });
 });

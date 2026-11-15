@@ -3,15 +3,15 @@
 * Do not edit manually.
 */
 
-import type { Options, RequestResult } from '../client-runtime'
+import type { Options, Unwrappable, RequestResult } from '../.kubb/client'
 import type { ShopRecipesListOptions, ShopRecipesListResponses } from '../types/ShopRecipesList'
-import { client } from '../client-runtime'
+import { client, withUnwrap, resolveThrowOnError } from '../.kubb/client'
 
 /**
- * {@link /shop/recipes/list}
+ * `POST /shop/recipes/list`
  */
-export function shopRecipesList<ThrowOnError extends boolean = true>(options: Options<ShopRecipesListOptions, ThrowOnError> = {}): Promise<RequestResult<ShopRecipesListResponses, ThrowOnError>> {
-  const { client: request = client, ...config } = options
+export function shopRecipesList<ThrowOnError extends boolean = true>(options: Options<ShopRecipesListOptions, ThrowOnError> = {}): Unwrappable<RequestResult<ShopRecipesListResponses, ThrowOnError>> {
+  const { client: apiClient = client, ...config } = options
 
-  return request({ method: 'POST', url: '/shop/recipes/list', ...config, throwOnError: config.throwOnError ?? true }) as Promise<RequestResult<ShopRecipesListResponses, ThrowOnError>>
+  return withUnwrap(apiClient<ShopRecipesListResponses, ThrowOnError>({ method: 'POST', url: '/shop/recipes/list', ...config, throwOnError: resolveThrowOnError(config.throwOnError, true) }))
 }

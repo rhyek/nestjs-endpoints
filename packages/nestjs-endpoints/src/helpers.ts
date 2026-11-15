@@ -1,19 +1,9 @@
 import { AsyncLocalStorage } from 'node:async_hooks';
 import path from 'node:path';
-import { applyDecorators } from '@nestjs/common';
-import { ApiParam, ApiQuery } from '@nestjs/swagger';
 import callsites from 'callsites';
 import { callsiteFileToPath } from './callsite.js';
-import { convertObject, type ObjectSchemaLike } from './object-parameters.js';
-import { registerComponents } from './zod-to-openapi.js';
+import { objectParameters, type ObjectSchemaLike } from './object-parameters.js';
 
-function isDirPathSegment(dir: string) {
-  const segment = path.basename(dir);
-  if (!segment.startsWith('_')) {
-    return true;
-  }
-  return false;
-}
 /**
  * Expand one filename-derived path segment into one or more URL segments.
  *
@@ -32,56 +22,36 @@ function expandUrlSegment(segment: string): string[] {
     .filter(Boolean)
     .map((sub) => (sub.startsWith('$') ? ':' + sub.slice(1) : sub));
 }
-const shortCircuitDirs: Record<string, boolean> = {
-  [process.cwd()]: true,
-};
+
+/**
+ * An endpoint file's URL: the router's base path, the folders between the
+ * file and the root directory it is in (or the working directory), leaving
+ * out `_`-prefixed ones, then the file's name unless it is `endpoint.ts`.
+ */
 export function getEndpointHttpPath(rootDirectories: string[], basePath: string, file: string) {
-  const stopDirs: Record<string, boolean> = { ...shortCircuitDirs };
-  for (const d of rootDirectories) {
-    stopDirs[d] = true;
-  }
-  // Folder segments are collected leaf-to-root, then reversed at the end.
-  // To keep `$id.view` (one folder) producing `:id/view` (in that order)
-  // after the final reverse, push its expansion in reverse here so the
-  // outer reverse restores root-to-leaf order across both folders and the
-  // subsegments of any one folder.
-  let pathSegments: string[] = [];
-  let start = path.dirname(file);
-  let lastDirPathSegment: string | null = null;
-
-  while (true) {
-    if (
-      Object.keys(stopDirs).some(
-        (d) => path.normalize(d + path.sep) === path.normalize(start + path.sep),
-      ) ||
-      start === path.parse(start).root
-    ) {
-      break;
+  const stopDirs = new Set([process.cwd(), ...rootDirectories].map((d) => path.resolve(d)));
+  const folderSegments: string[] = [];
+  for (
+    let dir = path.dirname(file);
+    !stopDirs.has(dir) && dir !== path.parse(dir).root;
+    dir = path.dirname(dir)
+  ) {
+    const folder = path.basename(dir);
+    if (!folder.startsWith('_')) {
+      folderSegments.unshift(...expandUrlSegment(folder));
     }
-    if (isDirPathSegment(start)) {
-      const expanded = expandUrlSegment(path.basename(start));
-      for (let i = expanded.length - 1; i >= 0; i--) {
-        pathSegments.push(expanded[i]);
-      }
-      lastDirPathSegment = start;
-    }
-    start = path.dirname(start);
   }
-  if (lastDirPathSegment) {
-    shortCircuitDirs[path.dirname(lastDirPathSegment)] = true;
-  }
-  const basePathSegments = basePath.split('/').filter(Boolean);
-  pathSegments = [...basePathSegments, ...pathSegments.reverse()];
-
+  const pathSegments = [...basePath.split('/').filter(Boolean), ...folderSegments];
   const basename = path.basename(file, path.extname(file));
   if (basename !== 'endpoint') {
-    const leaf = basename.split('.endpoint')[0];
-    pathSegments.push(...expandUrlSegment(leaf));
+    pathSegments.push(...expandUrlSegment(basename.split('.endpoint')[0]));
   }
-  const httpPath = path.join(...pathSegments);
-  const httpPathPascalName = getHttpPathPascalName(httpPath);
-
-  return { httpPath, httpPathPascalName, httpPathSegments: pathSegments };
+  const httpPath = path.posix.join(...pathSegments);
+  return {
+    httpPath,
+    httpPathPascalName: getHttpPathPascalName(httpPath),
+    httpPathSegments: pathSegments,
+  };
 }
 
 export function getHttpPathPascalName(httpPath: string) {
@@ -97,28 +67,11 @@ export function getHttpPathPascalName(httpPath: string) {
     .replace(/[/-]([a-z0-9])/g, (_, char: string) => char.toUpperCase());
 }
 
-export const ApiQueries = <T extends ObjectSchemaLike>(zodObject: T) => {
-  const { parameters, components } = convertObject(zodObject, 'The schema given to ApiQueries()');
-  registerComponents(components);
-  return applyDecorators(
-    ...parameters.map((p) => ApiQuery({ name: p.name, required: p.required, schema: p.schema })),
-  );
-};
+export const ApiQueries = <T extends ObjectSchemaLike>(zodObject: T) =>
+  objectParameters('query', zodObject, 'The schema given to ApiQueries()');
 
-export const ApiParams = <T extends ObjectSchemaLike>(zodObject: T) => {
-  const { parameters, components } = convertObject(zodObject, 'The schema given to ApiParams()');
-  registerComponents(components);
-  return applyDecorators(
-    ...parameters.map((p) =>
-      // Path parameters are always required in OpenAPI.
-      ApiParam({ name: p.name, required: true, schema: p.schema }),
-    ),
-  );
-};
-
-export function shouldJson(value: unknown) {
-  return typeof value !== 'string';
-}
+export const ApiParams = <T extends ObjectSchemaLike>(zodObject: T) =>
+  objectParameters('path', zodObject, 'The schema given to ApiParams()');
 
 export function getCallsiteFile() {
   const callsite = callsites()[2];

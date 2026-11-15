@@ -6,29 +6,78 @@
  * the axios and react-query wrapper builders in `./kubb`, which supply the
  * per-operation access expressions.
  */
-import type { EndpointDescriptor } from '../../descriptors.js';
-import type { HttpMethod } from '../http-methods.js';
-import { stripNamespaceFromFlatName } from './name-transform.js';
+import { resolverReactQuery } from '@kubb/plugin-react-query';
+import { casing } from 'kubb/kit';
+import type { EndpointDescriptor, HttpMethod } from '../../descriptors.js';
 
 /**
- * Normalize an operationId to an identifier: treat any non-alphanumeric
- * separator (underscore, hyphen, space) as a word boundary and PascalCase
- * the token on the right. Matches both the generated client's naming and
- * NestJS's default `ControllerClass_methodName` operationId (emitted as
- * `controllerClassMethodName`).
+ * The operation's request function on the generated flat module
+ * (`authLogin`), named as Kubb names it: `@kubb/plugin-client` and
+ * `@kubb/plugin-react-query` share this rule.
  */
-export function normalizeOperationIdToPascal(operationId: string): string {
-  let normalized = operationId.replace(/[^A-Za-z0-9]+([A-Za-z0-9])/g, (_, c: string) =>
-    c.toUpperCase(),
-  );
-  normalized = normalized.replace(/[^A-Za-z0-9]/g, '');
-  return normalized.charAt(0).toUpperCase() + normalized.slice(1);
+export function operationSourceName(operationId: string): string {
+  return resolverReactQuery.name(operationId);
 }
 
-/** The operation's request function on the generated flat module (`authLogin`). */
-export function operationSourceName(operationId: string): string {
-  const pascal = normalizeOperationIdToPascal(operationId);
-  return pascal.charAt(0).toLowerCase() + pascal.slice(1);
+/** The operation's React Query hook, as Kubb names it (`useAuthLogin`). */
+function hookName(operationId: string): string {
+  const name = operationSourceName(operationId);
+  return 'use' + name.charAt(0).toUpperCase() + name.slice(1);
+}
+
+/**
+ * Strip the namespace chain's PascalCase prefix from a generated flat
+ * function / hook name. The transform is lenient: if the flat name
+ * does not begin with the expected tokens, the original name is returned
+ * unchanged.
+ *
+ * Rules:
+ * - If the name starts with `use` (React Query hook), the prefix is
+ *   preserved and the strip happens on the remainder.
+ * - The namespace chain is concatenated as a single PascalCase prefix
+ *   (e.g., `['shop', 'catalog', 'featured']` → `ShopCatalogFeatured`), each
+ *   segment cased as Kubb cases the names it generates, and that prefix is
+ *   stripped if present. Partial matches are not stripped — the full prefix
+ *   must match.
+ * - After stripping, the remainder's first letter is lower-cased (so
+ *   `ProductList` → `productList`), except when a `use`
+ *   prefix is re-attached, in which case the remainder stays
+ *   PascalCase (so `use` + `WeekUpdate` → `useWeekUpdate`).
+ * - If stripping would leave an empty remainder, the original flat
+ *   name is returned unchanged (same lenient fallback as a non-match).
+ */
+export function stripNamespaceFromFlatName(flatName: string, namespaceChain: string[]): string {
+  if (namespaceChain.length === 0) {
+    return flatName;
+  }
+
+  const hasUsePrefix = /^use[A-Z]/.test(flatName);
+  const rawBody = hasUsePrefix ? flatName.slice(3) : flatName;
+  // The generated client emits plain fns as camelCase (`userCreate`) and hooks
+  // as `use` + PascalCase (`useUserCreate`). Normalize to PascalCase so a
+  // single prefix-match handles both forms.
+  const body = rawBody.charAt(0).toUpperCase() + rawBody.slice(1);
+
+  const prefix = namespaceChain.map((segment) => casing.pascal(segment)).join('');
+  if (!body.startsWith(prefix)) {
+    // Lenient: leave the name alone when it doesn't begin with the chain.
+    return flatName;
+  }
+
+  const tail = body.slice(prefix.length);
+  // Next char after the stripped prefix must be an uppercase letter
+  // (PascalCase word boundary). If it isn't, the match was only partial
+  // within a token (e.g. chain `['user']` vs body `UserneamesList`),
+  // so leave the name alone. A full match would erase the name entirely —
+  // leave it alone too.
+  if (!/^[A-Z0-9]/.test(tail)) {
+    return flatName;
+  }
+
+  if (hasUsePrefix) {
+    return 'use' + tail;
+  }
+  return tail.charAt(0).toLowerCase() + tail.slice(1);
 }
 
 /**
@@ -100,9 +149,7 @@ function collectOperations(
 ): NamespacedOp[] {
   return descriptors.map((d) => {
     const sourceName =
-      shape === 'hook'
-        ? 'use' + normalizeOperationIdToPascal(d.operationId)
-        : operationSourceName(d.operationId);
+      shape === 'hook' ? hookName(d.operationId) : operationSourceName(d.operationId);
     return {
       namespaceChain: d.namespaceChain,
       sourceName,

@@ -1,25 +1,23 @@
-import fs from 'node:fs/promises';
+import fs from 'node:fs';
 import path from 'node:path';
-import { getCallsiteFile } from './helpers.js';
+
+let version: string | undefined;
 
 /**
- * This package's own `package.json`, found by walking up from the caller's
- * file; `null` when none is found. Not re-exported from the package index.
+ * This package's own version, from its `package.json` beside `src/` and
+ * `dist/`; `'0.0.0'` when it cannot be read. Not re-exported from the package
+ * index.
  */
-export async function readPkgJson() {
-  const start = path.dirname(getCallsiteFile());
-  for (
-    let dir = start;
-    dir !== path.parse(dir).root && dir !== process.cwd();
-    dir = path.dirname(dir)
-  ) {
-    const pkgJson = path.join(dir, 'package.json');
-    if (await fs.stat(pkgJson).catch(() => false)) {
-      const parsed = JSON.parse(await fs.readFile(pkgJson, 'utf-8'));
-      if (parsed.name === 'nestjs-endpoints') {
-        return parsed;
-      }
+export function readOwnVersion(): string {
+  if (version === undefined) {
+    try {
+      const pkg = JSON.parse(
+        fs.readFileSync(path.join(import.meta.dirname, '../package.json'), 'utf8'),
+      ) as { version?: string };
+      version = pkg.version ?? '0.0.0';
+    } catch {
+      version = '0.0.0';
     }
   }
-  return null;
+  return version;
 }

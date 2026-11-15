@@ -2,8 +2,7 @@ import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import type { EndpointDescriptor } from '../descriptors.js';
-import { clientHash, readClientHash } from './hash.js';
-import { printedTagDescriptions } from './kubb/wrapper.js';
+import { clientHash, printedTagDescriptions, readClientHash } from './hash.js';
 
 function descriptor(name: Record<string, unknown> = { type: 'string' }): EndpointDescriptor {
   return {

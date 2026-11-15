@@ -16,22 +16,9 @@ import {
   Type,
 } from '@nestjs/common';
 import { HttpAdapterHost } from '@nestjs/core';
-import {
-  ApiBody,
-  ApiExtension,
-  ApiOperation,
-  ApiParam,
-  ApiQuery,
-  ApiResponse,
-} from '@nestjs/swagger';
-import { z, ZodNull, ZodNullable, ZodType } from 'zod';
-import { EndpointSetupFn, settings } from './consts.js';
-import {
-  ConvertedSchema,
-  DESCRIPTOR_METADATA_KEY,
-  EndpointDescriptor,
-  toOpenApiPath,
-} from './descriptors.js';
+import { ApiBody, ApiExtension, ApiOperation, ApiResponse } from '@nestjs/swagger';
+import { z, ZodType } from 'zod';
+import { DESCRIPTOR_METADATA_KEY, EndpointDescriptor, toOpenApiPath } from './descriptors.js';
 import { ZodSerializationException, ZodValidationException } from './exceptions.js';
 import {
   getCallsiteFile,
@@ -40,8 +27,14 @@ import {
   moduleAls,
 } from './helpers.js';
 import { isSameModule } from './manifest/scan.js';
-import { convertObject, ObjectSchemaLike } from './object-parameters.js';
-import { JsonSchema, toJsonSchema } from './zod-to-openapi.js';
+import {
+  apiParameters,
+  convertObject,
+  ObjectSchemaLike,
+  loneValuesAsArrays,
+} from './object-parameters.js';
+import { EndpointSetupFn, settings } from './settings.js';
+import { toJsonSchema } from './zod-to-openapi.js';
 
 const httpMethodDecorators = {
   get: Get,
@@ -81,8 +74,6 @@ class SchemaDef<S extends Schema = Schema> {
     public description: string | undefined,
   ) {}
 }
-type ExtractSchemaFromSchemaDef<S extends Schema | SchemaDef> =
-  S extends SchemaDef<infer _S> ? _S : S;
 
 export function schema<S extends Schema>(schema: S, spec?: { description?: string }) {
   return new SchemaDef<S>(schema, spec?.description);
@@ -93,6 +84,14 @@ function unwrapSchema<S extends Schema>(s: S | SchemaDef<S>): S {
   return s instanceof SchemaDef ? s.schema : s;
 }
 
+type SchemaOption = Schema | SchemaDef | undefined;
+
+/** The zod schema of an option given bare or through `schema()`. */
+type SchemaOf<S> = S extends SchemaDef<infer Inner> ? Inner : NonNullable<S>;
+
+/** `T` when the endpoint declares the option `S`, else nothing. */
+type IfDeclared<S, T> = S extends undefined ? object : T;
+
 /**
  * A `params` or `query` schema: an object, bare or behind a transform or
  * preprocess.
@@ -101,20 +100,31 @@ type ObjectSchemaUnion = ObjectSchemaLike | SchemaDef<ObjectSchemaLike> | undefi
 
 type OutputSchemaUnion = Schema | SchemaDef | Record<number, Schema | SchemaDef> | undefined;
 
+/** The output schemas by status: a single schema is the 200 one. */
 type OutputMap<OS extends OutputSchemaUnion> = OS extends undefined
   ? never
   : OS extends Schema | SchemaDef
-    ? { 200: ExtractSchemaFromSchemaDef<OS> }
+    ? { 200: SchemaOf<OS> }
     : OS extends Record<number, Schema | SchemaDef>
-      ? { [k in keyof OS & number]: ExtractSchemaFromSchemaDef<OS[k]> }
+      ? { [K in keyof OS & number]: SchemaOf<OS[K]> }
       : never;
 
-type OutputMapKey<OS extends OutputSchemaUnion> = keyof OutputMap<OS> & number;
+type OutputStatus<OS extends OutputSchemaUnion> = keyof OutputMap<OS> & number;
 
-type OutputMapValue<OS extends OutputSchemaUnion, K extends OutputMapKey<OS>> = OS extends undefined
+/**
+ * The body of a status: what a handler may hand *in* (`z.input`, before any
+ * `.transform()`), or what the output schema surfaces (`z.output`).
+ */
+type OutputBody<
+  OS extends OutputSchemaUnion,
+  K extends OutputStatus<OS>,
+  IO extends 'input' | 'output',
+> = OS extends undefined
   ? any
   : OutputMap<OS>[K] extends Schema
-    ? z.input<OutputMap<OS>[K]>
+    ? IO extends 'input'
+      ? z.input<OutputMap<OS>[K]>
+      : z.output<OutputMap<OS>[K]>
     : never;
 
 export class EndpointResponse<Status extends number = any, Body = any> {
@@ -124,25 +134,10 @@ export class EndpointResponse<Status extends number = any, Body = any> {
   ) {}
 }
 
-type OutputMapResponseUnion<OS extends OutputSchemaUnion> = {
-  [Status in OutputMapKey<OS>]: EndpointResponse<Status, OutputMapValue<OS, Status>>;
-}[keyof OutputMap<OS> & number];
-
-/**
- * A body as it is *surfaced*, after the output schema has parsed it — so a
- * `.transform()` has already been applied. The mirror image of
- * `OutputMapValue`, which describes what a handler may hand *in*
- * (pre-transform).
- */
-type OutputMapBody<OS extends OutputSchemaUnion, K extends OutputMapKey<OS>> = OS extends undefined
-  ? any
-  : OutputMap<OS>[K] extends Schema
-    ? z.output<OutputMap<OS>[K]>
-    : never;
-
-type InvokeResponseUnion<OS extends OutputSchemaUnion> = {
-  [Status in OutputMapKey<OS>]: EndpointResponse<Status, OutputMapBody<OS, Status>>;
-}[keyof OutputMap<OS> & number];
+/** One `EndpointResponse` per status the output declares. */
+type ResponseUnion<OS extends OutputSchemaUnion, IO extends 'input' | 'output'> = {
+  [Status in OutputStatus<OS>]: EndpointResponse<Status, OutputBody<OS, Status, IO>>;
+}[OutputStatus<OS>];
 
 /**
  * What `invoke()` resolves to, mirroring what it actually returns.
@@ -156,154 +151,94 @@ type InvokeResponseUnion<OS extends OutputSchemaUnion> = {
 type InvokeReturn<OS extends OutputSchemaUnion> = OS extends undefined
   ? any
   : OS extends Schema | SchemaDef
-    ? z.output<ExtractSchemaFromSchemaDef<OS>>
-    : OS extends Record<number, Schema | SchemaDef>
-      ? InvokeResponseUnion<OS>
-      : never;
+    ? z.output<SchemaOf<OS>>
+    : ResponseUnion<OS, 'output'>;
+
+/** The values of an `inject` or `injectOnRequest` map. */
+type Injected<M> = M extends undefined
+  ? object
+  : {
+      [K in keyof M]: M[K] extends WithDecorator<infer T>
+        ? T
+        : M[K] extends Type<infer T>
+          ? T
+          : never;
+    };
 
 type HandlerMethod<
   InjectProviders extends InjectProvidersMap = undefined,
   InjectOnRequestParameters extends InjectOnRequestMap = undefined,
-  InputSchema extends Schema | SchemaDef | undefined = undefined,
-  ParamsSchema extends Schema | SchemaDef | undefined = undefined,
-  QuerySchema extends Schema | SchemaDef | undefined = undefined,
+  InputSchema extends SchemaOption = undefined,
+  ParamsSchema extends SchemaOption = undefined,
+  QuerySchema extends SchemaOption = undefined,
   OutputSchema extends OutputSchemaUnion = undefined,
 > = (
-  params: (InjectProviders extends undefined
-    ? object
-    : {
-        [p in keyof InjectProviders]: InjectProviders[p] extends WithDecorator<infer ParameterType>
-          ? ParameterType
-          : InjectProviders[p] extends Type<infer ParameterType>
-            ? ParameterType
-            : never;
-      }) &
-    (InjectOnRequestParameters extends undefined
-      ? object
-      : {
-          [
-            p in keyof InjectOnRequestParameters
-          ]: InjectOnRequestParameters[p] extends WithDecorator<infer ParameterType>
-            ? ParameterType
-            : never;
-        }) &
-    (InputSchema extends undefined
-      ? object
-      : {
-          input: z.output<ExtractSchemaFromSchemaDef<NonNullable<InputSchema>>>;
-          rawInput: unknown;
-        }) &
-    (ParamsSchema extends undefined
-      ? object
-      : {
-          params: z.output<ExtractSchemaFromSchemaDef<NonNullable<ParamsSchema>>>;
-        }) &
-    (QuerySchema extends undefined
-      ? object
-      : {
-          query: z.output<ExtractSchemaFromSchemaDef<NonNullable<QuerySchema>>>;
-        }) & {
+  params: Injected<InjectProviders> &
+    Injected<InjectOnRequestParameters> &
+    IfDeclared<InputSchema, { input: z.output<SchemaOf<InputSchema>>; rawInput: unknown }> &
+    IfDeclared<ParamsSchema, { params: z.output<SchemaOf<ParamsSchema>> }> &
+    IfDeclared<QuerySchema, { query: z.output<SchemaOf<QuerySchema>> }> & {
       response: <
-        Status extends OutputMapKey<OutputSchema>,
-        Body extends OutputMapValue<OutputSchema, Status>,
+        Status extends OutputStatus<OutputSchema>,
+        Body extends OutputBody<OutputSchema, Status, 'input'>,
       >(
         status: Status,
         body: Body,
       ) => EndpointResponse<Status, Body>;
-    } & {
-      schemas: object &
-        (InputSchema extends undefined
-          ? object
-          : {
-              input: ExtractSchemaFromSchemaDef<NonNullable<InputSchema>>;
-            }) &
-        (ParamsSchema extends undefined
-          ? object
-          : {
-              params: ExtractSchemaFromSchemaDef<NonNullable<ParamsSchema>>;
-            }) &
-        (QuerySchema extends undefined
-          ? object
-          : {
-              query: ExtractSchemaFromSchemaDef<NonNullable<QuerySchema>>;
-            });
+      schemas: IfDeclared<InputSchema, { input: SchemaOf<InputSchema> }> &
+        IfDeclared<ParamsSchema, { params: SchemaOf<ParamsSchema> }> &
+        IfDeclared<QuerySchema, { query: SchemaOf<QuerySchema> }>;
     },
 ) => OutputSchema extends undefined
   ? MaybePromise<any>
   : OutputSchema extends Record<number, Schema | SchemaDef>
-    ? MaybePromise<OutputMapResponseUnion<OutputSchema>>
+    ? MaybePromise<ResponseUnion<OutputSchema, 'input'>>
     : OutputSchema extends Schema
-      ? MaybePromise<z.input<NonNullable<OutputSchema>> | OutputMapResponseUnion<OutputSchema>>
+      ? MaybePromise<z.input<OutputSchema> | ResponseUnion<OutputSchema, 'input'>>
       : never;
 
-type QueryInput<QuerySchema extends Schema | SchemaDef | undefined> = z.input<
-  ExtractSchemaFromSchemaDef<NonNullable<QuerySchema>>
->;
+type QueryInput<QuerySchema extends SchemaOption> = z.input<SchemaOf<QuerySchema>>;
 
 type InvokeOptions<
-  ParamsSchema extends Schema | SchemaDef | undefined = undefined,
-  QuerySchema extends Schema | SchemaDef | undefined = undefined,
-> = (ParamsSchema extends undefined
-  ? object
-  : {
-      params: z.input<ExtractSchemaFromSchemaDef<NonNullable<ParamsSchema>>>;
-    }) &
-  (QuerySchema extends undefined
-    ? object
-    : // eslint-disable-next-line @typescript-eslint/no-empty-object-type
-      {} extends QueryInput<QuerySchema>
+  ParamsSchema extends SchemaOption,
+  QuerySchema extends SchemaOption,
+> = IfDeclared<ParamsSchema, { params: z.input<SchemaOf<ParamsSchema>> }> &
+  IfDeclared<
+    QuerySchema,
+    // eslint-disable-next-line @typescript-eslint/no-empty-object-type
+    {} extends QueryInput<QuerySchema>
       ? { query?: QueryInput<QuerySchema> }
-      : { query: QueryInput<QuerySchema> });
+      : { query: QueryInput<QuerySchema> }
+  >;
 
 /**
- * Whether `invoke` may leave out its options: no path params, and no search
- * param it must be given.
+ * `invoke`'s arguments: the raw input when the endpoint has an `input`, then
+ * the raw path and search params when it has `params` or `query`. The
+ * options may be left out when there are no path params and no search param
+ * is required.
  */
-type InvokeOptionsOptional<
-  ParamsSchema extends Schema | SchemaDef | undefined,
-  QuerySchema extends Schema | SchemaDef | undefined,
-> = ParamsSchema extends undefined
-  ? QuerySchema extends undefined
-    ? true
-    : // eslint-disable-next-line @typescript-eslint/no-empty-object-type
-      {} extends QueryInput<QuerySchema>
-      ? true
-      : false
-  : false;
-
-type InvokeMethod<
-  InputSchema extends Schema | SchemaDef | undefined = undefined,
-  ParamsSchema extends Schema | SchemaDef | undefined = undefined,
-  QuerySchema extends Schema | SchemaDef | undefined = undefined,
-  OutputSchema extends OutputSchemaUnion = undefined,
-> = InputSchema extends undefined
-  ? [ParamsSchema, QuerySchema] extends [undefined, undefined]
-    ? () => MaybePromise<InvokeReturn<OutputSchema>>
-    : InvokeOptionsOptional<ParamsSchema, QuerySchema> extends true
-      ? (
-          opts?: InvokeOptions<ParamsSchema, QuerySchema>,
-        ) => MaybePromise<InvokeReturn<OutputSchema>>
-      : (opts: InvokeOptions<ParamsSchema, QuerySchema>) => MaybePromise<InvokeReturn<OutputSchema>>
-  : [ParamsSchema, QuerySchema] extends [undefined, undefined]
-    ? (
-        rawInput: z.input<ExtractSchemaFromSchemaDef<NonNullable<InputSchema>>>,
-      ) => MaybePromise<InvokeReturn<OutputSchema>>
-    : InvokeOptionsOptional<ParamsSchema, QuerySchema> extends true
-      ? (
-          rawInput: z.input<ExtractSchemaFromSchemaDef<NonNullable<InputSchema>>>,
-          opts?: InvokeOptions<ParamsSchema, QuerySchema>,
-        ) => MaybePromise<InvokeReturn<OutputSchema>>
-      : (
-          rawInput: z.input<ExtractSchemaFromSchemaDef<NonNullable<InputSchema>>>,
-          opts: InvokeOptions<ParamsSchema, QuerySchema>,
-        ) => MaybePromise<InvokeReturn<OutputSchema>>;
+type InvokeArgs<
+  InputSchema extends SchemaOption,
+  ParamsSchema extends SchemaOption,
+  QuerySchema extends SchemaOption,
+> = [
+  ...(InputSchema extends undefined ? [] : [rawInput: z.input<SchemaOf<InputSchema>>]),
+  ...([ParamsSchema, QuerySchema] extends [undefined, undefined]
+    ? []
+    : ParamsSchema extends undefined
+      ? // eslint-disable-next-line @typescript-eslint/no-empty-object-type
+        {} extends QueryInput<QuerySchema>
+        ? [opts?: InvokeOptions<ParamsSchema, QuerySchema>]
+        : [opts: InvokeOptions<ParamsSchema, QuerySchema>]
+      : [opts: InvokeOptions<ParamsSchema, QuerySchema>]),
+];
 
 type EndpointControllerClass<
   InjectProviders extends InjectProvidersMap = undefined,
   InjectOnRequestParameters extends InjectOnRequestMap = undefined,
-  InputSchema extends Schema | SchemaDef | undefined = undefined,
-  ParamsSchema extends Schema | SchemaDef | undefined = undefined,
-  QuerySchema extends Schema | SchemaDef | undefined = undefined,
+  InputSchema extends SchemaOption = undefined,
+  ParamsSchema extends SchemaOption = undefined,
+  QuerySchema extends SchemaOption = undefined,
   OutputSchema extends OutputSchemaUnion = undefined,
 > = Type<{
   handler: HandlerMethod<
@@ -320,7 +255,9 @@ type EndpointControllerClass<
    * carries the raw path or search parameters
    * (`{ params: { ... }, query: { ... } }`).
    */
-  invoke: InvokeMethod<InputSchema, ParamsSchema, QuerySchema, OutputSchema>;
+  invoke: (
+    ...args: InvokeArgs<InputSchema, ParamsSchema, QuerySchema>
+  ) => MaybePromise<InvokeReturn<OutputSchema>>;
 }>;
 
 /** Both maps' entries, when either may be `undefined`. */
@@ -348,7 +285,7 @@ type EndpointOptions<
   InjectProviders extends InjectProvidersMap,
   InjectOnRequestParameters extends InjectOnRequestMap,
   Method extends EndpointMethod,
-  InputSchema extends Schema | SchemaDef | undefined,
+  InputSchema extends SchemaOption,
   ParamsSchema extends ObjectSchemaUnion,
   QuerySchema extends ObjectSchemaUnion,
   OutputSchema extends OutputSchemaUnion,
@@ -425,10 +362,7 @@ type EndpointOptions<
    */
   query?: QuerySchema;
   /**
-   * Output Zod schema.
-   *
-   * Cannot use nullable output type, since NestJS will not actually responde with `null`.
-   * More info: https://github.com/nestjs/nest/issues/10415
+   * Output Zod schema. A `null` output is sent as the JSON `null`.
    *
    * ```ts
    * endpoint.query({
@@ -439,7 +373,7 @@ type EndpointOptions<
    * })
    * ```
    */
-  output?: OutputSchema extends ZodNull | ZodNullable<any> ? never : OutputSchema;
+  output?: OutputSchema;
   /**
    * Inject controller providers at class instance level.
    *
@@ -541,7 +475,7 @@ export type EndpointBuilder<
   InjectProviders extends InjectProvidersMap = undefined,
   InjectOnRequestParameters extends InjectOnRequestMap = undefined,
   Method extends EndpointMethod = 'post',
-  InputSchema extends Schema | SchemaDef | undefined = undefined,
+  InputSchema extends SchemaOption = undefined,
   ParamsSchema extends ObjectSchemaUnion = undefined,
   QuerySchema extends ObjectSchemaUnion = undefined,
   OutputSchema extends OutputSchemaUnion = undefined,
@@ -692,7 +626,7 @@ function defineEndpoint(
     InjectProvidersMap,
     InjectOnRequestMap,
     EndpointMethod,
-    Schema | SchemaDef | undefined,
+    SchemaOption,
     ObjectSchemaUnion,
     ObjectSchemaUnion,
     OutputSchemaUnion
@@ -700,291 +634,196 @@ function defineEndpoint(
   // The router whose `endpoint` built it; none for the package's builders.
   builderRouterFile?: string,
 ): any {
-  const {
-    method: httpMethod = 'post',
-    path: explicitPath,
-    summary,
-    tags,
-    output,
-    inject,
-    decorators,
-    handler,
-  } = params;
+  const { method: httpMethod = 'post', path: explicitPath, summary, tags, decorators } = params;
+  const fail = (message: string) => new Error(`endpoint.${kind}() in ${file}: ${message}`);
   if (!Object.hasOwn(httpMethodDecorators, httpMethod)) {
     const methods = Object.keys(httpMethodDecorators)
       .map((m) => `'${m}'`)
       .join(', ');
-    throw new Error(
-      `endpoint.${kind}() in ${file}: \`method\` must be one of ` +
-        `${methods}; got ${JSON.stringify(httpMethod)}.`,
-    );
+    throw fail(`\`method\` must be one of ${methods}; got ${JSON.stringify(httpMethod)}.`);
   }
   // `input` is typed `never` here, where `method` may be any method.
-  const inputOption = params.input as Schema | SchemaDef | undefined;
+  const inputOption = params.input as SchemaOption;
   const inputSchema = inputOption && unwrapSchema(inputOption);
   const paramsSchema = params.params && unwrapSchema(params.params);
   const querySchema = params.query && unwrapSchema(params.query);
   if (inputSchema && httpMethod === 'get') {
-    throw new Error(
-      `endpoint.${kind}() in ${file}: a GET endpoint cannot declare ` +
-        '`input`, since a GET request has no body. Use `query` for ' +
-        'search parameters, or another `method`.',
+    throw fail(
+      'a GET endpoint cannot declare `input`, since a GET request has no body. ' +
+        'Use `query` for search parameters, or another `method`.',
     );
   }
-  const injectOnRequest = injectOnRequestOf(params);
+  const outputs = outputsOf(params.output);
+  const outputSchemas = outputs && new Map(outputs.map((o) => [o.status, o.schema]));
+  const inject: NonNullable<InjectProvidersMap> = params.inject ?? {};
+  const injectKeys = Object.keys(inject);
+  const injectOnRequest = injectOnRequestOf(params) ?? {};
+  const injectOnRequestKeys = Object.keys(injectOnRequest);
+  // What the handler is given besides the request: the same objects for every
+  // request.
+  const response = (status: number, body: unknown) => new EndpointResponse(status, body);
+  const schemas = Object.freeze({
+    ...(inputSchema && { input: inputSchema }),
+    ...(paramsSchema && { params: paramsSchema }),
+    ...(querySchema && { query: querySchema }),
+  });
+  // How the search parameters are read before validation (see
+  // `loneValuesAsArrays`): decided once, by the setup, which converts the
+  // query anyway, or on first use. `null` reads them as they come.
+  let readQuery: ((query: unknown) => unknown) | null | undefined;
+
   class cls {}
+  const proto = cls.prototype as any;
+  const httpAdapterHostKey = Symbol('httpAdapterHost');
+  Inject(HttpAdapterHost)(proto, httpAdapterHostKey);
+  for (const [key, token] of Object.entries(inject)) {
+    if (token instanceof WithDecorator) {
+      (token.decorator as PropertyDecorator)(proto, key);
+    } else {
+      Inject(token)(proto, key);
+    }
+  }
+
+  /**
+   * Validates the request and calls the handler. `handlerParams` already
+   * holds what `injectOnRequest` gave, if anything.
+   */
+  const callHandler = (
+    instance: any,
+    handlerParams: Record<string, unknown>,
+    rawInput: unknown,
+    rawParams: unknown,
+    rawQuery: unknown,
+  ): unknown => {
+    for (const key of injectKeys) {
+      handlerParams[key] = instance[key];
+    }
+    if (inputSchema) {
+      // A request without a body reads as `{}`, like `query` and `params`,
+      // unless the schema accepts a missing body as it is.
+      let parsed = inputSchema.safeParse(rawInput);
+      if (!parsed.success && rawInput === undefined) {
+        parsed = inputSchema.safeParse({});
+      }
+      handlerParams.input = validated(parsed);
+      handlerParams.rawInput = rawInput;
+    }
+    if (paramsSchema) {
+      handlerParams.params = validated(paramsSchema.safeParse(rawParams ?? {}));
+    }
+    if (querySchema) {
+      if (readQuery === undefined) {
+        readQuery = loneValuesAsArrays(convertObject(querySchema).parameters);
+      }
+      const query = readQuery ? readQuery(rawQuery) : rawQuery;
+      handlerParams.query = validated(querySchema.safeParse(query ?? {}));
+    }
+    return params.handler(handlerParams as any);
+  };
+
+  /** What the handler returned, as a response whose body the output parsed. */
+  const toResponse = (result: unknown): EndpointResponse => {
+    const res = result instanceof EndpointResponse ? result : new EndpointResponse(200, result);
+    if (outputSchemas) {
+      const schema = outputSchemas.get(res.status);
+      if (!schema) {
+        throw new Error(`Did not find schema for status code ${res.status}`);
+      }
+      const parsed = schema.safeParse(res.body);
+      if (!parsed.success) {
+        throw new ZodSerializationException(parsed.error);
+      }
+      res.body = parsed.data;
+    }
+    return res;
+  };
+
+  /** Sets the status and content type, and hands Nest the body to send. */
+  const send = (instance: any, res: unknown, result: unknown) => {
+    const { status, body } = toResponse(result);
+    const { httpAdapter } = instance[httpAdapterHostKey] as HttpAdapterHost;
+    httpAdapter.status(res, status);
+    // A plain object or array is sent as JSON by every adapter; anything else
+    // but a string is sent as JSON text, so it gets the JSON content type.
+    if (typeof body !== 'string' && !isPlainJson(body)) {
+      httpAdapter.setHeader(res, 'Content-Type', 'application/json');
+    }
+    // Every adapter sends a nil body as an empty one, so `null` is handed to
+    // Nest as its JSON text, which each sends as is under the JSON content
+    // type above. Replying here instead would end the response before the
+    // interceptors and the headers they set (https://github.com/nestjs/nest/issues/10415).
+    return body === null ? 'null' : body;
+  };
+
+  proto.invoke = async function (...args: any[]) {
+    // Without an `input` schema the options come first: `invoke({ params, query })`.
+    const [rawInput, opts] = inputSchema ? args : [undefined, args[0]];
+    const result = await callHandler(
+      this,
+      { response, schemas },
+      rawInput,
+      paramsSchema && opts?.params,
+      querySchema && opts?.query,
+    );
+    const res = toResponse(result);
+    return result instanceof EndpointResponse ? res : res.body;
+  };
+
+  // The handler's parameters, in order: the response (to set its status and
+  // content type), what the endpoint validates, then `injectOnRequest`.
+  const parameterDecorators: ParameterDecorator[] = [
+    Res({ passthrough: true }),
+    ...(inputSchema ? [Body()] : []),
+    ...(paramsSchema ? [Param()] : []),
+    ...(querySchema ? [Query()] : []),
+    ...Object.values(injectOnRequest).map((d) => d.decorator as ParameterDecorator),
+  ];
+  // A new function each time the endpoint is set up, so that the method
+  // decorators a setup applies do not add to the ones an earlier one did.
+  // It returns a promise only when the handler does.
+  const createHandlerMethod = () =>
+    function (this: any, res: unknown, ...request: unknown[]) {
+      let next = 0;
+      const rawInput = inputSchema ? request[next++] : undefined;
+      const rawParams = paramsSchema ? request[next++] : undefined;
+      const rawQuery = querySchema ? request[next++] : undefined;
+      const handlerParams: Record<string, unknown> = { response, schemas };
+      for (const key of injectOnRequestKeys) {
+        handlerParams[key] = request[next++];
+      }
+      const result = callHandler(this, handlerParams, rawInput, rawParams, rawQuery);
+      return isThenable(result) ? result.then((r) => send(this, res, r)) : send(this, res, result);
+    };
+
   const setupFn: EndpointSetupFn = ({ rootDirectories, basePath, namespaceChain, routerFile }) => {
     // Before anything is applied: a listed endpoint may be set up again.
     if (builderRouterFile && routerFile && !isSameModule(builderRouterFile, routerFile)) {
       const shown = (f: string) => path.relative(process.cwd(), f);
       throw new Error(
-        `${shown(file)} is built with the endpoint of ` +
-          `${shown(builderRouterFile)} but is owned by ` +
-          `${shown(routerFile)}. Build it with the \`endpoint\` of the ` +
-          'router module that owns it.',
+        `${shown(file)} is built with the endpoint of ${shown(builderRouterFile)} but is ` +
+          `owned by ${shown(routerFile)}. Build it with the \`endpoint\` of the router ` +
+          'module that owns it.',
       );
     }
-    const { httpPath, httpPathPascalName, httpPathSegments } = (() => {
-      if (explicitPath) {
-        const segments = [
-          ...basePath.split('/').filter(Boolean),
-          ...explicitPath.split('/').filter(Boolean),
-        ];
-        const combined = '/' + segments.join('/');
-        return {
-          httpPath: combined,
-          httpPathSegments: segments,
-          httpPathPascalName: getHttpPathPascalName(combined),
-        };
-      }
-      return getEndpointHttpPath(rootDirectories, basePath, file);
-    })();
-    let outputSchemas: Record<number, Schema | SchemaDef> | null = null;
-    if (output) {
-      if (
-        output.constructor === Object &&
-        Object.keys(output).length > 0 &&
-        Object.keys(output).every((k) => Number.isInteger(Number(k)))
-      ) {
-        outputSchemas = output as any;
-      } else {
-        outputSchemas = { 200: output as any };
-      }
-    }
+    const { httpPath, httpPathPascalName, httpPathSegments } = explicitPath
+      ? explicitHttpPath(basePath, explicitPath)
+      : getEndpointHttpPath(rootDirectories, basePath, file);
+    Object.defineProperty(cls, 'name', { value: `${httpPathPascalName}Endpoint` });
+    Controller(httpPath)(cls);
 
-    // class
-    Object.defineProperty(cls, 'name', {
-      value: `${httpPathPascalName}Endpoint`,
-    });
-    const controllerDecorator = applyDecorators(Controller(httpPath));
-    controllerDecorator(cls);
-    const httpAdapterHostKey = Symbol('httpAdapterHost');
-    Inject(HttpAdapterHost)(cls.prototype, httpAdapterHostKey);
-    if (inject) {
-      for (const [key, token] of Object.entries(inject)) {
-        if (token instanceof WithDecorator) {
-          (token.decorator as PropertyDecorator)(cls.prototype, key);
-        } else {
-          Inject(token)(cls.prototype, key);
-        }
-      }
-    }
+    proto.handler = createHandlerMethod();
+    parameterDecorators.forEach((decorator, i) => decorator(proto, 'handler', i));
 
-    // define method parameters
-    const inputKey = Symbol('input');
-    const paramsKey = Symbol('params');
-    const queryKey = Symbol('query');
-    const resKey = Symbol('res');
-    const methodParamDecorators: Record<string | symbol, ParameterDecorator>[] = [
-      { [resKey]: Res({ passthrough: true }) },
-    ];
-    if (inputSchema) {
-      methodParamDecorators.push({
-        [inputKey]: Body(),
-      });
-    }
-    if (paramsSchema) {
-      methodParamDecorators.push({ [paramsKey]: Param() });
-    }
-    if (querySchema) {
-      methodParamDecorators.push({ [queryKey]: Query() });
-    }
-    if (injectOnRequest) {
-      for (const [key, wd] of Object.entries(injectOnRequest)) {
-        methodParamDecorators.push({
-          [key]: wd.decorator as ParameterDecorator,
-        });
-      }
-    }
-
-    const validateOutput = (endpointResponse: EndpointResponse) => {
-      if (outputSchemas) {
-        const schema = outputSchemas[endpointResponse.status];
-        if (!schema) {
-          throw new Error(`Did not find schema for status code ${endpointResponse.status}`);
-        }
-        const parsed = unwrapSchema(schema).safeParse(endpointResponse.body);
-        if (parsed.error) {
-          throw new ZodSerializationException(parsed.error);
-        }
-        endpointResponse.body = parsed.data;
-      }
-    };
-
-    const response = (s: number, b: any) => new EndpointResponse(s, b);
-
-    const commonHandlerLogic = async function (
-      this: any,
-      handlerParams: Record<string | symbol, any>,
-      rawInput: any,
-      rawParams: any,
-      rawQuery: any,
-    ) {
-      if (inject) {
-        for (const key of Object.keys(inject)) {
-          handlerParams[key] = this[key];
-        }
-      }
-      if (inputSchema) {
-        // A request without a body reads as `{}`, like `query` and
-        // `params`, unless the schema accepts a missing body as it is.
-        let parsed = inputSchema.safeParse(rawInput);
-        if (parsed.error && rawInput === undefined) {
-          parsed = inputSchema.safeParse({});
-        }
-        if (parsed.error) {
-          throw new ZodValidationException(parsed.error);
-        }
-        handlerParams.input = parsed.data;
-        handlerParams.rawInput = rawInput;
-        handlerParams.schemas.input = inputSchema;
-      }
-      if (paramsSchema) {
-        const parsed = paramsSchema.safeParse(rawParams ?? {});
-        if (parsed.error) {
-          throw new ZodValidationException(parsed.error);
-        }
-        handlerParams.params = parsed.data;
-        handlerParams.schemas.params = paramsSchema;
-      }
-      if (querySchema) {
-        const parsed = querySchema.safeParse(rawQuery ?? {});
-        if (parsed.error) {
-          throw new ZodValidationException(parsed.error);
-        }
-        handlerParams.query = parsed.data;
-        handlerParams.schemas.query = querySchema;
-      }
-
-      const result: any = await handler(handlerParams as any);
-      return result;
-    };
-
-    // invoke method
-    (cls.prototype as any).invoke = async function (rawInputOrOpts?: any, maybeOpts?: any) {
-      // When the endpoint has no `input` schema, callers can pass the
-      // options object as the first argument: `invoke({ params, query })`.
-      const rawInput = inputSchema ? rawInputOrOpts : undefined;
-      const opts = inputSchema ? maybeOpts : rawInputOrOpts;
-      const rawParams = paramsSchema ? opts?.params : undefined;
-      const rawQuery = querySchema ? opts?.query : undefined;
-      const handlerParams: Record<string | symbol, any> = {
-        response,
-        schemas: {},
-      };
-      const result = await commonHandlerLogic.call(
-        this,
-        handlerParams,
-        rawInput,
-        rawParams,
-        rawQuery,
-      );
-      if (result instanceof EndpointResponse) {
-        validateOutput(result);
-        return result;
-      } else {
-        const endpointResponse = new EndpointResponse(200, result);
-        validateOutput(endpointResponse);
-        return endpointResponse.body;
-      }
-    };
-
-    // handler method
-    (cls.prototype as any).handler = async function (...params: any[]) {
-      const injectedMethodParams: Record<string | symbol, any> = Object.fromEntries(
-        methodParamDecorators.map((p, i) => {
-          const key = Reflect.ownKeys(p)[0];
-          return [key, params[i]] as const;
-        }),
-      );
-      const handlerParams: Record<string | symbol, any> = {
-        response,
-        schemas: {},
-      };
-      if (injectOnRequest) {
-        for (const key of Object.keys(injectOnRequest)) {
-          handlerParams[key] = injectedMethodParams[key];
-        }
-      }
-      const rawInput = injectedMethodParams[inputKey];
-      const rawParams = injectedMethodParams[paramsKey];
-      const rawQuery = injectedMethodParams[queryKey];
-      const result = await commonHandlerLogic.call(
-        this,
-        handlerParams,
-        rawInput,
-        rawParams,
-        rawQuery,
-      );
-      let endpointResponse: EndpointResponse;
-      if (result instanceof EndpointResponse) {
-        endpointResponse = result;
-      } else {
-        endpointResponse = new EndpointResponse(200, result);
-      }
-      validateOutput(endpointResponse);
-      const res = injectedMethodParams[resKey];
-      const httpAdapterHost: HttpAdapterHost = this[httpAdapterHostKey];
-      const httpAdapter = httpAdapterHost.httpAdapter;
-      const { status, body } = endpointResponse;
-      httpAdapter.status(res, status);
-      if (typeof body !== 'string') {
-        httpAdapter.setHeader(res, 'Content-Type', 'application/json');
-      }
-      // The following affects middleware that adds headers after controller execution.
-      // Best to let NestJS do the default. Hence, null outputs are no longer supported.
-      // http://github.com/nestjs/nest/issues/10415
-      // if (body === null) {
-      //   httpAdapter.reply(res, JSON.stringify(null));
-      //   return;
-      // }
-      return body;
-    };
-    // configure method parameters
-    for (let i = 0; i < methodParamDecorators.length; i++) {
-      const paramDecorator = methodParamDecorators[i];
-      const key = Reflect.ownKeys(paramDecorator)[0];
-      const decorator = paramDecorator[key];
-      decorator(cls.prototype, 'handler', i);
-    }
-
-    // method
-    const autoTag = ((): string | null => {
-      if (namespaceChain.length > 0) {
-        return namespaceChain.join('/');
-      }
-      // No namespace declared — fall back to the URL prefix (everything
-      // but the leaf) so Swagger UI still groups meaningfully. Path
-      // parameters (`:id`) are dropped so the tag stays a clean folder
-      // name like `recipes` rather than `recipes/:id`.
-      if (httpPathSegments.length > 1) {
-        const tagSegments = httpPathSegments.slice(0, -1).filter((s) => !s.startsWith(':'));
-        if (tagSegments.length > 0) {
-          return tagSegments.join('/');
-        }
-      }
-      return null;
-    })();
+    // A namespace tags the operation; without one, the URL's folders do
+    // (everything but the leaf, without path params), so Swagger UI still
+    // groups it.
+    const autoTag =
+      namespaceChain.length > 0
+        ? namespaceChain.join('/')
+        : httpPathSegments
+            .slice(0, -1)
+            .filter((s) => !s.startsWith(':'))
+            .join('/');
     const operationTags = [...(autoTag ? [autoTag] : []), ...(tags ?? [])];
     const operationSummary = summary ?? '';
     const methodDecorators: MethodDecorator[] = [
@@ -1004,78 +843,36 @@ function defineEndpoint(
       HttpCode(200),
       ...(decorators ?? []),
     ];
-    // Each schema is converted once; the decorators and the descriptor
-    // read the same results.
+    // Each schema is converted once; the decorators and the descriptor read
+    // the same results.
     const endpointLabel = `endpoint "${httpPathPascalName}" (${httpMethod.toUpperCase()} /${httpPathSegments.join('/')})`;
-    let descriptorInput: ConvertedSchema | undefined;
-    let descriptorQuery: EndpointDescriptor['query'];
-    if (inputSchema) {
-      const converted = toJsonSchema(inputSchema, 'input', httpPathPascalName + 'Input');
-      descriptorInput = {
-        json: converted.schema,
-        components: converted.components,
-      };
-      methodDecorators.push(ApiBody({ schema: converted.schema }));
+    const input = inputSchema && toJsonSchema(inputSchema, 'input', httpPathPascalName + 'Input');
+    if (input) {
+      methodDecorators.push(ApiBody({ schema: input.json }));
     }
-    if (querySchema) {
-      const converted = convertObject(querySchema, `The query of ${endpointLabel}`);
-      descriptorQuery = {
-        json: converted.schema,
-        components: converted.components,
-        parameters: converted.parameters,
-      };
-      methodDecorators.push(
-        ...converted.parameters.map((p) =>
-          ApiQuery({
-            name: p.name,
-            required: p.required,
-            schema: p.schema,
-          }),
-        ),
-      );
+    const query = querySchema && convertObject(querySchema, `The query of ${endpointLabel}`);
+    if (query) {
+      methodDecorators.push(...apiParameters('query', query.parameters));
+      readQuery = loneValuesAsArrays(query.parameters);
     }
-    const paramSchemas = new Map<string, JsonSchema>();
-    let descriptorParams: ConvertedSchema | undefined;
-    if (paramsSchema) {
-      const converted = convertObject(paramsSchema as any, `The params of ${endpointLabel}`);
-      descriptorParams = {
-        json: converted.schema,
-        components: converted.components,
-      };
-      for (const p of converted.parameters) {
-        paramSchemas.set(p.name, p.schema);
-        // Path parameters are always required in OpenAPI.
-        methodDecorators.push(ApiParam({ name: p.name, required: true, schema: p.schema }));
-      }
+    const paramsObject =
+      paramsSchema && convertObject(paramsSchema, `The params of ${endpointLabel}`);
+    if (paramsObject) {
+      methodDecorators.push(...apiParameters('path', paramsObject.parameters));
     }
-    const descriptorOutputs: EndpointDescriptor['outputs'] = [];
-    if (outputSchemas) {
-      for (const [status, schema] of Object.entries(outputSchemas)) {
-        const schemaName = httpPathPascalName + (status === '200' ? '' : status) + 'Output';
-        const converted = toJsonSchema(unwrapSchema(schema), 'output', schemaName);
-        const description = schema instanceof SchemaDef ? schema.description : undefined;
-        descriptorOutputs.push({
-          status: Number(status),
-          description,
-          schema: {
-            json: converted.schema,
-            components: converted.components,
-          },
-        });
-        methodDecorators.push(
-          ApiResponse({
-            status: Number(status),
-            schema: converted.schema,
-            description,
-          }),
-        );
-      }
-    }
-    const methodDecorator = applyDecorators(...methodDecorators);
-    const descriptor = Object.getOwnPropertyDescriptor(cls.prototype, 'handler');
-    methodDecorator(cls.prototype, 'handler', descriptor);
+    const descriptorOutputs = (outputs ?? []).map(({ status, schema, description }) => {
+      const schemaName = httpPathPascalName + (status === 200 ? '' : status) + 'Output';
+      const converted = toJsonSchema(schema, 'output', schemaName);
+      methodDecorators.push(ApiResponse({ status, schema: converted.json, description }));
+      return { status, description, schema: converted };
+    });
+    applyDecorators(...methodDecorators)(
+      proto,
+      'handler',
+      Object.getOwnPropertyDescriptor(proto, 'handler')!,
+    );
     Reflect.defineMetadata('endpoints:path', httpPath, cls);
-    const endpointDescriptor: EndpointDescriptor = {
+    const descriptor: EndpointDescriptor = {
       operationId: httpPathPascalName,
       kind,
       method: httpMethod,
@@ -1084,34 +881,81 @@ function defineEndpoint(
         .filter((segment) => segment.startsWith(':'))
         .map((segment) => {
           const name = segment.slice(1);
-          return {
-            name,
-            schema: paramSchemas.get(name) ?? { type: 'string' },
-          };
+          const schema = paramsObject?.parameters.find((p) => p.name === name)?.schema;
+          return { name, schema: schema ?? { type: 'string' } };
         }),
-      ...(descriptorParams ? { params: descriptorParams } : {}),
-      ...(descriptorQuery ? { query: descriptorQuery } : {}),
+      ...(paramsObject && { params: paramsObject }),
+      ...(query && { query }),
       namespaceChain,
       tags: operationTags,
       summary: operationSummary,
-      ...(descriptorInput ? { input: descriptorInput } : {}),
+      ...(input && { input }),
       outputs: descriptorOutputs,
     };
-    Reflect.defineMetadata(DESCRIPTOR_METADATA_KEY, endpointDescriptor, cls);
+    Reflect.defineMetadata(DESCRIPTOR_METADATA_KEY, descriptor, cls);
   };
   Reflect.defineMetadata('endpoints:setupFn', setupFn, cls);
   if (moduleAls.getStore()) {
-    settings.endpoints.push({
-      file,
-      setupFn,
-    });
+    settings.endpoints.push({ file, setupFn });
   } else {
-    setupFn({
-      rootDirectories: [process.cwd()],
-      basePath: '',
-      namespaceChain: [],
-    });
+    setupFn({ rootDirectories: [process.cwd()], basePath: '', namespaceChain: [] });
   }
 
-  return cls as any;
+  return cls;
+}
+
+/**
+ * The output schemas by status, a single schema being the 200 one; none
+ * without `output`.
+ */
+function outputsOf(
+  output: OutputSchemaUnion,
+): { status: number; schema: Schema; description: string | undefined }[] | undefined {
+  if (!output) {
+    return undefined;
+  }
+  const isStatusMap =
+    output.constructor === Object &&
+    Object.keys(output).length > 0 &&
+    Object.keys(output).every((k) => Number.isInteger(Number(k)));
+  const byStatus = (isStatusMap ? output : { 200: output }) as Record<number, Schema | SchemaDef>;
+  return Object.entries(byStatus).map(([status, s]) => ({
+    status: Number(status),
+    schema: unwrapSchema(s),
+    description: s instanceof SchemaDef ? s.description : undefined,
+  }));
+}
+
+/** An endpoint's own `path` under its router's base path. */
+function explicitHttpPath(basePath: string, explicitPath: string) {
+  const httpPathSegments = [
+    ...basePath.split('/').filter(Boolean),
+    ...explicitPath.split('/').filter(Boolean),
+  ];
+  const httpPath = '/' + httpPathSegments.join('/');
+  return { httpPath, httpPathSegments, httpPathPascalName: getHttpPathPascalName(httpPath) };
+}
+
+/** A parse's data, or the 400 its issues make. */
+function validated<T>(parsed: z.ZodSafeParseResult<T>): T {
+  if (!parsed.success) {
+    throw new ZodValidationException(parsed.error);
+  }
+  return parsed.data;
+}
+
+function isThenable(value: unknown): value is PromiseLike<unknown> {
+  return typeof (value as PromiseLike<unknown> | null)?.then === 'function';
+}
+
+/**
+ * A plain object or an array, which every adapter sends as JSON with its own
+ * content type.
+ */
+function isPlainJson(body: unknown): boolean {
+  if (body === null || typeof body !== 'object') {
+    return false;
+  }
+  const proto = Object.getPrototypeOf(body);
+  return proto === Object.prototype || proto === Array.prototype;
 }

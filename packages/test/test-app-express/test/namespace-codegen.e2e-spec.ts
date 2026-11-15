@@ -23,16 +23,24 @@ void _shopCartAddPreservesShape;
 
 // The react-query wrapper's client must match the axios client's namespaced
 // shape (`.axios` passthrough + the same buckets), and additionally expose
-// per-namespace `useXxx` hooks alongside the axios methods. Its methods also
-// carry their query/mutation options, so one is usable wherever the axios
-// client's is, not the other way round.
+// per-namespace `useXxx` hooks alongside the axios methods. Its methods take
+// the same request and resolve to the same data as the axios client's. (Each
+// client has its own copy of Kubb's runtime, whose generic types TypeScript
+// does not compare across copies, so the functions themselves are not
+// assignable to each other.)
+type RqAdd = RqApiClient['shop']['cart']['add'];
+type AxiosAdd = AxiosApiClient['shop']['cart']['add'];
 const _rqHasAxios: RqApiClient['axios'] = null as unknown as AxiosApiClient['axios'];
-const _rqHasNamespaced: AxiosApiClient['shop']['cart']['add'] =
-  null as unknown as RqApiClient['shop']['cart']['add'];
+const _rqHasNamespacedRequest: Parameters<AxiosAdd>[0]['body'] =
+  null as unknown as Parameters<RqAdd>[0]['body'];
+const _rqHasNamespacedData: Awaited<ReturnType<AxiosAdd>>['data'] = null as unknown as Awaited<
+  ReturnType<RqAdd>
+>['data'];
 const _rqHasHooksAlongsideAxiosMethods: RqApiClient['shop']['cart']['useAdd'] =
   null as unknown as RqApiClient['shop']['cart']['useAdd'];
 void _rqHasAxios;
-void _rqHasNamespaced;
+void _rqHasNamespacedRequest;
+void _rqHasNamespacedData;
 void _rqHasHooksAlongsideAxiosMethods;
 
 describe('namespace codegen wrappers', () => {

@@ -1,6 +1,7 @@
 import { endpoint, z } from 'nestjs-endpoints';
 
-// A nested object in the search parameters (`?add[a]=5&add[b]=7`).
+// A nested object in the search parameters (`?add[a]=5&add[b]=7`), and an
+// array (`?tags=a&tags=b`, or `?tags=a` for one).
 export default endpoint.query({
   method: 'get',
   query: z.object({
@@ -8,9 +9,8 @@ export default endpoint.query({
       a: z.coerce.number(),
       b: z.coerce.number(),
     }),
+    tags: z.array(z.string()).default([]),
   }),
-  output: z.number(),
-  handler: ({ query }) => {
-    return query.add.a + query.add.b;
-  },
+  output: z.object({ sum: z.number(), tags: z.array(z.string()) }),
+  handler: ({ query }) => ({ sum: query.add.a + query.add.b, tags: query.tags }),
 });

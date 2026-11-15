@@ -1,6 +1,10 @@
 import { describe, expect, test } from 'vitest';
 import type { EndpointDescriptor } from '../../descriptors.js';
-import { buildClientObjectExpression } from './buckets.js';
+import {
+  buildClientObjectExpression,
+  operationSourceName,
+  stripNamespaceFromFlatName,
+} from './buckets.js';
 
 /** A minimal descriptor for the bucket builder. */
 function descriptor(
@@ -20,10 +24,10 @@ function descriptor(
 }
 
 const input = { json: { type: 'object' }, components: {} };
-const query: EndpointDescriptor['query'] = {
+const query: NonNullable<EndpointDescriptor['query']> = {
   json: { type: 'object', properties: { q: { type: 'string' } } },
   components: {},
-  parameters: [{ name: 'q', required: false, schema: { type: 'string' } }],
+  parameters: [{ name: 'q', required: false, schema: { type: 'string' }, shape: 'value' }],
 };
 const noTags = new Map<string, string>();
 
@@ -200,5 +204,112 @@ describe('buildClientObjectExpression', () => {
         rootExtras: [],
       }),
     ).toThrow(/reserved/);
+  });
+});
+
+describe('operationSourceName', () => {
+  test('names an operation as Kubb names its generated function', () => {
+    // A digit followed by a lowercase letter starts a new word for Kubb.
+    expect(operationSourceName('AuthOauth2callback')).toBe('authOauth2Callback');
+    // A leading all-caps word keeps its case.
+    expect(operationSourceName('V2Users')).toBe('V2Users');
+    // A reserved word or a leading digit is not an identifier on its own.
+    expect(operationSourceName('Delete')).toBe('_delete');
+    expect(operationSourceName('2faVerify')).toBe('_2FaVerify');
+  });
+
+  test('the client object refers to the names Kubb generates', () => {
+    const expr = buildClientObjectExpression({
+      descriptors: [
+        descriptor({ operationId: 'OauthOauth2callback', path: '/oauth/oauth2callback' }),
+        descriptor({
+          operationId: 'ShopV2Users',
+          path: '/shop/v2/users',
+          namespaceChain: ['shop', 'v2'],
+        }),
+      ],
+      tagDescriptions: noTags,
+      plainAccess: plain,
+      hookAccess: hook,
+      rootExtras: [],
+    });
+    expect(expr).toContain('oauthOauth2Callback: P(oauthOauth2Callback)');
+    expect(expr).toContain('useOauthOauth2Callback: H(useOauthOauth2Callback)');
+    expect(expr).toContain('users: P(shopV2Users)');
+    expect(expr).toContain('useUsers: H(useShopV2Users)');
+  });
+});
+
+describe('stripNamespaceFromFlatName', () => {
+  test('returns the flat name unchanged when chain is empty', () => {
+    expect(stripNamespaceFromFlatName('userCreate', [])).toBe('userCreate');
+    expect(stripNamespaceFromFlatName('useUserCreate', [])).toBe('useUserCreate');
+  });
+
+  test('strips a single-segment chain from a plain function name', () => {
+    expect(stripNamespaceFromFlatName('shopProductList', ['shop'])).toBe('productList');
+  });
+
+  test('strips a single-segment chain while preserving the use prefix', () => {
+    expect(stripNamespaceFromFlatName('useShopProductList', ['shop'])).toBe('useProductList');
+  });
+
+  test('strips a multi-segment chain from a use-prefixed name', () => {
+    expect(
+      stripNamespaceFromFlatName('useShopCatalogFeaturedWeekUpdate', [
+        'shop',
+        'catalog',
+        'featured',
+      ]),
+    ).toBe('useWeekUpdate');
+  });
+
+  test('strips a multi-segment chain from a plain function name', () => {
+    expect(
+      stripNamespaceFromFlatName('shopCatalogFeaturedWeekUpdate', ['shop', 'catalog', 'featured']),
+    ).toBe('weekUpdate');
+  });
+
+  test('handles hyphenated segments (kebab → pascal)', () => {
+    // segment 'user-profile' → token 'UserProfile'
+    expect(stripNamespaceFromFlatName('userProfileAvatarGet', ['user-profile'])).toBe('avatarGet');
+  });
+
+  test('handles multi-word pascal segments in the chain', () => {
+    expect(
+      stripNamespaceFromFlatName('userProfileAccountSettingsUpdate', [
+        'user-profile',
+        'account-settings',
+      ]),
+    ).toBe('update');
+  });
+
+  test('leaves name unchanged when prefix does not match the chain', () => {
+    // chain expects 'Shop...', body starts with 'Foo...'
+    expect(stripNamespaceFromFlatName('fooBarBaz', ['shop'])).toBe('fooBarBaz');
+    expect(stripNamespaceFromFlatName('useFooBarBaz', ['shop'])).toBe('useFooBarBaz');
+  });
+
+  test('leaves name unchanged on partial-token match (not at word boundary)', () => {
+    // chain 'user' produces prefix 'User'; body 'UsernameList' starts
+    // with 'User' but the next char is lowercase 'n' — not a word
+    // boundary, so it's treated as a non-match and left as-is.
+    expect(stripNamespaceFromFlatName('usernameList', ['user'])).toBe('usernameList');
+  });
+
+  test('leaves name unchanged when only a prefix of the chain matches', () => {
+    // Body matches 'Shop' but not 'ShopCatalog'.
+    expect(stripNamespaceFromFlatName('shopProductList', ['shop', 'catalog'])).toBe(
+      'shopProductList',
+    );
+  });
+
+  test('returns original when stripping would consume the whole name', () => {
+    // Lenient: a full match leaves nothing to strip, so fall back to
+    // the flat name unchanged (same rule as no-match). Consumers can
+    // rename the endpoint if they want a cleaner leaf name.
+    expect(stripNamespaceFromFlatName('shop', ['shop'])).toBe('shop');
+    expect(stripNamespaceFromFlatName('useShop', ['shop'])).toBe('useShop');
+    expect(stripNamespaceFromFlatName('shopRecipes', ['shop', 'recipes'])).toBe('shopRecipes');
   });
 });

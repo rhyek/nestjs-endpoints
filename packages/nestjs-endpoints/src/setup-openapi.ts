@@ -1,15 +1,15 @@
 import fsSync from 'node:fs';
 import fs from 'node:fs/promises';
-import { createRequire } from 'node:module';
 import path from 'node:path';
 import { Writable } from 'node:stream';
+import { fileURLToPath } from 'node:url';
 import { INestApplication } from '@nestjs/common';
 import { DocumentBuilder, SwaggerCustomOptions, SwaggerModule } from '@nestjs/swagger';
-import { settings } from './consts.js';
-import { collectDescriptors } from './descriptors.js';
+import { collectDescriptors, type EndpointDescriptor } from './descriptors.js';
 import { getCallsiteFile } from './helpers.js';
-import { readPkgJson } from './package-json.js';
-import { mergeSharedSchemas, rewriteOutputRefs } from './shared-schemas.js';
+import { readOwnVersion } from './package-json.js';
+import { settings } from './settings.js';
+import { mergeSharedSchemas, rewriteOutputRefs, type SharedSchemas } from './shared-schemas.js';
 
 export type SetupOpenAPIOptions = {
   configure?: (documentBuilder: DocumentBuilder) => void;
@@ -35,14 +35,38 @@ export type SetupOpenAPIOptions = {
 };
 
 export async function setupOpenAPI(app: INestApplication, options?: SetupOpenAPIOptions) {
-  const builder = new DocumentBuilder();
-  if (options?.configure) {
-    options.configure(builder);
-  }
-  const config = builder.build();
-  const document = SwaggerModule.createDocument(app, config);
   const descriptors = collectDescriptors(app);
-  const shared = mergeSharedSchemas(descriptors);
+  return buildOpenAPI(
+    app,
+    options ?? {},
+    { descriptors, shared: mergeSharedSchemas(descriptors) },
+    // Read here, before any await, while the caller is on the stack.
+    hasRelativeOutputFile(options) ? path.dirname(getCallsiteFile()) : undefined,
+  );
+}
+
+/**
+ * Whether `outputFile` resolves against the directory of the file calling
+ * the public function, which that function reads from the call stack itself:
+ * a helper in between would be found instead.
+ */
+export function hasRelativeOutputFile(options: SetupOpenAPIOptions | undefined): boolean {
+  return typeof options?.outputFile === 'string' && !path.isAbsolute(options.outputFile);
+}
+
+/**
+ * `setupOpenAPI`, from endpoint descriptors and shared schemas already
+ * collected, so `setupCodegen` reuses its own.
+ */
+export async function buildOpenAPI(
+  app: INestApplication,
+  options: SetupOpenAPIOptions,
+  { descriptors, shared }: { descriptors: EndpointDescriptor[]; shared: SharedSchemas },
+  baseDir: string | undefined,
+) {
+  const builder = new DocumentBuilder();
+  options.configure?.(builder);
+  const document = SwaggerModule.createDocument(app, builder.build());
   document.components = {
     ...document.components,
     schemas: {
@@ -85,33 +109,20 @@ export async function setupOpenAPI(app: INestApplication, options?: SetupOpenAPI
   // top-level groups — with a single one the header just duplicates
   // the tag name below it. Tools that don't know the extension ignore
   // it either way.
-  if ((document.tags ?? []).length > 0) {
-    const groups = new Map<string, string[]>();
-    for (const tag of document.tags!) {
-      const top = tag.name.split('/')[0];
-      if (!groups.has(top)) {
-        groups.set(top, []);
-      }
-      groups.get(top)!.push(tag.name);
-    }
-    if (groups.size > 1) {
-      (document as unknown as Record<string, unknown>)['x-tagGroups'] = Array.from(
-        groups.entries(),
-      ).map(([name, tags]) => ({
-        name,
-        tags,
-      }));
-    }
+  const groups = Map.groupBy(document.tags ?? [], (tag) => tag.name.split('/')[0]);
+  if (groups.size > 1) {
+    (document as unknown as Record<string, unknown>)['x-tagGroups'] = Array.from(
+      groups,
+      ([name, tags]) => ({ name, tags: tags.map((tag) => tag.name) }),
+    );
   }
   Object.assign(document, {
     info: {
       ...document.info,
-      'nestjs-endpoints': {
-        version: (await readPkgJson())?.version ?? '1',
-      },
+      'nestjs-endpoints': { version: readOwnVersion() },
     },
   });
-  if (options?.ui) {
+  if (options.ui) {
     const mountedScalar = await mountScalarUi(
       app,
       options.ui,
@@ -124,7 +135,7 @@ export async function setupOpenAPI(app: INestApplication, options?: SetupOpenAPI
 
   let changed = false;
 
-  if (options?.outputFile) {
+  if (options.outputFile) {
     const outputFile = options.outputFile;
     const newDocument = JSON.stringify(document, null, 2);
 
@@ -140,9 +151,7 @@ export async function setupOpenAPI(app: INestApplication, options?: SetupOpenAPI
       });
       changed = true;
     } else {
-      const documentFile = path.isAbsolute(outputFile)
-        ? outputFile
-        : path.resolve(path.dirname(getCallsiteFile()), outputFile);
+      const documentFile = path.resolve(baseDir ?? '', outputFile);
       const currentDocument = await fs.readFile(documentFile, 'utf-8').catch(() => '');
       if (currentDocument !== newDocument) {
         await fs.writeFile(documentFile, newDocument, 'utf-8');
@@ -162,8 +171,7 @@ export async function setupOpenAPI(app: INestApplication, options?: SetupOpenAPI
  */
 function findScalarBundle(): string | null {
   try {
-    const req = createRequire(import.meta.url);
-    const entry = req.resolve('@scalar/api-reference');
+    const entry = fileURLToPath(import.meta.resolve('@scalar/api-reference'));
     let dir = path.dirname(entry);
     while (true) {
       const candidate = path.join(dir, 'package.json');

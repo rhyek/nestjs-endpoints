@@ -8,17 +8,17 @@ import type { ShopHomepageOutput } from './ShopHomepageOutput'
 export type ShopHomepageStatus200 = ShopHomepageOutput;
 
 export type ShopHomepageOptions = {
-    body?: never;
-    path?: never;
-    query?: never;
-    headers?: never;
+  body?: never;
+  path?: never;
+  query?: never;
+  headers?: never;
 };
 
 export type ShopHomepageResponses = {
-    "200": ShopHomepageStatus200;
+  '200': ShopHomepageStatus200;
 };
 
 /**
  * @description Union of all possible responses
-*/
+ */
 export type ShopHomepageResponse = ShopHomepageStatus200;

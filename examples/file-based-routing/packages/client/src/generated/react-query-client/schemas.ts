@@ -4,8 +4,18 @@
  * Each operation's input and query as JSON Schema, with every $ref
  * resolved.
  */
-import type { InputSchema } from './client-runtime';
 import type { ShopCateringBookOptions, ShopRecipesCreateOptions, ShopRecipesEditOptions } from './types';
+
+/**
+ * An operation's input or query as JSON Schema (`schemas.input`,
+ * `schemas.query`). `'~type'` is never there at runtime: it carries the
+ * type of the value the schema describes, so code that is handed only the
+ * schema, a form library say, can infer it.
+ */
+export type InputSchema<T> = {
+  readonly [key: string]: unknown;
+  readonly '~type'?: T;
+};
 
 export const shopCateringBook: { input: InputSchema<NonNullable<ShopCateringBookOptions['body']>> } = {
   "input": {

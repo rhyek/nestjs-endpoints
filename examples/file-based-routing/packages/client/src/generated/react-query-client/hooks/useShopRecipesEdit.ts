@@ -3,7 +3,7 @@
 * Do not edit manually.
 */
 
-import type { RequestConfig, ResponseErrorConfig } from '../client-runtime'
+import type { RequestConfig, ResponseErrorConfig } from '../.kubb/client'
 import type { ShopRecipesEditOptions, ShopRecipesEditStatus200 } from '../types/ShopRecipesEdit'
 import type { UseMutationOptions, UseMutationResult, QueryClient } from '@tanstack/react-query'
 import { shopRecipesEdit } from '../clients/shopRecipesEdit'
@@ -11,22 +11,22 @@ import { mutationOptions, useMutation } from '@tanstack/react-query'
 
 export const shopRecipesEditMutationKey = () => [{ url: '/shop/recipes/edit/:recipeId' }] as const
 
-export function shopRecipesEditMutationOptions<TContext = unknown>(config: Partial<Omit<RequestConfig, 'path' | 'query' | 'body' | 'headers' | 'url'>> = {}) {
+export function shopRecipesEditMutationOptions<TContext = unknown>(config: Partial<Omit<RequestConfig, 'path' | 'query' | 'body' | 'headers' | 'cookies' | 'url' | 'throwOnError'>> = {}) {
   const mutationKey = shopRecipesEditMutationKey()
   return mutationOptions<ShopRecipesEditStatus200, ResponseErrorConfig<Error>, ShopRecipesEditOptions, TContext>({
     mutationKey,
     mutationFn: async({ path, body }) => {
-      return (await shopRecipesEdit({ ...config, path, body, throwOnError: true })).data
+      return shopRecipesEdit({ ...config, path, body, throwOnError: true }).unwrap()
     },
   })
 }
 
 /**
- * {@link /shop/recipes/edit/:recipeId}
+ * `PATCH /shop/recipes/edit/{recipeId}`
  */
 export function useShopRecipesEdit<TContext>(options: {
   mutation?: UseMutationOptions<ShopRecipesEditStatus200, ResponseErrorConfig<Error>, ShopRecipesEditOptions, TContext> & { client?: QueryClient },
-  client?: Partial<Omit<RequestConfig, 'path' | 'query' | 'body' | 'headers' | 'url'>>,
+  client?: Partial<Omit<RequestConfig, 'path' | 'query' | 'body' | 'headers' | 'cookies' | 'url' | 'throwOnError'>>,
 } = {}) {
   const { mutation = {}, client: config = {} } = options ?? {}
   const { client: queryClient, ...mutationOptions } = mutation;

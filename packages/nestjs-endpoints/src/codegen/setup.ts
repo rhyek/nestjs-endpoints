@@ -3,18 +3,14 @@ import path from 'node:path';
 import { INestApplication } from '@nestjs/common';
 import type { OpenAPIObject } from '@nestjs/swagger';
 import { collectDescriptors, filterDescriptors } from '../descriptors.js';
-import { readPkgJson } from '../package-json.js';
-import { setupOpenAPI, SetupOpenAPIOptions } from '../setup-openapi.js';
-import { mergeSharedSchemas, reachableSchemas } from '../shared-schemas.js';
-import { clientHash, readClientHash } from './hash.js';
-import { rootsOf } from './kubb/adapter.js';
-import {
-  generateAxiosClient,
-  generateReactQueryClient,
-  outputDirFor,
-  type ReactQueryPluginOptions,
-} from './kubb/generate.js';
-import { printedTagDescriptions } from './kubb/wrapper.js';
+import { getCallsiteFile } from '../helpers.js';
+import { stripExtension } from '../manifest/scan.js';
+import { readOwnVersion } from '../package-json.js';
+import { buildOpenAPI, hasRelativeOutputFile, SetupOpenAPIOptions } from '../setup-openapi.js';
+import { mergeSharedSchemas, reachableSchemas, rootsOf } from '../shared-schemas.js';
+import { clientHash, printedTagDescriptions, readClientHash } from './hash.js';
+// Types only: Kubb and the generators load when a client is generated.
+import type { ReactQueryPluginOptions } from './kubb/generate.js';
 
 export async function setupCodegen(
   app: INestApplication,
@@ -75,33 +71,30 @@ export async function setupCodegen(
     }
   }
 
-  // Read here, not in a callback: it finds the package from the call stack.
-  const version = (await readPkgJson())?.version ?? '1';
+  // Read here, before any await, while the caller is on the stack.
+  const openapiBaseDir = hasRelativeOutputFile(params.openapi)
+    ? path.dirname(getCallsiteFile())
+    : undefined;
+  const version = readOwnVersion();
   if (params.forceGenerate) {
     // Wipe every client artifact this call owns so the generators start from
     // an empty slate: each client's wrapper `outputFile` and its sibling Kubb
     // output directory.
-    const ignore = () => {
-      /* ignore if it doesn't exist */
-    };
     await Promise.all(
       params.clients.flatMap((client) => [
-        fs.unlink(client.outputFile).catch(ignore),
-        fs
-          .rm(outputDirFor(client.outputFile), {
-            recursive: true,
-            force: true,
-          })
-          .catch(ignore),
+        fs.rm(client.outputFile, { force: true }),
+        fs.rm(stripExtension(client.outputFile), { recursive: true, force: true }),
       ]),
     );
   }
-  const document = params.openapi ? (await setupOpenAPI(app, params.openapi)).document : undefined;
 
   // Shared schemas are named from every endpoint of the app, so a schema has
   // the same name in every client, whatever its namespaces.
   const descriptors = collectDescriptors(app);
   const shared = mergeSharedSchemas(descriptors);
+  const document = params.openapi
+    ? (await buildOpenAPI(app, params.openapi, { descriptors, shared }, openapiBaseDir)).document
+    : undefined;
 
   const pathExists = (p: string) =>
     fs
@@ -131,12 +124,14 @@ export async function setupCodegen(
       // changed.
       const [currentHash, outDirExists] = await Promise.all([
         readClientHash(client.outputFile),
-        pathExists(outputDirFor(client.outputFile)),
+        pathExists(stripExtension(client.outputFile)),
       ]);
       if (!params.forceGenerate && outDirExists && currentHash === hash) {
         return;
       }
       try {
+        const { generateAxiosClient, generateReactQueryClient } =
+          await import('./kubb/generate.js');
         if (client.type === 'axios') {
           await generateAxiosClient({
             descriptors: clientDescriptors,
@@ -157,9 +152,7 @@ export async function setupCodegen(
         // Kubb can write the wrapper, with its new hash, before the build
         // reports the error. Removing it makes the next run regenerate the
         // client and report the error again.
-        await fs.unlink(client.outputFile).catch(() => {
-          /* ignore if it doesn't exist */
-        });
+        await fs.rm(client.outputFile, { force: true });
         throw new Error(
           `setupCodegen: failed to generate the ${client.type} client ` +
             `"${client.outputFile}": ${(err as Error).message}`,

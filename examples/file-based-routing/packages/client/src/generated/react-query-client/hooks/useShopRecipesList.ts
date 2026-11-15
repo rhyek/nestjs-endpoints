@@ -3,7 +3,7 @@
 * Do not edit manually.
 */
 
-import type { RequestConfig, ResponseErrorConfig } from '../client-runtime'
+import type { RequestConfig, ResponseErrorConfig } from '../.kubb/client'
 import type { ShopRecipesListStatus200 } from '../types/ShopRecipesList'
 import type { QueryKey, QueryClient, QueryObserverOptions, UseQueryResult } from '@tanstack/react-query'
 import { shopRecipesList } from '../clients/shopRecipesList'
@@ -13,22 +13,22 @@ export const shopRecipesListQueryKey = () => [{ url: '/shop/recipes/list' }] as 
 
 type ShopRecipesListQueryKey = ReturnType<typeof shopRecipesListQueryKey>
 
-export function shopRecipesListQueryOptions(config: Partial<Omit<RequestConfig, 'path' | 'query' | 'body' | 'headers' | 'url'>> = {}) {
+export function shopRecipesListQueryOptions(config: Partial<Omit<RequestConfig, 'path' | 'query' | 'body' | 'headers' | 'cookies' | 'url' | 'throwOnError'>> = {}) {
   const queryKey = shopRecipesListQueryKey()
   return queryOptions<ShopRecipesListStatus200, ResponseErrorConfig<Error>, ShopRecipesListStatus200, typeof queryKey>({
    queryKey,
    queryFn: async ({ signal }) => {
-      return (await shopRecipesList({ ...config, signal: config.signal ?? signal, throwOnError: true })).data
+      return shopRecipesList({ ...config, signal: config.signal ?? signal, throwOnError: true }).unwrap()
    },
   })
 }
 
 /**
- * {@link /shop/recipes/list}
+ * `POST /shop/recipes/list`
  */
 export function useShopRecipesList<TData = ShopRecipesListStatus200, TQueryData = ShopRecipesListStatus200, TQueryKey extends QueryKey = ShopRecipesListQueryKey>(options: {
   query?: Partial<QueryObserverOptions<ShopRecipesListStatus200, ResponseErrorConfig<Error>, TData, TQueryData, TQueryKey>> & { client?: QueryClient },
-  client?: Partial<Omit<RequestConfig, 'path' | 'query' | 'body' | 'headers' | 'url'>>
+  client?: Partial<Omit<RequestConfig, 'path' | 'query' | 'body' | 'headers' | 'cookies' | 'url' | 'throwOnError'>>
 } = {}) {
   const { query: queryConfig = {}, client: config = {} } = options ?? {}
   const { client: queryClient, ...resolvedOptions } = queryConfig

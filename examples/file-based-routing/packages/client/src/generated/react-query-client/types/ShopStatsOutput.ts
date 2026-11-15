@@ -4,5 +4,5 @@
 */
 
 export type ShopStatsOutput = {
-    visitors: number;
+  visitors: number;
 };

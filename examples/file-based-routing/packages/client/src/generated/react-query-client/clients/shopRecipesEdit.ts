@@ -3,15 +3,15 @@
 * Do not edit manually.
 */
 
-import type { Options, RequestResult } from '../client-runtime'
+import type { Options, Unwrappable, RequestResult } from '../.kubb/client'
 import type { ShopRecipesEditOptions, ShopRecipesEditResponses } from '../types/ShopRecipesEdit'
-import { client } from '../client-runtime'
+import { client, withUnwrap, resolveThrowOnError } from '../.kubb/client'
 
 /**
- * {@link /shop/recipes/edit/:recipeId}
+ * `PATCH /shop/recipes/edit/{recipeId}`
  */
-export function shopRecipesEdit<ThrowOnError extends boolean = true>(options: Options<ShopRecipesEditOptions, ThrowOnError>): Promise<RequestResult<ShopRecipesEditResponses, ThrowOnError>> {
-  const { client: request = client, ...config } = options
+export function shopRecipesEdit<ThrowOnError extends boolean = true>(options: Options<ShopRecipesEditOptions, ThrowOnError>): Unwrappable<RequestResult<ShopRecipesEditResponses, ThrowOnError>> {
+  const { client: apiClient = client, ...config } = options
 
-  return request({ method: 'PATCH', url: '/shop/recipes/edit/{recipeId}', ...config, throwOnError: config.throwOnError ?? true }) as Promise<RequestResult<ShopRecipesEditResponses, ThrowOnError>>
+  return withUnwrap(apiClient<ShopRecipesEditResponses, ThrowOnError>({ method: 'PATCH', url: '/shop/recipes/edit/{recipeId}', contentType: { request: 'application/json' }, ...config, throwOnError: resolveThrowOnError(config.throwOnError, true) }))
 }

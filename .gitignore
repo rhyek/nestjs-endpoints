@@ -5,3 +5,5 @@ openapi.json
 !packages/test/test-app-express/**/*.e2e-spec.ts
 generated/
 !packages/test/test-app-express/generated
+CLAUDE.local.md
+maintenance/docs/superpowers/

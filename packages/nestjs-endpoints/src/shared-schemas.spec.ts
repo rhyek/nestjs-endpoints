@@ -13,10 +13,7 @@ function descriptor(
     output?: z.ZodType;
   },
 ): EndpointDescriptor {
-  const conv = (s: z.ZodType, io: 'input' | 'output', ref: string) => {
-    const c = toJsonSchema(s, io, ref);
-    return { json: c.schema, components: c.components };
-  };
+  const conv = (s: z.ZodType, io: 'input' | 'output', ref: string) => toJsonSchema(s, io, ref);
   const params = parts.params && toJsonSchema(parts.params, 'input');
   const query = parts.query && toJsonSchema(parts.query, 'input');
   return {
@@ -28,16 +25,8 @@ function descriptor(
     namespaceChain: [],
     tags: [],
     summary: operationId,
-    ...(params ? { params: { json: params.schema, components: params.components } } : {}),
-    ...(query
-      ? {
-          query: {
-            json: query.schema,
-            components: query.components,
-            parameters: [],
-          },
-        }
-      : {}),
+    ...(params ? { params: { ...params, parameters: [] } } : {}),
+    ...(query ? { query: { ...query, parameters: [] } } : {}),
     ...(parts.input ? { input: conv(parts.input, 'input', operationId + 'Input') } : {}),
     outputs: parts.output
       ? [

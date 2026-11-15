@@ -1,6 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import Axios from 'axios';
-import { createApiClient } from '../generated/axios-client';
+import { createApiClient, isResponseError, ResponseError } from '../generated/axios-client';
 import { AppModule } from '../src/app.module';
 import { createApp } from './create-app';
 
@@ -15,12 +15,11 @@ describe('generated client', () => {
         baseURL: await app.getUrl(),
       });
       await expect(client.userGet({ body: { id: 1 } })).rejects.toMatchObject({
-        response: {
-          status: 404,
-          data: {
-            statusCode: 404,
-            message: 'User not found',
-          },
+        name: 'ResponseError',
+        status: 404,
+        data: {
+          statusCode: 404,
+          message: 'User not found',
         },
       });
       const {
@@ -43,21 +42,18 @@ describe('generated client', () => {
     const moduleFixture: TestingModule = await Test.createTestingModule({
       imports: [AppModule],
     }).compile();
-    const app = moduleFixture.createNestApplication();
-    await app.init();
-    await app.listen(0, '127.0.0.1');
+    const { app } = await createApp(moduleFixture);
     try {
       const axios = Axios.create({
         baseURL: await app.getUrl(),
       });
       const client = createApiClient(axios);
       await expect(client.userGet({ body: { id: 1 } })).rejects.toMatchObject({
-        response: {
-          status: 404,
-          data: {
-            statusCode: 404,
-            message: 'User not found',
-          },
+        name: 'ResponseError',
+        status: 404,
+        data: {
+          statusCode: 404,
+          message: 'User not found',
         },
       });
       const {
@@ -71,6 +67,20 @@ describe('generated client', () => {
         name: 'Jake',
         email: 'jake@gmail.com',
       });
+    } finally {
+      await app.close();
+    }
+  });
+
+  test.concurrent('a null output reads as null', async () => {
+    const moduleFixture: TestingModule = await Test.createTestingModule({
+      imports: [AppModule],
+    }).compile();
+    const { app } = await createApp(moduleFixture);
+    try {
+      const client = createApiClient({ baseURL: await app.getUrl() });
+      const { data } = await client.userFind({ body: { id: 1 } });
+      expect(data).toBeNull();
     } finally {
       await app.close();
     }
@@ -197,6 +207,26 @@ describe('generated client', () => {
     }
   });
 
+  test.concurrent("a call's axios config under `options` reaches the axios instance", async () => {
+    const moduleFixture: TestingModule = await Test.createTestingModule({
+      imports: [AppModule],
+    }).compile();
+    const { app } = await createApp(moduleFixture);
+    try {
+      const client = createApiClient({ baseURL: await app.getUrl() });
+      const timeouts: (number | undefined)[] = [];
+      client.axios.interceptors.request.use((config) => {
+        timeouts.push(config.timeout);
+        return config;
+      });
+      const { data } = await client.greet({ body: { name: 'Ida' }, options: { timeout: 4321 } });
+      expect(data).toBe('Hello, Ida!');
+      expect(timeouts).toEqual([4321]);
+    } finally {
+      await app.close();
+    }
+  });
+
   test.concurrent('throwOnError: false resolves with the error response', async () => {
     const moduleFixture: TestingModule = await Test.createTestingModule({
       imports: [AppModule],
@@ -207,9 +237,50 @@ describe('generated client', () => {
       await expect(client.userGet({ body: { id: 1 }, throwOnError: false })).resolves.toMatchObject(
         {
           status: 404,
-          data: { message: 'User not found' },
+          data: undefined,
+          error: { message: 'User not found' },
         },
       );
+    } finally {
+      await app.close();
+    }
+  });
+
+  test.concurrent('a failed call throws the ResponseError the client exports', async () => {
+    const moduleFixture: TestingModule = await Test.createTestingModule({
+      imports: [AppModule],
+    }).compile();
+    const { app } = await createApp(moduleFixture);
+    try {
+      const client = createApiClient({ baseURL: await app.getUrl() });
+      const error = await client.userGet({ body: { id: 1 } }).catch((e: unknown) => e);
+      expect(error).toBeInstanceOf(ResponseError);
+      expect(isResponseError(error) && error.status).toBe(404);
+      // `.unwrap()` resolves to the body alone.
+      const { id } = await client
+        .userCreate({ body: { name: 'Ann', email: 'ann@x.com' } })
+        .unwrap();
+      expect(await client.userFind({ body: { id } }).unwrap()).toMatchObject({ name: 'Ann' });
+    } finally {
+      await app.close();
+    }
+  });
+
+  test.concurrent('nested-object and array search params reach the endpoint', async () => {
+    const moduleFixture: TestingModule = await Test.createTestingModule({
+      imports: [AppModule],
+    }).compile();
+    const { app } = await createApp(moduleFixture);
+    try {
+      const client = createApiClient({ baseURL: await app.getUrl() });
+      const { data: one } = await client.complexGet({
+        query: { add: { a: 5, b: 7 }, tags: ['x'] },
+      });
+      expect(one).toEqual({ sum: 12, tags: ['x'] });
+      const { data: two } = await client.complexGet({
+        query: { add: { a: 1, b: 2 }, tags: ['x', 'y'] },
+      });
+      expect(two).toEqual({ sum: 3, tags: ['x', 'y'] });
     } finally {
       await app.close();
     }
@@ -252,6 +323,10 @@ describe('generated client', () => {
         state: 'xyz',
         expiresIn: 3600,
       });
+
+      // GET /oauth/oauth2callback: named as the generated function is.
+      const { data: oauth2 } = await client.oauthOauth2Callback({ query: { code: 'abc' } });
+      expect(oauth2).toEqual({ code: 'abc' });
 
       // POST /search?page=2 with a JSON body.
       const { data: found } = await client.search({

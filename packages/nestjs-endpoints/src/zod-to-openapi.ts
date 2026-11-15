@@ -1,10 +1,18 @@
 import * as z from 'zod';
 import type { ZodType } from 'zod';
 import { createSchema } from 'zod-openapi';
-import { openApiVersion, settings } from './consts.js';
+import { settings } from './settings.js';
+
+const openApiVersion = '3.1.1';
 
 export type SchemaIo = 'input' | 'output';
 export type JsonSchema = Record<string, unknown>;
+
+/** A converted schema and the components it names. */
+export type ConvertedSchema = {
+  json: JsonSchema;
+  components: Record<string, JsonSchema>;
+};
 
 const inputDate: JsonSchema = {
   oneOf: [
@@ -19,11 +27,7 @@ const dateTypeKeys = ['type', 'format', 'pattern', 'oneOf', 'anyOf'];
 // zodOpenApiCreateSchema`; those two segments are not part of the user's path.
 const wrapperSegments = 2;
 
-export function toJsonSchema(
-  schema: ZodType,
-  io: SchemaIo,
-  ref?: string,
-): { schema: JsonSchema; components: Record<string, JsonSchema> } {
+export function toJsonSchema(schema: ZodType, io: SchemaIo, ref?: string): ConvertedSchema {
   const s = ref ? schema.meta({ id: ref }) : schema;
   // zod visits a schema carrying `.meta()` twice at the same path, first
   // without the meta, so a path is only a failure if no visit had a type.
@@ -82,27 +86,12 @@ export function toJsonSchema(
     throw new Error(messages.join('\n'));
   }
   return {
-    schema: result.schema as JsonSchema,
+    json: result.schema as JsonSchema,
     components: (result.components ?? {}) as Record<string, JsonSchema>,
   };
 }
 
-export function zodToOpenApi(params: { schema: ZodType; schemaType: SchemaIo; ref?: string }): any {
-  const { schema: openApiSchema, components: schemaComponents } = toJsonSchema(
-    params.schema,
-    params.schemaType,
-    params.ref,
-  );
-  return { openApiSchema, schemaComponents };
-}
-
 /** Adds `components` to the OpenAPI document's `components.schemas`. */
 export function registerComponents(components: Record<string, JsonSchema>) {
-  if (Object.keys(components).length === 0) {
-    return;
-  }
-  settings.openapi.components.schemas = {
-    ...settings.openapi.components.schemas,
-    ...components,
-  };
+  Object.assign(settings.openapi.components.schemas, components);
 }

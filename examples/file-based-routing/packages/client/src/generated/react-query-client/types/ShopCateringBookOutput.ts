@@ -4,7 +4,7 @@
 */
 
 export type ShopCateringBookOutput = {
-    confirmed: boolean;
-    for: string;
-    on: string;
+  confirmed: boolean;
+  for: string;
+  on: string;
 };

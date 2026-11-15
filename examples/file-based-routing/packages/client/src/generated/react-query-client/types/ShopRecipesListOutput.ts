@@ -4,6 +4,6 @@
 */
 
 export type ShopRecipesListOutput = {
-    id: number;
-    name: string;
+  id: number;
+  name: string;
 }[];

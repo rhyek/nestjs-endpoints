@@ -1,6 +1,8 @@
 import { createHash } from 'node:crypto';
 import fs from 'node:fs/promises';
 import type { EndpointDescriptor } from '../descriptors.js';
+import { settings } from '../settings.js';
+import { sortedCopy } from '../shared-schemas.js';
 import type { JsonSchema } from '../zod-to-openapi.js';
 
 /**
@@ -17,29 +19,6 @@ export function hashHeader(hash: string): string {
 }
 
 /**
- * JSON with sorted keys. Functions and regular expressions, which JSON drops,
- * are written as their source, so a change to a pattern or a callback in a
- * client's options changes the hash.
- */
-function canonical(value: unknown): unknown {
-  if (typeof value === 'function' || value instanceof RegExp) {
-    return String(value);
-  }
-  if (Array.isArray(value)) {
-    return value.map(canonical);
-  }
-  if (value && typeof value === 'object') {
-    return Object.fromEntries(
-      Object.entries(value)
-        .filter(([, v]) => v !== undefined)
-        .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
-        .map(([k, v]) => [k, canonical(v)]),
-    );
-  }
-  return value;
-}
-
-/**
  * The sha256 (hex) of a client's descriptors, the shared schemas they reach,
  * the namespace descriptions its wrapper prints, its config and the
  * nestjs-endpoints version.
@@ -52,24 +31,39 @@ export function clientHash(params: {
   client: { type: string; namespaces?: string[]; options?: unknown };
   version: string;
 }): string {
-  const { descriptors, shared, tagDescriptions, client, version } = params;
   return createHash('sha256')
-    .update(
-      JSON.stringify(
-        canonical({
-          descriptors,
-          shared,
-          tagDescriptions,
-          client: {
-            type: client.type,
-            namespaces: client.namespaces,
-            options: client.options,
-          },
-          version,
-        }),
-      ),
-    )
+    .update(JSON.stringify(sortedCopy(params)))
     .digest('hex');
+}
+
+/**
+ * The descriptions router modules give their namespaces, keyed by the chain
+ * joined with `/`, written above each namespace bucket.
+ */
+export function tagDescriptions(): Map<string, string> {
+  return new Map(settings.openapi.tags.map(({ name, description }) => [name, description]));
+}
+
+/**
+ * The descriptions a wrapper for `descriptors` writes above its buckets:
+ * those of every namespace chain, and each of its prefixes, the descriptors
+ * sit under. Keyed like `descriptions`.
+ */
+export function printedTagDescriptions(
+  descriptors: readonly EndpointDescriptor[],
+  descriptions: ReadonlyMap<string, string> = tagDescriptions(),
+): Record<string, string> {
+  const printed: Record<string, string> = {};
+  for (const { namespaceChain } of descriptors) {
+    for (let i = 1; i <= namespaceChain.length; i++) {
+      const key = namespaceChain.slice(0, i).join('/');
+      const description = descriptions.get(key);
+      if (description) {
+        printed[key] = description;
+      }
+    }
+  }
+  return printed;
 }
 
 /**

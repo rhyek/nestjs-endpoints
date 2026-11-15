@@ -12,7 +12,6 @@ import {
   UseGuards,
   UseInterceptors,
 } from '@nestjs/common';
-import { endpointFileRegex, EndpointSetupFn, routerModuleFileRegex, settings } from './consts.js';
 import {
   createRouterEndpoint,
   EndpointBuilders,
@@ -21,14 +20,19 @@ import {
   WithoutKeys,
 } from './endpoint-fn.js';
 import { getCallsiteFile, moduleAls } from './helpers.js';
-import { LazyPromise } from './lazy-promise.js';
+import { MANIFEST_FILE_NAME } from './manifest/file.js';
 import {
   EndpointManifestLoader,
   findManifestCovering,
   RegisteredManifest,
 } from './manifest/registry.js';
-import { MANIFEST_FILE_NAME } from './manifest/render.js';
-import { isSameModule, stripExtension } from './manifest/scan.js';
+import {
+  endpointFileRegex,
+  isSameModule,
+  routerModuleFileRegex,
+  stripExtension,
+} from './manifest/scan.js';
+import { EndpointSetupFn, settings } from './settings.js';
 
 /**
  * Express 5 / path-to-regexp v8, used by every NestJS version this library
@@ -57,7 +61,9 @@ type RouterGuard = Type<CanActivate> | CanActivate;
  */
 type ListedEndpoint = Type | Promise<object>;
 
+/** A router's module carries every endpoint of its subtree under this key. */
 const ALL_ENDPOINTS_SYMBOL = Symbol.for('nestjs-endpoints:allEndpoints');
+type AllEndpointsCarrier = { [ALL_ENDPOINTS_SYMBOL]?: Type[] };
 
 function isMiddlewareOptions(m: unknown): m is RouterMiddlewareOptions {
   return m !== null && typeof m === 'object' && typeof m !== 'function';
@@ -82,6 +88,40 @@ export type EndpointRouter<
 };
 
 type ParentStore = NonNullable<ReturnType<typeof moduleAls.getStore>>;
+
+/**
+ * A promise that starts its work the first time it is awaited, and shares that
+ * one result with every later await. Only `then` is overridden: `await`,
+ * `catch` and `finally` all go through it.
+ *
+ * It is a real `Promise` subclass because NestJS's scanner only awaits module
+ * imports that pass `instanceof Promise`.
+ */
+export class LazyPromise<T> extends Promise<T> {
+  readonly #run: () => Promise<T>;
+  #started?: Promise<T>;
+
+  constructor(run: () => Promise<T>) {
+    // The base promise is never observed: `then` below is the only way in.
+    super((resolve) => resolve(undefined as T));
+    this.#run = run;
+  }
+
+  // Derived promises (from `then`/`catch`/`finally`) are plain ones.
+  static override get [Symbol.species]() {
+    return Promise;
+  }
+
+  // A promise subclass: `then` is what makes it one.
+  // eslint-disable-next-line unicorn/no-thenable
+  override then<TResult1 = T, TResult2 = never>(
+    onfulfilled?: ((value: T) => TResult1 | PromiseLike<TResult1>) | null,
+    onrejected?: ((reason: any) => TResult2 | PromiseLike<TResult2>) | null,
+  ): Promise<TResult1 | TResult2> {
+    this.#started ??= this.#run();
+    return this.#started.then(onfulfilled, onrejected);
+  }
+}
 
 /**
  * A nested router's file (without its extension) → the context of the
@@ -373,7 +413,7 @@ export class EndpointRouterModule {
     const endpointFilesNotImported = [...endpointFiles].filter(([f]) =>
       settings.endpoints.every((e) => !isSameModule(e.file, f)),
     );
-    const nestedModules: (DynamicModule | Promise<DynamicModule>)[] = [];
+    const nestedModules: DynamicModule[] = [];
 
     const normalizedParentBasePath = effectiveBasePath.replace(/^\/+|\/+$/g, '');
     if (params?.description) {
@@ -414,6 +454,7 @@ export class EndpointRouterModule {
         }
       }
       for (const load of nestedRouterModuleFiles.values()) {
+        // Awaiting the router's default export runs it.
         const nestedModule = await loadDefault(load);
         if (nestedModule) {
           nestedModules.push(nestedModule);
@@ -430,101 +471,66 @@ export class EndpointRouterModule {
             ).flat()
           : (params?.endpoints ?? []);
     });
-    const setUp = new Set<EndpointSetupFn>();
-    for (const { setupFn } of settings.endpoints.filter((e) =>
-      endpointFilesNotImported.some(([f]) => isSameModule(f, e.file)),
-    )) {
+    // Each endpoint is set up once, whether this router discovered it, it is
+    // listed, or both.
+    const setupFns = new Set<EndpointSetupFn>([
+      ...settings.endpoints
+        .filter((e) => endpointFilesNotImported.some(([f]) => isSameModule(f, e.file)))
+        .map((e) => e.setupFn),
+      ...listedEndpoints
+        .map((ep) => Reflect.getMetadata('endpoints:setupFn', ep) as EndpointSetupFn | undefined)
+        .filter((fn) => fn !== undefined),
+    ]);
+    for (const setupFn of setupFns) {
       setupFn({
         rootDirectories,
         basePath: effectiveBasePath,
         namespaceChain: effectiveNamespaceChain,
         routerFile: callsiteFile,
       });
-      setUp.add(setupFn);
     }
-    for (const ep of listedEndpoints) {
-      const epSetupFn = Reflect.getMetadata('endpoints:setupFn', ep) as EndpointSetupFn | undefined;
-      // A listed endpoint this router also discovered is set up already.
-      if (epSetupFn && !setUp.has(epSetupFn)) {
-        epSetupFn({
-          rootDirectories,
-          basePath: effectiveBasePath,
-          namespaceChain: effectiveNamespaceChain,
-          routerFile: callsiteFile,
-        });
-      }
-      if (!endpoints.includes(ep)) {
-        endpoints.push(ep);
-      }
-    }
-    if (endpoints.length > 0) {
-      endpoints = endpoints.filter((e) => {
-        return Reflect.getMetadataKeys(e).some((k) => k === 'endpoints:path');
-      });
-    }
-
-    // Resolve nested modules to collect their endpoint classes (for
-    // interceptor application). Nested modules are still passed along as
-    // the original (possibly Promise) values via imports.
-    const resolvedNestedModules = await Promise.all(nestedModules.map((m) => Promise.resolve(m)));
-    const nestedAllEndpoints: Type[] = resolvedNestedModules.flatMap(
-      (m) => (m as unknown as Record<symbol, Type[] | undefined>)[ALL_ENDPOINTS_SYMBOL] ?? [],
+    endpoints = [...new Set([...endpoints, ...listedEndpoints])].filter((e) =>
+      Reflect.hasMetadata('endpoints:path', e),
     );
-    const allEndpoints: Type[] = [...endpoints, ...nestedAllEndpoints];
 
-    // Apply interceptors (controller-scoped) to all endpoints in the
-    // subtree, including nested ones.
-    if (params?.interceptors && params.interceptors.length > 0) {
-      const interceptorDecorator = UseInterceptors(...params.interceptors);
+    // Interceptors and guards apply (controller-scoped) to every endpoint in
+    // the subtree, nested routers' included.
+    const allEndpoints: Type[] = [
+      ...endpoints,
+      ...nestedModules.flatMap((m) => (m as AllEndpointsCarrier)[ALL_ENDPOINTS_SYMBOL] ?? []),
+    ];
+    const classDecorators = [
+      ...(params?.interceptors?.length ? [UseInterceptors(...params.interceptors)] : []),
+      ...(params?.guards?.length ? [UseGuards(...params.guards)] : []),
+    ];
+    for (const decorator of classDecorators) {
       for (const ep of allEndpoints) {
-        interceptorDecorator(ep);
+        decorator(ep);
       }
     }
 
-    // Apply guards (controller-scoped) to all endpoints in the subtree,
-    // including nested ones.
-    if (params?.guards && params.guards.length > 0) {
-      const guardDecorator = UseGuards(...params.guards);
-      for (const ep of allEndpoints) {
-        guardDecorator(ep);
-      }
+    // The middleware list may end with an options entry.
+    const middlewareHandlers = [...(params?.middleware ?? [])] as (
+      | RouterMiddlewareEntry
+      | RouterMiddlewareOptions
+    )[];
+    const middlewareOptions = isMiddlewareOptions(middlewareHandlers.at(-1))
+      ? (middlewareHandlers.pop() as RouterMiddlewareOptions)
+      : undefined;
+    if (middlewareHandlers.some(isMiddlewareOptions)) {
+      throw new Error('EndpointRouterModule: middleware options object must be the last entry');
     }
-
-    // Parse middleware list into handlers + optional options entry.
-    const middlewareHandlers: RouterMiddlewareEntry[] = [];
-    let middlewareOptions: RouterMiddlewareOptions | undefined;
-    if (params?.middleware) {
-      const mwList = params.middleware as ReadonlyArray<
-        RouterMiddlewareEntry | RouterMiddlewareOptions
-      >;
-      for (let i = 0; i < mwList.length; i++) {
-        const item = mwList[i];
-        if (isMiddlewareOptions(item)) {
-          if (i !== mwList.length - 1) {
-            throw new Error(
-              'EndpointRouterModule: middleware options object must be the last entry',
-            );
-          }
-          middlewareOptions = item;
-        } else {
-          middlewareHandlers.push(item);
-        }
-      }
-    }
-    const excludeRoutes = middlewareOptions?.exclude?.map((p) =>
-      normalizedParentBasePath ? `${normalizedParentBasePath}/${p}` : p,
-    );
-    const wildcardSegment = MIDDLEWARE_WILDCARD_SEGMENT;
-    const forRoutesPattern = normalizedParentBasePath
-      ? `${normalizedParentBasePath}/${wildcardSegment}`
-      : wildcardSegment;
+    const underBasePath = (p: string) =>
+      normalizedParentBasePath ? `${normalizedParentBasePath}/${p}` : p;
+    const excludeRoutes = middlewareOptions?.exclude?.map(underBasePath);
+    const forRoutesPattern = underBasePath(MIDDLEWARE_WILDCARD_SEGMENT);
 
     class RouterModule extends EndpointRouterModule implements NestModule {
       configure(consumer: MiddlewareConsumer) {
         if (middlewareHandlers.length === 0) {
           return;
         }
-        let applied = consumer.apply(...middlewareHandlers);
+        let applied = consumer.apply(...(middlewareHandlers as RouterMiddlewareEntry[]));
         if (excludeRoutes && excludeRoutes.length > 0) {
           applied = applied.exclude(...excludeRoutes);
         }
@@ -533,16 +539,14 @@ export class EndpointRouterModule {
     }
     Module({})(RouterModule);
 
-    const dynamicModule: DynamicModule = {
+    return {
       module: RouterModule,
       imports: [...(params?.imports ?? []), ...nestedModules],
       exports: params?.exports,
       providers: params?.providers,
       controllers: endpoints,
-    };
-    (dynamicModule as unknown as Record<symbol, Type[]>)[ALL_ENDPOINTS_SYMBOL] = allEndpoints;
-
-    return dynamicModule;
+      [ALL_ENDPOINTS_SYMBOL]: allEndpoints,
+    } as DynamicModule;
   }
 }
 
