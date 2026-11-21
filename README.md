@@ -62,7 +62,10 @@ Full runnable example [here](./examples/file-based-routing) — NestJS API with 
 
 This package is **ESM-only**. CommonJS projects are not supported.
 
-Run your app with the Nest CLI (`nest start`). Node with a TypeScript loader, such as SWC's (`@swc-node/register`) or oxc's (`@oxc-node/core`), works too; with `node --watch`, set `watch: true` in [`NestjsEndpoints.forRoot`](#setup) so that a new endpoint file restarts the app.
+Run your app with the Nest CLI (`nest start`).
+
+> [!NOTE]
+> Node with a TypeScript loader, such as SWC's (`@swc-node/register`) or oxc's (`@oxc-node/core`), works too.
 
 ## Installation
 

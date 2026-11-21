@@ -12,7 +12,7 @@ options and return a NestJS controller class.
 // ---cut---
 // src/endpoints/orders/create.endpoint.ts  →  POST /orders/create
 import { endpoint, z } from 'nestjs-endpoints';
-import { OrdersService } from './orders.service';
+import { OrdersService } from './orders.service.js';
 
 export default endpoint.mutation({
   input: z.object({
@@ -47,8 +47,8 @@ An endpoint reads a request from up to three places, each with its own schema:
 ```ts twoslash
 // @filename: src/endpoints/orders/list.sample.ts
 import { endpoint, z } from 'nestjs-endpoints';
-import { orderSchema } from './order.schema';
-import { OrdersService } from './orders.service';
+import { orderSchema } from './order.schema.js';
+import { OrdersService } from './orders.service.js';
 // ---cut---
 // src/endpoints/orders/list.endpoint.ts  →  POST /orders/list?page=2
 export default endpoint.query({

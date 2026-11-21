@@ -16,7 +16,7 @@ relies on NestJS's `StandardSchemaValidationPipe` being bound globally, in `main
 
 ```ts twoslash
 // @filename: src/orders/orders.sample.ts
-import { OrdersService } from '../endpoints/orders/orders.service';
+import { OrdersService } from '../endpoints/orders/orders.service.js';
 // ---cut---
 import {
   Body,
@@ -65,7 +65,7 @@ And as an endpoint:
 // ---cut---
 // src/endpoints/orders/create.endpoint.ts
 import { endpoint, z } from 'nestjs-endpoints';
-import { OrdersService } from './orders.service';
+import { OrdersService } from './orders.service.js';
 
 export default endpoint.mutation({
   input: z.object({

@@ -1,6 +1,6 @@
 ```ts twoslash
 // @errors: 2322
-import { createApiClient } from './generated/axios-client';
+import { createApiClient } from './generated/axios-client.js';
 // ---cut---
 // axios
 const client = createApiClient({ baseURL: '/api' });

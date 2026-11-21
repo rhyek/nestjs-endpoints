@@ -1,5 +1,5 @@
 import { EndpointRouterModule } from 'nestjs-endpoints';
-import { OrdersService } from './orders.service';
+import { OrdersService } from './orders.service.js';
 
 export default EndpointRouterModule.create({
   providers: [OrdersService],

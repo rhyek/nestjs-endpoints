@@ -1,8 +1,8 @@
 ```ts twoslash
 // @filename: src/endpoints/orders/list.sample.ts
 import { endpoint, z } from 'nestjs-endpoints';
-import { orderSchema } from './order.schema';
-import { OrdersService } from './orders.service';
+import { orderSchema } from './order.schema.js';
+import { OrdersService } from './orders.service.js';
 // ---cut---
 export default endpoint.query({
   query: z.object({ page: z.coerce.number().default(1) }),

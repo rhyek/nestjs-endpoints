@@ -953,6 +953,26 @@ setups:
 - Keep a dedicated `src/codegen.ts` that creates the app, calls `setupCodegen`,
   and exits — run it as a build/CI step so the server itself stays lean.
 
+A dedicated script creates the app without listening and closes it after:
+
+```ts
+// src/codegen.ts
+import { NestFactory } from '@nestjs/core';
+import { setupCodegen } from 'nestjs-endpoints';
+import { AppModule } from './app.module.js';
+
+async function bootstrap() {
+  const app = await NestFactory.create(AppModule);
+  await setupCodegen(app, {
+    clients: [{ type: 'axios', outputFile: process.cwd() + '/generated/axios-client.ts' }],
+  });
+  await app.close();
+}
+void bootstrap();
+```
+
+`nest build` compiles it with the rest of `src/`: `"codegen": "nest build && node dist/codegen"`.
+
 ---
 
 ## 9. Using the generated client

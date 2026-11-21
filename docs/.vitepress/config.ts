@@ -140,6 +140,7 @@ export default defineConfig({
       {
         text: 'Workflow',
         items: [
+          { text: 'Development', link: '/guide/development' },
           { text: 'Testing', link: '/guide/testing' },
           { text: 'Coding agents', link: '/guide/coding-agents' },
         ],

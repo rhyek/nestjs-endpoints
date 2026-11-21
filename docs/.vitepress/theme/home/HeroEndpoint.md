@@ -2,7 +2,7 @@
 // @filename: src/endpoints/orders/create.sample.ts
 // ---cut---
 import { endpoint, z } from 'nestjs-endpoints';
-import { OrdersService } from './orders.service';
+import { OrdersService } from './orders.service.js';
 
 export default endpoint.mutation({
   input: z.object({

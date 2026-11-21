@@ -18,10 +18,12 @@ From those schemas you get validation and, if you want one, a
 - **TypeScript 6 or later**
 - **Zod 4.1 or later**
 - **An ESM project**, with `"type": "module"` in its `package.json`. CommonJS is not supported.
-- **Run with the Nest CLI** (`nest start`). Node with a TypeScript loader, such as SWC's
-  (`@swc-node/register`) or oxc's (`@oxc-node/core`), works too; with `node --watch`, set
-  `watch: true` in [`NestjsEndpoints.forRoot`](../reference/router.md#nestjsendpoints-forroot)
-  so that a new endpoint file restarts the app.
+- **Run with the Nest CLI** (`nest start`).
+
+::: info Note
+Node with a TypeScript loader, such as SWC's (`@swc-node/register`) or oxc's (`@oxc-node/core`),
+works too. See [Development](./development.md#with-node-and-a-typescript-loader).
+:::
 
 ## Install
 
@@ -98,7 +100,7 @@ An endpoint file is named `<name>.endpoint.ts` and default-exports its endpoint:
 // ---cut---
 // src/endpoints/orders/create.endpoint.ts
 import { endpoint, z } from 'nestjs-endpoints';
-import { OrdersService } from './orders.service';
+import { OrdersService } from './orders.service.js';
 
 export default endpoint.mutation({
   input: z.object({
@@ -135,7 +137,7 @@ npx nest start --watch
 ```
 
 The router finds the endpoint files when the app starts. An endpoint file you add later is served
-after a restart, which `nest start --watch` does by itself.
+after a restart, which `nest start --watch` does by itself. See [Development](./development.md).
 
 Then send a request:
 

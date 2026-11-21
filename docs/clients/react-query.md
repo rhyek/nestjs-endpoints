@@ -19,7 +19,7 @@ Create a client, and put it in context beside your `QueryClient`:
 import type { ReactNode } from 'react';
 // ---cut---
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { ApiClientProvider, createApiClient } from './generated/react-query-client';
+import { ApiClientProvider, createApiClient } from './generated/react-query-client.js';
 
 const queryClient = new QueryClient();
 export const api = createApiClient({ baseURL: 'https://api.example.com' });
@@ -42,7 +42,7 @@ export function Providers({ children }: { children: ReactNode }) {
 the [namespaces](./namespaces.md) your routers declare:
 
 ```tsx twoslash
-import { useApiClient } from './generated/react-query-client';
+import { useApiClient } from './generated/react-query-client.js';
 // ---cut---
 export function Orders() {
   const client = useApiClient();
@@ -80,7 +80,7 @@ Every hook takes a trailing options object, whose `query` or `mutation` key is p
 TanStack Query:
 
 ```tsx twoslash
-import { useApiClient } from './generated/react-query-client';
+import { useApiClient } from './generated/react-query-client.js';
 declare const orderId: number | undefined;
 declare function notify(message: string): void;
 // ---cut---
@@ -116,7 +116,7 @@ Use the instance you gave `<ApiClientProvider>`:
 
 ```tsx twoslash
 import type { QueryClient } from '@tanstack/react-query';
-import { createApiClient } from './generated/react-query-client';
+import { createApiClient } from './generated/react-query-client.js';
 const api = createApiClient();
 // ---cut---
 // A route loader: no React, no hooks.
@@ -128,7 +128,7 @@ Inside a component, they compose with TanStack Query's own hooks:
 
 ```tsx twoslash
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { useApiClient } from './generated/react-query-client';
+import { useApiClient } from './generated/react-query-client.js';
 // ---cut---
 const client = useApiClient();
 const queryClient = useQueryClient();
@@ -173,7 +173,7 @@ Each operation that takes input carries it as JSON Schema, for a form to read:
 | `schemas.query` | Operations that declare `query` with properties | The search parameters, as JSON Schema. |
 
 ```tsx twoslash
-import { useApiClient } from './generated/react-query-client';
+import { useApiClient } from './generated/react-query-client.js';
 const client = useApiClient();
 // ---cut---
 const schema = client.orders.create.schemas.input;

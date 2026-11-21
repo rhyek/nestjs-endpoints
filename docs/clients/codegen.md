@@ -9,7 +9,7 @@ an [axios](./axios.md) client, a [React Query](./react-query.md) client, or seve
 
 ```ts twoslash
 // @noErrors
-import { createApiClient } from './generated/axios-client';
+import { createApiClient } from './generated/axios-client.js';
 // ---cut---
 const client = createApiClient({ baseURL: 'https://api.example.com' });
 
@@ -102,12 +102,44 @@ schema or the client's own options. A restart that changes no schema changes no 
 
 ## Where to run it
 
-Codegen runs while the app starts, so it needs the app to be created. Two setups are common:
+Codegen runs while the app starts, so it needs the app to be created. Two setups are common.
 
-- **In `main.ts`**, before `app.listen()`. The client is regenerated on every restart of the dev
-  server, so the front end follows the API as you edit it.
-- **In a script of its own**, such as `src/codegen.ts`, that creates the app, calls
-  `setupCodegen` and exits. Run it as a build or CI step, so the server itself does no codegen.
+### In `main.ts`
+
+Call `setupCodegen` before `app.listen()`, as in [Set it up](#set-it-up). The client is
+regenerated on every restart of the dev server, so the front end follows the API as you edit it.
+
+### In a script of its own
+
+A script such as `src/codegen.ts` creates the app without starting the server, writes the
+clients, and closes the app. Run it as a build or CI step, so the server itself does no codegen:
+
+```ts
+// src/codegen.ts
+import { NestFactory } from '@nestjs/core';
+import { setupCodegen } from 'nestjs-endpoints';
+import { AppModule } from './app.module.js';
+
+async function bootstrap() {
+  const app = await NestFactory.create(AppModule);
+  await setupCodegen(app, {
+    clients: [{ type: 'axios', outputFile: process.cwd() + '/generated/axios-client.ts' }],
+  });
+  await app.close();
+}
+void bootstrap();
+```
+
+`nest build` compiles it with the rest of `src/`, so a script in `package.json` builds and runs it:
+
+```jsonc
+// package.json
+{
+  "scripts": {
+    "codegen": "nest build && node dist/codegen"
+  }
+}
+```
 
 ## Calling an operation
 

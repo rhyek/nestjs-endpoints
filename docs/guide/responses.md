@@ -18,7 +18,7 @@ With a single schema, return the value. The endpoint answers `200`, whatever its
 ```ts twoslash
 // @filename: src/endpoints/orders/$orderId.view.sample.ts
 import { endpoint, z } from 'nestjs-endpoints';
-import { OrdersService } from './orders.service';
+import { OrdersService } from './orders.service.js';
 // ---cut---
 export default endpoint.query({
   params: z.object({ orderId: z.coerce.number() }),

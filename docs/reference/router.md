@@ -26,7 +26,7 @@ module: a second call fails the start.
 | Option | Type | |
 | --- | --- | --- |
 | `router` | the router [options](#options) | The app's root router. Its `rootDirectory` is relative to the file that calls `forRoot()`. An app made only of routers it imports can leave `router` out. |
-| `watch` | `boolean` | Whether the app watches its endpoint folders, so that `node --watch` restarts it when an endpoint file is added or removed. `nest start --watch` restarts by itself. The app keeps a small file per router under `node_modules/.cache/nestjs-endpoints/` for it. Defaults to `false`. |
+| `watch` | `boolean` | Whether the app watches its endpoint folders, so that `node --watch` restarts it when an endpoint file is added or removed. `nest start --watch` restarts by itself. The app keeps a small file per router under `node_modules/.cache/nestjs-endpoints/` for it. Defaults to `false`. See [Development](../guide/development.md#with-node-and-a-typescript-loader). |
 
 `forRoot()` returns what `create()` returns.
 

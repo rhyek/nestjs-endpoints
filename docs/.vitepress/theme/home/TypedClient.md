@@ -1,6 +1,6 @@
 ```tsx twoslash
 // @noErrors
-import { useApiClient } from './generated/react-query-client';
+import { useApiClient } from './generated/react-query-client.js';
 const orderId = 1;
 // ---cut---
 // React Query

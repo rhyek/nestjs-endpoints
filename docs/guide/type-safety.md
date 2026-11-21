@@ -44,8 +44,8 @@ the type you give `decorated<T>()`:
 ```ts twoslash
 // @filename: src/endpoints/admin/refund.sample.ts
 import { decorated, endpoint, z } from 'nestjs-endpoints';
-import { CurrentUser, type User } from '../../auth/current-user.decorator';
-import { PaymentsService } from '../../payments/payments.service';
+import { CurrentUser, type User } from '../../auth/current-user.decorator.js';
+import { PaymentsService } from '../../payments/payments.service.js';
 // ---cut---
 export default endpoint.mutation({
   input: z.object({ orderId: z.number(), reason: z.string() }),
@@ -152,7 +152,7 @@ autocomplete, under the [namespaces](../clients/namespaces.md) your routers decl
 
 ```ts twoslash
 // @noErrors
-import { createApiClient } from './generated/axios-client';
+import { createApiClient } from './generated/axios-client.js';
 // ---cut---
 const client = createApiClient({ baseURL: '/api' });
 
@@ -168,7 +168,7 @@ A request that doesn't match the endpoint's schemas doesn't compile:
 
 ```ts twoslash
 // @errors: 2322 2554
-import { createApiClient } from './generated/axios-client';
+import { createApiClient } from './generated/axios-client.js';
 const client = createApiClient({ baseURL: '/api' });
 // ---cut---
 await client.orders.create({
@@ -184,7 +184,7 @@ await client.orders.view();
 A call resolves to the response with its status, and `data` is the endpoint's `output`:
 
 ```ts twoslash
-import { createApiClient } from './generated/axios-client';
+import { createApiClient } from './generated/axios-client.js';
 const client = createApiClient({ baseURL: '/api' });
 // ---cut---
 const result = await client.orders.create({
@@ -203,7 +203,7 @@ Comparing a response with a value the server can never send is an error too:
 
 ```ts twoslash
 // @errors: 2367
-import { createApiClient } from './generated/axios-client';
+import { createApiClient } from './generated/axios-client.js';
 const client = createApiClient({ baseURL: '/api' });
 const order = await client.orders.view({ path: { orderId: 1 } }).unwrap();
 // ---cut---
@@ -217,7 +217,7 @@ variables are its request:
 
 ```tsx twoslash
 // @noErrors
-import { useApiClient } from './generated/react-query-client';
+import { useApiClient } from './generated/react-query-client.js';
 const orderId = 1;
 // ---cut---
 const client = useApiClient();
@@ -234,7 +234,7 @@ order.data?.
 
 ```tsx twoslash
 // @errors: 2322
-import { useApiClient } from './generated/react-query-client';
+import { useApiClient } from './generated/react-query-client.js';
 const client = useApiClient();
 // ---cut---
 const create = client.orders.useCreate();
@@ -249,7 +249,7 @@ the type of its `output`:
 
 ```ts twoslash
 import type { INestApplication } from '@nestjs/common';
-import createOrder from './src/endpoints/orders/create.endpoint';
+import createOrder from './src/endpoints/orders/create.endpoint.js';
 declare const app: INestApplication;
 // ---cut---
 const created = await app.get(createOrder).invoke({

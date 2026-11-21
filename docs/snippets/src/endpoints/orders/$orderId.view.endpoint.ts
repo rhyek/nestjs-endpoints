@@ -1,6 +1,6 @@
 import { endpoint, z } from 'nestjs-endpoints';
-import { orderSchema } from './order.schema';
-import { OrdersService } from './orders.service';
+import { orderSchema } from './order.schema.js';
+import { OrdersService } from './orders.service.js';
 
 export default endpoint.query({
   params: z.object({ orderId: z.coerce.number() }),

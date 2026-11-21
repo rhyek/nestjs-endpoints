@@ -9,7 +9,7 @@ description: Symptoms and causes — routes that 404, validation errors, setup, 
 | Symptom | Cause |
 | --- | --- |
 | A route answers `404` | The file isn't named `<name>.endpoint.ts` or `endpoint.ts`; or it doesn't `export default` its endpoint; or it sits in a folder owned by a nested `router.module.ts` you didn't expect. |
-| A new endpoint answers `404` | An endpoint file is served after a restart. `nest start --watch` restarts by itself; with `node --watch`, set `watch: true` in [`NestjsEndpoints.forRoot`](./router.md#nestjsendpoints-forroot). A built app serves the endpoint files that are in its build: build again. |
+| A new endpoint answers `404` | An endpoint file is served after a restart. `nest start --watch` restarts by itself; with `node --watch`, set `watch: true` in [`NestjsEndpoints.forRoot`](./router.md#nestjsendpoints-forroot). See [Development](../guide/development.md). A built app serves the endpoint files that are in its build: build again. |
 | A route is mounted at `/dist/…` or `/src/…` | An endpoint registered by hand has no `path`. See [Explicit paths](../guide/explicit-paths.md). |
 | Routes disappear in production | The build bundles the app into one file. File-based routing needs each file on disk. |
 | `middleware options object must be the last entry` | The `{ exclude }` object isn't the last entry of a router's `middleware`. |

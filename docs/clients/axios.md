@@ -15,7 +15,7 @@ Generate it with [`setupCodegen`](./codegen.md), with `type: 'axios'`.
 
 ```ts twoslash
 import axios from 'axios';
-import { createApiClient } from './generated/axios-client';
+import { createApiClient } from './generated/axios-client.js';
 // ---cut---
 const client = createApiClient({
   baseURL: 'https://api.example.com',
@@ -30,7 +30,7 @@ const sameClient = createApiClient(instance);
 Every call goes through that instance, which is always at `client.axios`:
 
 ```ts twoslash
-import { createApiClient } from './generated/axios-client';
+import { createApiClient } from './generated/axios-client.js';
 const client = createApiClient();
 declare const token: string;
 // ---cut---
@@ -43,7 +43,7 @@ Each operation takes one object that groups its request into `path`, `query` and
 the endpoint's `params`, `query` and `input`:
 
 ```ts twoslash
-import { createApiClient } from './generated/axios-client';
+import { createApiClient } from './generated/axios-client.js';
 const client = createApiClient();
 // ---cut---
 const created = await client.orders.create({
@@ -62,7 +62,7 @@ A call resolves to the response: `status`, `data`, `headers` and the rest. `data
 the endpoint's `output`.
 
 ```ts twoslash
-import { createApiClient } from './generated/axios-client';
+import { createApiClient } from './generated/axios-client.js';
 const client = createApiClient();
 // ---cut---
 const result = await client.orders.view({ path: { orderId: 1 } });
@@ -76,7 +76,7 @@ result;
 When the body is all you want, `.unwrap()` resolves to it alone:
 
 ```ts twoslash
-import { createApiClient } from './generated/axios-client';
+import { createApiClient } from './generated/axios-client.js';
 const client = createApiClient();
 // ---cut---
 const order = await client.orders.view({ path: { orderId: 1 } }).unwrap();
@@ -88,7 +88,7 @@ A response outside the 2xx range throws a `ResponseError`, with the status in `e
 and the response body in `error.data`. `isResponseError()` narrows a caught error to it:
 
 ```ts twoslash
-import { createApiClient, isResponseError } from './generated/axios-client';
+import { createApiClient, isResponseError } from './generated/axios-client.js';
 const client = createApiClient();
 // ---cut---
 try {
@@ -107,7 +107,7 @@ To handle every status without `try` and `catch`, pass `throwOnError: false`. Th
 resolves on any status, with the error body in `error` and `data` undefined:
 
 ```ts twoslash
-import { createApiClient } from './generated/axios-client';
+import { createApiClient } from './generated/axios-client.js';
 const client = createApiClient();
 // ---cut---
 const result = await client.orders.view({
@@ -132,7 +132,7 @@ Beside `path`, `query` and `body`, a call takes:
 - **`throwOnError`**: see [Errors](#errors).
 
 ```ts twoslash
-import { createApiClient } from './generated/axios-client';
+import { createApiClient } from './generated/axios-client.js';
 const client = createApiClient();
 // ---cut---
 const controller = new AbortController();
@@ -155,7 +155,7 @@ await client.orders.view({
   not yet decoded.
 
 ```ts twoslash
-import { createApiClient } from './generated/axios-client';
+import { createApiClient } from './generated/axios-client.js';
 const client = createApiClient();
 declare function currentToken(): string;
 // ---cut---

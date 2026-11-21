@@ -23,7 +23,7 @@ src/
 
 A router scans its folder when the app starts, where the app runs: `src/` under a TypeScript
 loader or Vitest, `dist/` when compiled. It does so the same way in every environment. An
-endpoint file you add is served after a restart, which `nest start --watch` does by itself.
+endpoint file you add is served after a restart: see [Development](./development.md).
 
 ## Endpoint files
 
@@ -98,9 +98,6 @@ layout: one output file per source file, as `tsc`, SWC and `nest build` produce.
 bundles the app into a single file (Webpack, `nest build --webpack`) is not supported.
 
 Build into a clean output folder, as `nest build` does in a new Nest project (`deleteOutDir` in
-`nest-cli.json`): the app serves the compiled endpoint files it finds, and a file left over from
-an endpoint you deleted is one of them.
-
-Where the app runs compiled output next to its source, as under `nest start`, a compiled endpoint
-whose source file is gone is not served. That needs `sourceMap` on, as it is in a new Nest
-project.
+`nest-cli.json`): a built app serves the compiled endpoint files it finds, and a file left over
+from an endpoint you deleted would be one of them. Under `nest start`, a compiled endpoint whose
+source file is gone is not served; that needs `sourceMap` on, as it is in a new Nest project.

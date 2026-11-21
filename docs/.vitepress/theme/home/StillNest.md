@@ -2,9 +2,9 @@
 // @filename: src/endpoints/admin/refund.sample.ts
 import { UseGuards } from '@nestjs/common';
 import { decorated, endpoint, z } from 'nestjs-endpoints';
-import { AdminGuard } from '../../auth/admin.guard';
-import { CurrentUser, type User } from '../../auth/current-user.decorator';
-import { PaymentsService } from '../../payments/payments.service';
+import { AdminGuard } from '../../auth/admin.guard.js';
+import { CurrentUser, type User } from '../../auth/current-user.decorator.js';
+import { PaymentsService } from '../../payments/payments.service.js';
 // ---cut---
 export default endpoint.mutation({
   input: z.object({ orderId: z.number(), reason: z.string() }),
