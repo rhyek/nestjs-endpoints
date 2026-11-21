@@ -13,3 +13,6 @@ docs/.vitepress/dist/
 docs/.vitepress/cache/
 # left behind when a VitePress build is interrupted
 docs/.vitepress/config.ts.timestamp-*
+
+# Local settings for this machine, such as DOCS_PUBLIC_ORIGIN for the docs dev server
+.env*.local

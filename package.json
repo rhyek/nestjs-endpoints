@@ -11,12 +11,13 @@
     "lint:fix": "oxlint --disable-nested-config --fix",
     "format": "oxfmt --disable-nested-config",
     "format:check": "oxfmt --check --disable-nested-config",
-    "docs:dev": "./scripts/build.sh && pnpm --filter nestjs-endpoints-docs dev",
+    "docs:dev": "./scripts/build.sh && dotenvx run -f .env.local --ignore=MISSING_ENV_FILE -- pnpm --filter nestjs-endpoints-docs dev",
     "docs:build": "./scripts/build.sh && pnpm --filter nestjs-endpoints-docs build",
     "docs:preview": "pnpm --filter nestjs-endpoints-docs preview",
     "prepare": "husky"
   },
   "devDependencies": {
+    "@dotenvx/dotenvx": "^2.38.2",
     "@nestjs/common": "^12.4.0",
     "@nestjs/core": "^12.4.0",
     "@nestjs/swagger": "^12.1.1",
