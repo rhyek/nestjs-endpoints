@@ -4,7 +4,8 @@ import { vi } from 'vitest';
 import z from 'zod';
 import { ApiQueries, getEndpointHttpPath } from './helpers';
 
-vi.mock('@nestjs/swagger', () => ({
+vi.mock('@nestjs/swagger', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@nestjs/swagger')>()),
   ApiQuery: vi.fn(() => () => {}),
   ApiParam: vi.fn(() => () => {}),
 }));
@@ -14,32 +15,31 @@ describe('ApiQueries', () => {
     vi.clearAllMocks();
   });
 
+  /** What each `ApiQuery()` call documented: the parameter, and its schema as it is read. */
+  const documented = () =>
+    vi.mocked(ApiQuery).mock.calls.map(([options]) => {
+      const { standardSchema, ...parameter } = options as unknown as {
+        standardSchema: { '~standard': { jsonSchema: { input: () => unknown } } };
+      };
+      return { ...parameter, schema: standardSchema['~standard'].jsonSchema.input() };
+    });
+
   test('should create ApiQuery decorator for each key in schema', () => {
     const schema = z.object({ a: z.string() });
     ApiQueries(schema);
 
-    expect(ApiQuery).toHaveBeenCalledTimes(1);
-    expect(ApiQuery).toHaveBeenCalledWith(
-      expect.objectContaining({
-        name: 'a',
-        required: true,
-        schema: { type: 'string' },
-      }),
-    );
+    expect(documented()).toEqual([
+      { name: 'a', required: true, schema: { type: 'string', $defs: {} } },
+    ]);
   });
 
   test('should create ApiQuery decorators for an object schema with a preprocess', () => {
     const schema = z.preprocess((arg) => arg, z.object({ a: z.string() }));
     ApiQueries(schema);
 
-    expect(ApiQuery).toHaveBeenCalledTimes(1);
-    expect(ApiQuery).toHaveBeenCalledWith(
-      expect.objectContaining({
-        name: 'a',
-        required: true,
-        schema: { type: 'string' },
-      }),
-    );
+    expect(documented()).toEqual([
+      { name: 'a', required: true, schema: { type: 'string', $defs: {} } },
+    ]);
   });
 
   test('should create ApiQuery decorators for nested object schema', () => {
@@ -49,25 +49,21 @@ describe('ApiQueries', () => {
     });
     ApiQueries(schema);
 
-    expect(ApiQuery).toHaveBeenCalledTimes(2);
-    expect(ApiQuery).toHaveBeenCalledWith(
-      expect.objectContaining({
-        name: 'a',
-        required: true,
-        schema: { type: 'string' },
-      }),
-    );
-    expect(ApiQuery).toHaveBeenCalledWith(
-      expect.objectContaining({
+    expect(documented()).toEqual([
+      { name: 'a', required: true, schema: { type: 'string', $defs: {} } },
+      {
         name: 'b',
         required: true,
+        style: 'deepObject',
+        explode: true,
         schema: {
           type: 'object',
           properties: { c: { type: 'string' } },
           required: ['c'],
+          $defs: {},
         },
-      }),
-    );
+      },
+    ]);
   });
 });
 

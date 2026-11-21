@@ -10,8 +10,8 @@ export default defineConfig({
   unbundle: true,
   // `.js` rather than `.mjs`: the package is `"type": "module"`.
   fixedExtension: false,
-  // The running app follows `dist/endpoints.gen.js`'s source map back to `src/endpoints.gen.ts`
-  // to keep the manifest current.
+  // Next to its source, a router leaves out a compiled endpoint whose source file is gone: it
+  // finds the source through the map.
   sourcemap: true,
   // Packages are imported at run time, as written, never bundled.
   deps: { neverBundle: true },

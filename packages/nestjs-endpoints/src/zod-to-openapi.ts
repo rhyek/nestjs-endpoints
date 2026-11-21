@@ -1,7 +1,6 @@
 import * as z from 'zod';
 import type { ZodType } from 'zod';
 import { createSchema } from 'zod-openapi';
-import { settings } from './settings';
 
 const openApiVersion = '3.1.1';
 
@@ -89,9 +88,4 @@ export function toJsonSchema(schema: ZodType, io: SchemaIo, ref?: string): Conve
     json: result.schema as JsonSchema,
     components: (result.components ?? {}) as Record<string, JsonSchema>,
   };
-}
-
-/** Adds `components` to the OpenAPI document's `components.schemas`. */
-export function registerComponents(components: Record<string, JsonSchema>) {
-  Object.assign(settings.openapi.components.schemas, components);
 }

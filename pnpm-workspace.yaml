@@ -9,6 +9,9 @@ packages:
   # below and the library build.
   - 'benchmarks/nestjs-endpoints-app'
   - 'benchmarks/nestjs-app'
+  # The documentation site (VitePress). Its code samples are type-checked against the library, on
+  # a TypeScript of its own: Twoslash drives the JavaScript compiler API, which TypeScript 7 has not.
+  - 'docs'
 
 # The compiled library resolves @nestjs/core from the root node_modules while each
 # test app resolves its own. pnpm keys a package's physical instance on its resolved
@@ -29,6 +32,8 @@ overrides:
 allowBuilds:
   esbuild: true
   '@scarf/scarf': false
+  # Its binary is an optional dependency; the script only looks for it.
+  '@swc/core': false
   es5-ext: false
   vue-demi: false
 
@@ -36,21 +41,13 @@ allowBuilds:
 # clears pnpm's one-day release-age gate. Excluded by exact version: bumping
 # Kubb means updating these lines alongside the pins.
 minimumReleaseAgeExclude:
-  - '@kubb/adapter-oas@5.20.1'
   - '@kubb/ast@5.20.1'
-  - '@kubb/cli@5.20.1'
   - '@kubb/core@5.20.1'
   - '@kubb/kit@5.20.1'
-  - '@kubb/mcp@5.20.1'
-  - '@kubb/parser-md@5.20.1'
   - '@kubb/parser-ts@5.20.1'
-  - '@kubb/plugin-barrel@5.20.1'
   - '@kubb/plugin-axios@6.0.3'
   - '@kubb/plugin-client@6.0.3'
   - '@kubb/plugin-react-query@5.10.3'
   - '@kubb/plugin-ts@5.5.3'
   - '@kubb/plugin-zod@5.9.3'
   - '@kubb/renderer-jsx@5.20.1'
-  - '@kubb/studio@5.20.1'
-  - kubb@5.20.1
-  - unplugin-kubb@5.20.1

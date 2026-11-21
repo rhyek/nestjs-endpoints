@@ -1,3 +1,4 @@
+import { casing } from '@kubb/kit';
 /**
  * Shared logic for turning the endpoints' descriptors into the nested,
  * namespaced client shape — operation collection (by `namespaceChain`, under
@@ -7,7 +8,6 @@
  * per-operation access expressions.
  */
 import { resolverReactQuery } from '@kubb/plugin-react-query';
-import { casing } from 'kubb/kit';
 import type { EndpointDescriptor, HttpMethod } from '../../descriptors';
 
 /**
@@ -109,7 +109,7 @@ export type OperationTarget = {
 
 type NamespacedOp = OperationTarget & {
   namespaceChain: string[];
-  /** Identifier on the generated flat module / hooks barrel. */
+  /** Identifier on the generated `clients` / `hooks` module. */
   sourceName: string;
   /** Property name on the nested api object after namespace stripping. */
   propertyName: string;

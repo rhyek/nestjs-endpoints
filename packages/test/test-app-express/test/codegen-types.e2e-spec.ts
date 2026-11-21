@@ -2,7 +2,7 @@ import { mkdtemp, readFile, rm, stat } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { NestFactory } from '@nestjs/core';
-import { setupCodegen, setupOpenAPI, type z } from 'nestjs-endpoints';
+import { setupCodegen, type z } from 'nestjs-endpoints';
 import { toJsonSchema } from '../../../nestjs-endpoints/dist/zod-to-openapi.js';
 import { createApiClient } from '../generated/react-query-client';
 import type * as Types from '../generated/react-query-client/types';
@@ -95,13 +95,17 @@ describe('generated types and schemas match the zod schemas', () => {
   // ProfileAddress differs between directions only by the
   // `additionalProperties: false` zod adds to outputs, so it has no twin.
   test('ProfileAddress is one type for requests and responses', async () => {
-    const dir = path.resolve(import.meta.dirname, '../generated/react-query-client/types');
-    await expect(stat(path.join(dir, 'ProfileAddress.ts'))).resolves.toBeTruthy();
-    await expect(stat(path.join(dir, 'ProfileAddressOutput.ts'))).rejects.toThrow();
-    for (const file of ['ProfileUpdateInput.ts', 'ProfileUpdateOutput.ts']) {
-      const source = await readFile(path.join(dir, file), 'utf8');
-      expect(source).toMatch(/\bProfileAddress\b/);
-      expect(source).not.toContain('ProfileAddressOutput');
+    const types = await readFile(
+      path.resolve(import.meta.dirname, '../generated/react-query-client/types.ts'),
+      'utf8',
+    );
+    expect(types).toMatch(/^export type ProfileAddress = /m);
+    expect(types).not.toContain('ProfileAddressOutput');
+    for (const name of ['ProfileUpdateInput', 'ProfileUpdateOutput']) {
+      const declaration = new RegExp(`^export type ${name} = \\{[\\s\\S]*?^\\};`, 'm').exec(
+        types,
+      )![0];
+      expect(declaration).toMatch(/\bProfileAddress\b/);
     }
   });
 });
@@ -118,7 +122,7 @@ describe('setupCodegen', () => {
   async function run(outputFile: string) {
     const app = await NestFactory.create(AppModule, { logger: false });
     try {
-      return await setupCodegen(app, {
+      await setupCodegen(app, {
         clients: [{ type: 'axios', outputFile }],
       });
     } finally {
@@ -126,10 +130,9 @@ describe('setupCodegen', () => {
     }
   }
 
-  test('without openapi writes no document', async () => {
+  test('writes no OpenAPI document beside its own code', async () => {
     const outputFile = path.join(dir, 'client.ts');
-    const result = await run(outputFile);
-    expect(result).toEqual({ document: undefined });
+    await run(outputFile);
     const built = path.resolve(import.meta.dirname, '../../../nestjs-endpoints/dist/codegen');
     await expect(stat(built)).resolves.toBeTruthy();
     await expect(stat(path.join(built, '__generated-openapi.json'))).rejects.toMatchObject({
@@ -146,26 +149,5 @@ describe('setupCodegen', () => {
     await run(outputFile);
     const after = [await stat(outputFile), await stat(runtime)];
     expect(after.map((s) => s.mtimeMs)).toEqual(before.map((s) => s.mtimeMs));
-  });
-
-  test("a relative openapi outputFile resolves against the caller's file", async () => {
-    // A folder next to this file: resolved against any other directory, the
-    // relative path names a file elsewhere.
-    const local = await mkdtemp(path.join(import.meta.dirname, '.relative-openapi-'));
-    const app = await NestFactory.create(AppModule, { logger: false });
-    try {
-      await setupCodegen(app, {
-        openapi: { outputFile: path.join(path.basename(local), 'codegen.json') },
-        clients: [{ type: 'axios', outputFile: path.join(dir, 'client.ts') }],
-      });
-      await setupOpenAPI(app, {
-        outputFile: path.join(path.basename(local), 'openapi.json'),
-      });
-      await expect(stat(path.join(local, 'codegen.json'))).resolves.toBeTruthy();
-      await expect(stat(path.join(local, 'openapi.json'))).resolves.toBeTruthy();
-    } finally {
-      await app.close();
-      await rm(local, { recursive: true, force: true });
-    }
   });
 });

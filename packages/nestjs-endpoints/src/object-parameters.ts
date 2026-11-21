@@ -1,8 +1,9 @@
 import { applyDecorators } from '@nestjs/common';
-import { ApiParam, ApiQuery } from '@nestjs/swagger';
 import { z, ZodPipe, ZodTransform } from 'zod';
+import { documented, type DocumentedSchema } from './document-schemas';
 import { unalias } from './shared-schemas';
-import { ConvertedSchema, JsonSchema, registerComponents, toJsonSchema } from './zod-to-openapi';
+import { ApiParam, ApiQuery } from './swagger';
+import { ConvertedSchema, JsonSchema, toJsonSchema } from './zod-to-openapi';
 
 /** An object schema, bare or behind a transform or preprocess step. */
 export type ObjectSchemaLike =
@@ -91,20 +92,24 @@ export function convertObject(zodObject: ObjectSchemaLike, at = 'The schema'): O
 }
 
 /**
- * The `@ApiQuery()` or `@ApiParam()` decorators of an object's parameters.
- * Path parameters are always required in OpenAPI. An object search parameter
- * is a `deepObject` (`?add[a]=1&add[b]=2`).
+ * The `@ApiQuery()` or `@ApiParam()` decorators of an object's parameters, each with its
+ * schema as `document` gives it. Path parameters are always required in OpenAPI. An object
+ * search parameter is a `deepObject` (`?add[a]=1&add[b]=2`).
  */
-export function apiParameters(where: 'query' | 'path', parameters: ObjectParameter[]) {
+export function apiParameters(
+  where: 'query' | 'path',
+  parameters: ObjectParameter[],
+  document: (schema: JsonSchema) => DocumentedSchema,
+) {
   return parameters.map(({ name, required, schema, shape }) =>
     where === 'query'
       ? ApiQuery({
           name,
           required,
-          schema,
+          standardSchema: document(schema),
           ...(shape === 'object' && { style: 'deepObject', explode: true }),
         })
-      : ApiParam({ name, required: true, schema }),
+      : ApiParam({ name, required: true, standardSchema: document(schema) }),
   );
 }
 
@@ -140,10 +145,11 @@ export function loneValuesAsArrays(
 
 /**
  * `ApiQueries()` and `ApiParams()`: an object schema's properties as the
- * operation's parameters, with the components they name added to the document.
+ * operation's parameters, each with the components the object names.
  */
 export function objectParameters(where: 'query' | 'path', zodObject: ObjectSchemaLike, at: string) {
   const { parameters, components } = convertObject(zodObject, at);
-  registerComponents(components);
-  return applyDecorators(...apiParameters(where, parameters));
+  return applyDecorators(
+    ...apiParameters(where, parameters, (json) => documented(() => ({ json, components }))),
+  );
 }

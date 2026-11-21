@@ -1,27 +1,54 @@
-import { Req } from '@nestjs/common';
+import path from 'node:path';
+import { DynamicModule, Req } from '@nestjs/common';
 import { decorated, endpoint } from './endpoint-fn';
 import { EndpointRouter, EndpointRouterModule, LazyPromise } from './endpoint-router.module';
 import { moduleAls } from './helpers';
 
-describe('a router no endpoint manifest covers', () => {
-  test('fails at bootstrap with the fix', async () => {
-    await expect(EndpointRouterModule.create({ rootDirectory: '/nowhere' })).rejects.toThrow(
-      /no endpoint manifest covers[\s\S]*npx nestjs-endpoints init[\s\S]*setupFiles/,
-    );
+const fixtures = path.resolve(import.meta.dirname, '../test/fixtures/routing');
+const pathsOf = (module: DynamicModule) =>
+  (module.controllers ?? []).map((c) => Reflect.getMetadata('endpoints:path', c) as string).sort();
+
+describe('a router finds its endpoint files where the app runs', () => {
+  test('serves the endpoint files in its root directory, and those of a nested router', async () => {
+    const module = await EndpointRouterModule.create({
+      rootDirectory: path.join(fixtures, 'basic'),
+    });
+    expect(pathsOf(module)).toEqual(['a', 'b']);
+    const [shop] = module.imports as DynamicModule[];
+    expect(pathsOf(shop)).toEqual(['shop/c']);
   });
 
-  test('is fine when it only lists its endpoints, having nothing to discover', async () => {
-    const module = await EndpointRouterModule.create({ endpoints: [] });
+  test('with no root directory, scans the folder of the file that created it', async () => {
+    // `siblings/blog/router.module.ts` names none, and finds the endpoint file beside it.
+    const { default: blog } = await import('../test/fixtures/routing/siblings/blog/router.module');
+    expect(pathsOf(await blog)).toEqual(['blog/list']);
+  });
+
+  test.each([
+    ['is not there', '/nowhere'],
+    ['has no endpoint files', path.join(fixtures, 'empty')],
+  ])('serves nothing from a root directory that %s', async (_, rootDirectory) => {
+    const module = await EndpointRouterModule.create({ rootDirectory });
     expect(module.controllers).toEqual([]);
   });
 
-  test('still fails when it also names a root directory', async () => {
-    await expect(
-      EndpointRouterModule.create({
-        rootDirectory: '/nowhere',
-        endpoints: [],
-      }),
-    ).rejects.toThrow(/no endpoint manifest covers/);
+  test('takes the TypeScript file where a compiled twin sits beside it', async () => {
+    const module = await EndpointRouterModule.create({
+      rootDirectory: path.join(fixtures, 'twins'),
+    });
+    expect(pathsOf(module)).toEqual(['a']);
+  });
+
+  test('fails with the error of an endpoint file that throws while it loads', async () => {
+    const failure = await EndpointRouterModule.create({
+      rootDirectory: path.join(fixtures, 'throws'),
+    }).then(
+      () => undefined,
+      (error: unknown) => error as Error,
+    );
+    expect(failure?.message).toBe('boom in bad.endpoint');
+    // The error is the file's own, so its stack says where it was thrown.
+    expect(failure?.stack).toContain(path.join('throws', 'bad.endpoint.ts'));
   });
 });
 

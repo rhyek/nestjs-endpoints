@@ -12,9 +12,6 @@ export default defineConfig({
     ...ignorePatterns,
     // Codegen output: every test app has one, not just the examples.
     '**/generated/**',
-    // Endpoint manifests: rewritten by the app as endpoint files come and go, so they stay in the
-    // generator's own format.
-    '**/endpoints.gen.ts',
     // Self-contained showcases, each its own workspace with its own install.
     'examples/**',
   ],

@@ -766,8 +766,9 @@ test('an unknown keyword in a shared schema names an operation using it', () => 
 async function printTypes(input: InputNode): Promise<Record<string, string>> {
   const dir = await mkdtemp(path.join(os.tmpdir(), 'nestjs-endpoints-adapter-'));
   try {
-    const [{ createKubb }, { pluginTs }, { pluginAxios }] = await Promise.all([
-      import('kubb'),
+    const [{ createKubb }, { parserTs }, { pluginTs }, { pluginAxios }] = await Promise.all([
+      import('@kubb/core'),
+      import('@kubb/parser-ts'),
       import('@kubb/plugin-ts'),
       import('@kubb/plugin-axios'),
     ]);
@@ -776,10 +777,10 @@ async function printTypes(input: InputNode): Promise<Record<string, string>> {
       root: dir,
       input: {},
       adapter: adapterEndpoints(input),
+      parsers: [parserTs()],
       output: {
         path: outDir,
         clean: true,
-        barrel: false,
         format: false,
         lint: false,
       },

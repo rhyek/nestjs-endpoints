@@ -7,3 +7,9 @@ generated/
 !packages/test/test-app-express/generated
 CLAUDE.local.md
 maintenance/docs/superpowers/
+
+# The documentation site's build output and cache (VitePress)
+docs/.vitepress/dist/
+docs/.vitepress/cache/
+# left behind when a VitePress build is interrupted
+docs/.vitepress/config.ts.timestamp-*

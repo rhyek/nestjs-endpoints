@@ -1,0 +1,128 @@
+/*
+ * The accent is NestJS's red, in place of the default theme's indigo: darker on a light page and
+ * lighter on a dark one, so links and buttons keep their contrast. Inline code takes the text
+ * color, so a page full of option names isn't tinted.
+ */
+:root {
+  --vp-c-brand-1: #c81e45;
+  --vp-c-brand-2: #e0234e;
+  --vp-c-brand-3: #c81e45;
+  --vp-c-brand-soft: rgba(224, 35, 78, 0.12);
+  --vp-code-color: var(--vp-c-text-1);
+  --vp-home-hero-name-background: linear-gradient(120deg, #e0234e 20%, #ff7a59);
+}
+
+.dark {
+  --vp-c-brand-1: #ff6b8a;
+  --vp-c-brand-2: #f0456c;
+  --vp-c-brand-3: #d42a52;
+  --vp-c-brand-soft: rgba(255, 107, 138, 0.14);
+}
+
+/*
+ * The benchmark chart's two bars: nestjs-endpoints in the accent, plain NestJS in gray. The
+ * gray is lighter than the red in both themes, which is what keeps the two apart for a reader
+ * who doesn't see red (each bar is also labeled with its name).
+ */
+:root {
+  --benchmark-endpoints: #e0234e;
+  --benchmark-nest: #8b8f98;
+}
+
+.dark {
+  --benchmark-endpoints: #f0456c;
+  --benchmark-nest: #8f949d;
+}
+
+/*
+ * The home page's own sections share the default theme's frame, so their edges line up with the
+ * feature cards': content up to 1152px wide, inside the page's side padding. `--home-section-gap`
+ * is the space a section leaves before the next one.
+ */
+.home-section {
+  --home-section-gap: 64px;
+  box-sizing: content-box;
+  max-width: 1152px;
+  margin: 0 auto;
+  padding-inline: 24px;
+}
+
+@media (min-width: 640px) {
+  .home-section {
+    --home-section-gap: 80px;
+    padding-inline: 48px;
+  }
+}
+
+@media (min-width: 960px) {
+  .home-section {
+    --home-section-gap: 96px;
+    padding-inline: 64px;
+  }
+}
+
+/* The words of a home section: a small label, the section's title, and the paragraph under it. */
+.home-eyebrow {
+  font-size: 12px;
+  line-height: 16px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--vp-c-brand-1);
+}
+
+.home-title {
+  font-size: 28px;
+  line-height: 36px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: var(--vp-c-text-1);
+}
+
+.home-details {
+  margin: 12px 0 20px;
+  font-size: 16px;
+  line-height: 26px;
+  color: var(--vp-c-text-2);
+}
+
+/*
+ * A compiler error under the line it is on (a sample marked `// @errors`). The message is as wide
+ * as the block and wraps inside it, and stays in view when a long line makes the block scroll
+ * sideways. A block that has one is a size container, so the message can be measured against it.
+ */
+.vp-doc div[class*='language-']:has(.twoslash-error-line) {
+  container-type: inline-size;
+}
+
+.vp-doc .twoslash .twoslash-error-line {
+  position: sticky;
+  /* the code's own side padding, which the message's width leaves out on both sides */
+  left: 24px;
+  box-sizing: border-box;
+  width: calc(100cqw - 48px);
+  /* Twoslash's own style stretches the message to the longest line */
+  min-width: 0;
+  margin: 4px 0;
+  padding: 6px 24px;
+  white-space: pre-wrap;
+}
+
+/* A type or completion popup that is always shown sits under the site's navigation bar. */
+.twoslash-floating.v-popper__popper {
+  z-index: 20;
+}
+
+/*
+ * A type shown under its line (`^?`) is inside the sample's block, so the padding the block gives
+ * its own code applies to the type's code as well, and the box comes out padded twice.
+ */
+.vp-doc [class*='language-'] .twoslash-query-line pre,
+.vp-doc [class*='language-'] .twoslash-query-line code {
+  padding: 0;
+}
+
+/* The type box sits 0.6em under its line; the gap after it is the same size, not 1.4em. */
+.twoslash .twoslash-query-line .twoslash-popup-container {
+  margin-bottom: 0.6em;
+}

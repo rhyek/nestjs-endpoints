@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { mkdtemp, readdir, readFile, rm } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, expect, test } from 'vitest';
@@ -75,16 +75,26 @@ test("the hooks, their options and customOptions' hook options follow each opera
   });
   const read = (file: string) => readFile(path.join(dir, file), 'utf8');
 
-  const hooks = await read('client/hooks/index.ts');
-  expect(hooks).toContain('export { itemsListQueryKey, itemsListQueryOptions, useItemsList }');
-  expect(hooks).toContain(
-    'export { itemsRemoveMutationKey, itemsRemoveMutationOptions, useItemsRemove }',
-  );
-  expect(hooks).not.toMatch(/itemsCount|ItemsCount/);
-  expect(await read('client/hooks/useItemsList.ts')).toContain('useQuery(');
-  expect(await read('client/hooks/useItemsRemove.ts')).toContain('useMutation<');
+  // One module per plugin, and no directory of files per operation. `customOptions` adds
+  // its two.
+  expect((await readdir(path.join(dir, 'client'))).sort()).toEqual([
+    '.kubb',
+    'HookOptions.ts',
+    'clients.ts',
+    'custom-hook-options.ts',
+    'hooks.ts',
+    'schemas.ts',
+    'types.ts',
+  ]);
 
-  const hookOptions = await read('client/hooks/HookOptions.ts');
+  const hooks = await read('client/hooks.ts');
+  expect(hooks).toContain('export function useItemsList');
+  expect(hooks).toContain('useQuery(');
+  expect(hooks).toContain('export function useItemsRemove');
+  expect(hooks).toContain('useMutation<');
+  expect(hooks).not.toMatch(/itemsCount|ItemsCount/);
+
+  const hookOptions = await read('client/HookOptions.ts');
   expect(hookOptions).toContain('itemsListQueryOptions');
   expect(hookOptions).toContain('itemsRemoveMutationOptions');
   expect(hookOptions).not.toContain('itemsListMutationOptions');

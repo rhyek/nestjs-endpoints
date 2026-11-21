@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "nestjs-endpoints generate && tsdown",
+    "build": "tsdown",
     "start": "NODE_ENV=production node dist/main.js",
     "tscheck": "tsc --noEmit"
   },

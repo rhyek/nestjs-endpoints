@@ -7,8 +7,6 @@ export default defineConfig({
     ...ignorePatterns,
     // Codegen output.
     '**/generated/**',
-    // Endpoint manifests stay in the generator's own format.
-    '**/endpoints.gen.ts',
     // Self-contained showcases, each its own workspace.
     'examples/**',
     // README, CHANGELOG and the docs are formatted by hand.

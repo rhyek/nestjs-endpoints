@@ -41,7 +41,7 @@ export function clientHash(params: {
  * joined with `/`, written above each namespace bucket.
  */
 export function tagDescriptions(): Map<string, string> {
-  return new Map(settings.openapi.tags.map(({ name, description }) => [name, description]));
+  return new Map(settings.descriptions.map(({ name, description }) => [name, description]));
 }
 
 /**

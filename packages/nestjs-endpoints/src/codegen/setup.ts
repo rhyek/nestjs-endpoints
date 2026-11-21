@@ -1,12 +1,9 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { INestApplication } from '@nestjs/common';
-import type { OpenAPIObject } from '@nestjs/swagger';
 import { collectDescriptors, filterDescriptors } from '../descriptors';
-import { getCallsiteFile } from '../helpers';
-import { stripExtension } from '../manifest/scan';
 import { readOwnVersion } from '../package-json';
-import { buildOpenAPI, hasRelativeOutputFile, SetupOpenAPIOptions } from '../setup-openapi';
+import { stripExtension } from '../routing-files';
 import { mergeSharedSchemas, reachableSchemas, rootsOf } from '../shared-schemas';
 import { clientHash, printedTagDescriptions, readClientHash } from './hash';
 // Types only: Kubb and the generators load when a client is generated.
@@ -15,12 +12,6 @@ import type { ReactQueryPluginOptions } from './kubb/generate';
 export async function setupCodegen(
   app: INestApplication,
   params: {
-    /**
-     * When given, the OpenAPI document is built as `setupOpenAPI` does:
-     * written to `outputFile` and/or served at `ui.path`, when they are set.
-     * The clients are generated from the endpoints either way.
-     */
-    openapi?: SetupOpenAPIOptions;
     clients: ({
       outputFile: string;
       /**
@@ -52,7 +43,7 @@ export async function setupCodegen(
      */
     forceGenerate?: boolean | undefined;
   },
-): Promise<{ document?: OpenAPIObject }> {
+): Promise<void> {
   for (const client of params.clients) {
     if (client.namespaces !== undefined && client.namespaces.length === 0) {
       throw new Error(
@@ -71,10 +62,6 @@ export async function setupCodegen(
     }
   }
 
-  // Read here, before any await, while the caller is on the stack.
-  const openapiBaseDir = hasRelativeOutputFile(params.openapi)
-    ? path.dirname(getCallsiteFile())
-    : undefined;
   const version = readOwnVersion();
   if (params.forceGenerate) {
     // Wipe every client artifact this call owns so the generators start from
@@ -92,9 +79,6 @@ export async function setupCodegen(
   // the same name in every client, whatever its namespaces.
   const descriptors = collectDescriptors(app);
   const shared = mergeSharedSchemas(descriptors);
-  const document = params.openapi
-    ? (await buildOpenAPI(app, params.openapi, { descriptors, shared }, openapiBaseDir)).document
-    : undefined;
 
   const pathExists = (p: string) =>
     fs
@@ -160,6 +144,4 @@ export async function setupCodegen(
       }
     }),
   );
-
-  return { document };
 }

@@ -3,10 +3,10 @@
 // something of a nested router before the app.
 import '../src/shop/category/router.module';
 import { Test } from '@nestjs/testing';
-import { setupOpenAPI } from 'nestjs-endpoints';
 import request from 'supertest';
 import { AppModule } from '../src/app.module';
 import { createApp } from './create-app';
+import { openApiDocument } from './openapi-document';
 
 test('a nested router evaluated before its parent still mounts under it', async () => {
   const moduleFixture = await Test.createTestingModule({
@@ -16,7 +16,7 @@ test('a nested router evaluated before its parent still mounts under it', async 
   app.useLogger(false);
   try {
     await request(app.getHttpServer()).post('/shop/category/list').expect(200);
-    const { document } = await setupOpenAPI(app);
+    const document = openApiDocument(app);
     expect(document.paths['/shop/category/list'].post).toMatchObject({
       'x-namespace': ['shop', 'category'],
     });

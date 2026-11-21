@@ -8,27 +8,17 @@ export type EndpointSetupFn = (settings: {
 }) => void;
 
 /**
- * What endpoints and `ApiQueries()` / `ApiParams()` register as the app's
- * modules load, read when routers mount endpoints and when the OpenAPI
- * document is built.
+ * What endpoints and routers register as the app's modules load, read when routers mount
+ * endpoints and when clients are generated.
  */
 export const settings: {
   endpoints: {
     file: string;
     setupFn: EndpointSetupFn;
   }[];
-  openapi: {
-    components: {
-      schemas: Record<string, any>;
-    };
-    tags: { name: string; description: string }[];
-  };
+  /** The `description` of each router that has one, by its namespace or `basePath`. */
+  descriptions: { name: string; description: string }[];
 } = {
   endpoints: [],
-  openapi: {
-    components: {
-      schemas: {},
-    },
-    tags: [],
-  },
+  descriptions: [],
 };

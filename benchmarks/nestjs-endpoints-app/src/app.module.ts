@@ -1,8 +1,7 @@
 import { Module } from '@nestjs/common';
-import { EndpointRouterModule } from 'nestjs-endpoints';
-import './endpoints.gen';
+import { NestjsEndpoints } from 'nestjs-endpoints';
 
 @Module({
-  imports: [EndpointRouterModule.create({ rootDirectory: './endpoints' })],
+  imports: [NestjsEndpoints.forRoot({ router: { rootDirectory: './endpoints' } })],
 })
 export class AppModule {}

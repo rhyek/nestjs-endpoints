@@ -1,8 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import request from 'supertest';
-// Registering the manifest loads nothing: it only tells routers where their
-// files are. Only the router imported below loads, with its own subtree.
-import '../src/endpoints.gen';
+// Only the router imported below loads, with its own subtree.
 import ShopRouterModule from '../src/shop/router.module';
 import { createApp } from './create-app';
 

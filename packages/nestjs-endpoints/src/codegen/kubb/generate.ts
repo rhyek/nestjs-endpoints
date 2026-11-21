@@ -1,11 +1,12 @@
 import path from 'node:path';
+import { createKubb, type UserConfig } from '@kubb/core';
+import { ast, defineExtension, injectFile } from '@kubb/kit';
+import { parserTs, parserTsx } from '@kubb/parser-ts';
 import { pluginAxios } from '@kubb/plugin-axios';
 import { pluginReactQuery } from '@kubb/plugin-react-query';
 import { pluginTs } from '@kubb/plugin-ts';
-import { createKubb, type UserConfig } from 'kubb';
-import { ast, defineExtension, injectFile } from 'kubb/kit';
 import type { EndpointDescriptor } from '../../descriptors';
-import { stripExtension } from '../../manifest/scan';
+import { stripExtension } from '../../routing-files';
 import type { SharedSchemas } from '../../shared-schemas';
 import { hashHeader } from '../hash';
 import { adapterEndpoints, buildInputNode } from './adapter';
@@ -15,17 +16,24 @@ import { buildAxiosWrapperSource, buildReactQueryWrapperSource } from './wrapper
 
 /**
  * Options forwarded to `@kubb/plugin-react-query` (the public `options` field on
- * a react-query client). `client` (which client plugin the hooks call) and
- * `hooks` (the wrapper binds the `use*` hooks, so they are always generated)
- * are managed by nestjs-endpoints and omitted.
+ * a react-query client). nestjs-endpoints manages, and omits: `client` (which
+ * client plugin the hooks call), `hooks` (the wrapper binds the `use*` hooks, so
+ * they are always generated), and `output` and `group` (where the wrapper
+ * imports the hooks from).
  */
 export type ReactQueryPluginOptions = OmitEach<
   NonNullable<Parameters<typeof pluginReactQuery>[0]>,
-  'client' | 'hooks'
+  'client' | 'hooks' | 'output' | 'group'
 >;
 
 /** `Omit` applied to each member of a union (the plugin options are one). */
 type OmitEach<T, K extends PropertyKey> = T extends unknown ? Omit<T, K> : never;
+
+// Each Kubb plugin writes one module, not a file per operation or schema: a client is a
+// handful of files, and a contract change is a diff in the modules it touches.
+const TYPES_FILE = 'types.ts';
+const CLIENTS_FILE = 'clients.ts';
+const HOOKS_FILE = 'hooks.ts';
 
 /**
  * Inline Kubb plugin that emits our own artifacts as part of the same build:
@@ -97,21 +105,20 @@ async function runKubbBuild(params: {
     // the descriptors.
     input: {},
     adapter: adapterEndpoints(buildInputNode(source)),
+    // What prints the generated modules: the wrapper of a React Query client is a `.tsx`.
+    parsers: [parserTs(), parserTsx()],
     output: {
       path: outDir,
       clean: true,
-      // No root aggregate barrel — the wrapper imports the per-directory
-      // barrels it needs (clients / hooks / types) directly.
-      barrel: false,
       // Emit verbatim — no formatter/linter dependency, deterministic output.
       format: false,
       lint: false,
     },
     plugins: [
-      pluginTs(),
+      pluginTs({ output: { path: TYPES_FILE } }),
       // The request functions, and the axios runtime they call
       // (`.kubb/client.ts`), which the wrapper builds its clients from.
-      pluginAxios(),
+      pluginAxios({ output: { path: CLIENTS_FILE } }),
       ...plugins,
       emitPlugin({
         name,
@@ -213,6 +220,7 @@ export async function generateReactQueryClient(params: {
     plugins: [
       pluginReactQuery({
         ...options,
+        output: { path: HOOKS_FILE },
         // The builder, not the HTTP method, decides each operation's kind.
         override: kindOverrides(descriptors, options) as NonNullable<
           ReactQueryPluginOptions['override']

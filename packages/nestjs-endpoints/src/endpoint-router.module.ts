@@ -1,4 +1,5 @@
 import path from 'node:path';
+import { pathToFileURL } from 'node:url';
 import {
   CanActivate,
   DynamicModule,
@@ -8,10 +9,14 @@ import {
   NestInterceptor,
   NestMiddleware,
   NestModule,
+  Provider,
   Type,
   UseGuards,
   UseInterceptors,
 } from '@nestjs/common';
+import { ModulesContainer } from '@nestjs/core';
+import { sourceGoneFilter } from './compiled-source';
+import { instantiatedIn } from './document-schemas';
 import {
   createRouterEndpoint,
   EndpointBuilders,
@@ -20,19 +25,81 @@ import {
   WithoutKeys,
 } from './endpoint-fn';
 import { getCallsiteFile, moduleAls } from './helpers';
-import { MANIFEST_FILE_NAME } from './manifest/file';
-import {
-  EndpointManifestLoader,
-  findManifestCovering,
-  RegisteredManifest,
-} from './manifest/registry';
 import {
   endpointFileRegex,
   isSameModule,
+  listRoutingEntries,
   routerModuleFileRegex,
   stripExtension,
-} from './manifest/scan';
+} from './routing-files';
 import { EndpointSetupFn, settings } from './settings';
+import { watchRoutingFiles } from './watch';
+
+/**
+ * A provider every router has, which an app creates as it starts: it tells the endpoints'
+ * OpenAPI metadata which app they are in. An endpoint tells it too when it is instantiated,
+ * which an endpoint that injects a request-scoped provider is not until a request.
+ */
+const appOfRouter: Provider = {
+  provide: Symbol('nestjs-endpoints:app'),
+  inject: [ModulesContainer],
+  useFactory: (modules: ModulesContainer) => instantiatedIn(modules),
+};
+
+/** What `NestjsEndpoints.forRoot()` sets for an app. */
+export interface RootOptions {
+  watch: boolean;
+}
+
+/** In the module `NestjsEndpoints.forRoot()` returns: the app's root options. */
+const ROOT = Symbol('nestjs-endpoints:root');
+/** In the module of a router no other router discovered. */
+const TOP_LEVEL_ROUTER = Symbol('nestjs-endpoints:top-level-router');
+
+/**
+ * An app has one root: `NestjsEndpoints.forRoot()`, or else its only top-level
+ * router. Checked as the app instantiates the root's and each top-level
+ * router's module, against that app's own modules.
+ */
+const rootRules: Provider = {
+  provide: Symbol('nestjs-endpoints:root-rules'),
+  inject: [ModulesContainer],
+  useFactory: (modules: ModulesContainer) => {
+    const having = (token: symbol) =>
+      [...modules.values()].filter((module) => module.providers.has(token)).length;
+    const roots = having(ROOT);
+    if (roots > 1) {
+      throw new Error(
+        'nestjs-endpoints: NestjsEndpoints.forRoot() is called more than once. An app calls it once, in its root module.',
+      );
+    }
+    const routers = having(TOP_LEVEL_ROUTER);
+    if (roots === 0 && routers > 1) {
+      throw new Error(
+        `nestjs-endpoints: this app has ${routers} routers and no root. Add NestjsEndpoints.forRoot({ router: { … } }) to its root module; further routers stay as EndpointRouterModule.create().`,
+      );
+    }
+  },
+};
+
+/**
+ * For the module of the root router, and of each top-level one: watches the
+ * router's folders when the app's root asked for it.
+ */
+function watching(directories: string[], near: string): Provider {
+  return {
+    provide: Symbol('nestjs-endpoints:watch'),
+    inject: [ModulesContainer],
+    useFactory: async (modules: ModulesContainer) => {
+      const root = [...modules.values()]
+        .map((module) => module.providers.get(ROOT)?.instance as RootOptions | undefined)
+        .find((options) => options !== undefined);
+      if (root?.watch) {
+        await watchRoutingFiles({ directories, near });
+      }
+    },
+  };
+}
 
 /**
  * Express 5 / path-to-regexp v8, used by every NestJS version this library
@@ -69,7 +136,7 @@ function isMiddlewareOptions(m: unknown): m is RouterMiddlewareOptions {
   return m !== null && typeof m === 'object' && typeof m !== 'function';
 }
 
-type EndpointRouterModuleParams<
+export type EndpointRouterModuleParams<
   RouterInject extends InjectProvidersMap,
   RouterInjectOnRequest extends InjectOnRequestMap,
 > = NonNullable<
@@ -136,16 +203,17 @@ const nestedRouterParents = new Map<string, ParentStore>();
  * Captures what must be read at the call itself — the calling file and the
  * parent router's context — and defers the rest until the module is awaited.
  * NestJS awaits it while scanning modules, after the app's whole import graph
- * has been evaluated, so the endpoint manifest is registered by then no
- * matter where the app imports it.
+ * has been evaluated, so an endpoint file the router then imports finds the
+ * modules it depends on ready, the router's own among them.
  */
 function createLazily(
   callsiteFile: string,
   params: EndpointRouterModuleParams<any, any> | undefined,
+  root?: RootOptions,
 ): EndpointRouter<any, any> {
   const parentStore = moduleAls.getStore();
   return Object.assign(
-    new LazyPromise(() => EndpointRouterModule._register(callsiteFile, parentStore, params)),
+    new LazyPromise(() => EndpointRouterModule._register(callsiteFile, parentStore, params, root)),
     {
       endpoint: createRouterEndpoint(
         callsiteFile,
@@ -154,6 +222,29 @@ function createLazily(
       ),
     },
   );
+}
+
+/**
+ * What `NestjsEndpoints.forRoot()` returns: the app's root router, or, for an
+ * app that describes none, a module that only carries the root options.
+ */
+export function createRootRouter(
+  callsiteFile: string,
+  params: EndpointRouterModuleParams<any, any> | undefined,
+  root: RootOptions,
+): EndpointRouter<any, any> {
+  if (params) {
+    return createLazily(callsiteFile, params, root);
+  }
+  class RootModule {}
+  Module({})(RootModule);
+  const module: DynamicModule = {
+    module: RootModule,
+    providers: [{ provide: ROOT, useValue: root }, rootRules],
+  };
+  return Object.assign(Promise.resolve(module), {
+    endpoint: createRouterEndpoint(callsiteFile, undefined, undefined),
+  });
 }
 
 @Module({})
@@ -245,15 +336,9 @@ export class EndpointRouterModule {
        */
       namespace?: boolean | string;
       /**
-       * Human-readable description for this router's group. Surfaces in
-       * two places:
-       *
-       * - **OpenAPI**: registered as a top-level `tags[]` entry keyed by
-       *   the router's effective namespace (or `basePath` if no
-       *   namespace is declared). Swagger UI renders it under the
-       *   matching group header.
-       * - **Generated SDK**: emitted as a JSDoc comment on the matching
-       *   bucket key on the `api` object, so editors show it on hover.
+       * Human-readable description for this router's group, emitted in
+       * the generated SDK as a JSDoc comment on the matching bucket key
+       * on the `api` object, so editors show it on hover.
        */
       description?: string;
       imports?: ModuleMetadata['imports'];
@@ -311,6 +396,8 @@ export class EndpointRouterModule {
         >;
       };
     },
+    // Set for the router `NestjsEndpoints.forRoot()` creates.
+    root?: RootOptions,
   ): Promise<DynamicModule> {
     const parentStore =
       nestedRouterParents.get(stripExtension(callsiteFile)) ?? capturedParentStore;
@@ -396,19 +483,12 @@ export class EndpointRouterModule {
       ? [...parentNamespaceChain, ownNamespaceSegment]
       : parentNamespaceChain;
     let endpoints: Type[] = [];
-    // Discovered file → the loader of the manifest it was discovered in.
-    const nestedRouterModuleFiles = new Map<string, EndpointManifestLoader>();
-    const endpointFiles = new Map<string, EndpointManifestLoader>();
+    // Discovered file → what imports it.
+    const nestedRouterModuleFiles = new Map<string, RoutingFileLoader>();
+    const endpointFiles = new Map<string, RoutingFileLoader>();
+    const isSourceGone = sourceGoneFilter(callsiteFile);
     for (const root of rootDirectories) {
-      const manifest = findManifestCovering(root);
-      if (!manifest) {
-        // A router that only lists its endpoints has nothing to discover.
-        if (params?.endpoints && params.rootDirectory === undefined) {
-          continue;
-        }
-        throw new Error(missingManifestMessage(root));
-      }
-      findEndpoints(manifest, root, nestedRouterModuleFiles, endpointFiles, callsiteFile);
+      findEndpoints(root, nestedRouterModuleFiles, endpointFiles, callsiteFile, isSourceGone);
     }
     const endpointFilesNotImported = [...endpointFiles].filter(([f]) =>
       settings.endpoints.every((e) => !isSameModule(e.file, f)),
@@ -417,19 +497,18 @@ export class EndpointRouterModule {
 
     const normalizedParentBasePath = effectiveBasePath.replace(/^\/+|\/+$/g, '');
     if (params?.description) {
-      // Tag name tracks the same key endpoints will be tagged with
-      // below (namespace chain if set, else the basePath). Without
-      // either, there's no group to attach a description to.
+      // The key endpoints are tagged with below (namespace chain if set,
+      // else the basePath). Without either, there's no group to describe.
       const tagName =
         effectiveNamespaceChain.length > 0
           ? effectiveNamespaceChain.join('/')
           : normalizedParentBasePath;
       if (tagName) {
-        const existing = settings.openapi.tags.find((t) => t.name === tagName);
+        const existing = settings.descriptions.find((t) => t.name === tagName);
         if (existing) {
           existing.description = params.description;
         } else {
-          settings.openapi.tags.push({
+          settings.descriptions.push({
             name: tagName,
             description: params.description,
           });
@@ -543,7 +622,20 @@ export class EndpointRouterModule {
       module: RouterModule,
       imports: [...(params?.imports ?? []), ...nestedModules],
       exports: params?.exports,
-      providers: params?.providers,
+      providers: [
+        ...(params?.providers ?? []),
+        appOfRouter,
+        // The app's root, or a router no other router discovered.
+        ...(root
+          ? [{ provide: ROOT, useValue: root }, rootRules, watching(rootDirectories, callsiteFile)]
+          : parentStore
+            ? []
+            : [
+                { provide: TOP_LEVEL_ROUTER, useValue: true },
+                rootRules,
+                watching(rootDirectories, callsiteFile),
+              ]),
+      ],
       controllers: endpoints,
       [ALL_ENDPOINTS_SYMBOL]: allEndpoints,
     } as DynamicModule;
@@ -560,22 +652,56 @@ export const EndpointsRouterModule = EndpointRouterModule;
  */
 export type EndpointsRouterModule = EndpointRouterModule;
 
+/** Imports an endpoint or router-module file a router found. */
+type RoutingFileLoader = () => Promise<unknown>;
+
 /**
- * Walks `dir` in the manifest's view of the source tree. The manifest keys
- * carry source extensions while a compiled app runs `.js` files, so files
- * are compared without their extension.
+ * Vitest runs an installed package in plain Node unless the project inlines
+ * it, and this package's `import()` of an endpoint file would then skip Vite:
+ * a TypeScript file the app's own imports cannot find, or a second copy of
+ * every class it imports.
+ *
+ * Two facts tell that case. Vite gives the modules it processes an
+ * `import.meta.env`, and Node gives none. And a Vitest worker has both the
+ * `VITEST` variable and Vitest's worker state; a process a test started (an
+ * app run with `nest start` from a spec) inherits the variable but has no
+ * worker state, and is left alone.
+ */
+function assertVitestProcessesThisPackage(): void {
+  const inVitestWorker = Boolean(process.env.VITEST) && '__vitest_worker__' in globalThis;
+  if (inVitestWorker && (import.meta as { env?: unknown }).env === undefined) {
+    throw new Error(
+      'nestjs-endpoints: Vitest must process this package to load endpoint files. ' +
+        'Add it to "server.deps.inline" in your Vitest config:\n\n' +
+        "  test: { server: { deps: { inline: ['nestjs-endpoints'] } } }",
+    );
+  }
+}
+
+function loaderOf(file: string): RoutingFileLoader {
+  return () => {
+    assertVitestProcessesThisPackage();
+    return import(pathToFileURL(file).href);
+  };
+}
+
+/**
+ * Walks `dir` where the app runs: the source tree under a TypeScript loader
+ * or Vitest, the compiled output otherwise. `isSourceGone` leaves out a
+ * compiled file whose source file was deleted.
  */
 function findEndpoints(
-  manifest: RegisteredManifest,
   dir: string,
-  nestedRouterModuleFiles: Map<string, EndpointManifestLoader>,
-  endpointFiles: Map<string, EndpointManifestLoader>,
+  nestedRouterModuleFiles: Map<string, RoutingFileLoader>,
+  endpointFiles: Map<string, RoutingFileLoader>,
   callerRouterModuleFile: string,
+  isSourceGone: (file: string) => boolean,
 ) {
-  const entries = manifest.tree.get(dir);
-  if (!entries) {
-    return;
-  }
+  const entries = new Map(
+    listRoutingEntries(dir).filter(
+      ([name, isDirectory]) => isDirectory || !isSourceGone(path.join(dir, name)),
+    ),
+  );
   // A directory that contains a `router.module.*` file is treated as a
   // nested router — regardless of depth. The only exception is the
   // caller's own router module file (avoids self-registration when a
@@ -584,16 +710,22 @@ function findEndpoints(
   if (routerFile) {
     const routerFilePath = path.join(dir, routerFile);
     if (!isSameModule(routerFilePath, callerRouterModuleFile)) {
-      nestedRouterModuleFiles.set(routerFilePath, manifest.loaders.get(routerFilePath)!);
+      nestedRouterModuleFiles.set(routerFilePath, loaderOf(routerFilePath));
       return;
     }
   }
   for (const [f, isDirectory] of entries) {
     const file = path.join(dir, f);
     if (isDirectory) {
-      findEndpoints(manifest, file, nestedRouterModuleFiles, endpointFiles, callerRouterModuleFile);
+      findEndpoints(
+        file,
+        nestedRouterModuleFiles,
+        endpointFiles,
+        callerRouterModuleFile,
+        isSourceGone,
+      );
     } else if (endpointFileRegex.test(f)) {
-      endpointFiles.set(file, manifest.loaders.get(file)!);
+      endpointFiles.set(file, loaderOf(file));
     }
   }
 }
@@ -617,17 +749,7 @@ async function resolveListedEndpoints(listed: ListedEndpoint, routerFile: string
   return exported;
 }
 
-async function loadDefault(load: EndpointManifestLoader): Promise<any> {
+async function loadDefault(load: RoutingFileLoader): Promise<any> {
   const module = (await load()) as { default?: unknown };
   return module.default;
-}
-
-function missingManifestMessage(rootDirectory: string): string {
-  const shown = path.relative(process.cwd(), rootDirectory) || '.';
-  return [
-    `nestjs-endpoints: no endpoint manifest covers "${shown}".`,
-    `File-based routing loads endpoint files through a generated ${MANIFEST_FILE_NAME}, which must be imported before Nest builds the module.`,
-    `Create it with \`npx nestjs-endpoints init\` (or \`npx nestjs-endpoints generate\`), then import it from your app module: import './endpoints.gen.js'; (\`.ts\` if you generated it with \`--import-extension ts\`)`,
-    `A test that imports a router module without the app module imports it too, or lists it in Vitest's \`setupFiles\`. Importing it loads no endpoints.`,
-  ].join('\n');
 }

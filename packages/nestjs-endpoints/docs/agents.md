@@ -3,9 +3,8 @@
 `nestjs-endpoints` turns a single `endpoint.query({...})` or
 `endpoint.mutation({...})` call into a real NestJS controller. One file = one
 route = one handler (the REPR pattern). Input and output are Zod schemas, which
-give you runtime validation, an OpenAPI 3.1.1 document, and — optionally — a
-fully typed `axios` / `@tanstack/react-query` client SDK generated from those
-schemas.
+give you runtime validation and — optionally — a fully typed `axios` /
+`@tanstack/react-query` client SDK generated from those schemas.
 
 This guide is the complete reference. Read the section you need; the tables near
 the top answer most questions on their own.
@@ -18,7 +17,7 @@ Check, in order:
 
 1. `nestjs-endpoints` in the `dependencies` of a `package.json`.
 2. Files named `*.endpoint.ts` / `endpoint.ts`, or `router.module.ts`.
-3. A call to `setupCodegen(` or `setupOpenAPI(` in a `main.ts` / bootstrap file.
+3. A call to `setupCodegen(` in a `main.ts` / bootstrap file.
 
 If none of those appear, this library is not in play — don't apply this guide.
 
@@ -37,15 +36,22 @@ surrounding code:
 ## 1. Requirements and hard constraints
 
 - Node.js >= 24.22, NestJS >= 12, TypeScript >= 6, Zod >= 4.1.
+- The app is run with the Nest CLI (`nest start`). Node with a TypeScript
+  loader (`@swc-node/register`, `@oxc-node/core`) works too; with
+  `node --watch`, set `watch: true` in `NestjsEndpoints.forRoot` so that a new
+  endpoint file restarts the app (§5.6).
 - **ESM-only.** The consuming project needs `"type": "module"`. CommonJS is not
   supported.
-- Peer deps: `@nestjs/common`, `@nestjs/core`, `@nestjs/swagger`, `zod`.
-  `@scalar/api-reference` is optional (docs viewer).
+- Peer deps: `@nestjs/common`, `@nestjs/core`, `zod`. `@nestjs/swagger` is an
+  optional one, for an app that builds an OpenAPI document (§6). Endpoints,
+  routers and the generated clients work without it.
 - **Bundled builds (Webpack, esbuild bundling, `nest build --webpack`) are not
   supported** for file-based routing: each endpoint's URL is derived from its
   file's location on disk, which a bundle collapses into one file.
-- **File-based routing needs the endpoint manifest** `src/endpoints.gen.ts`,
-  imported once by the app (§5.6). `npx nestjs-endpoints init` creates it.
+- **The app's root module calls `NestjsEndpoints.forRoot({ router })`, once**
+  (§5.6).
+- **Under Vitest, each Vitest config inlines the package**:
+  `server.deps.inline: ['nestjs-endpoints']` (§10).
 
 ---
 
@@ -70,7 +76,7 @@ mutation helpers (`useFn()`, `mutationKey`, `mutationOptions`) for
 
 `query` and `params` take an object schema, bare, behind a transform or
 preprocess step, or given through `schema()`; anything else is a type error.
-| `output` | Zod schema, or `Record<number, Zod schema>` | Response validation + OpenAPI. Multi-status form requires `response(...)`. |
+| `output` | Zod schema, or `Record<number, Zod schema>` | Response validation, and the response's type in the client. Multi-status form requires `response(...)`. |
 | `inject` | `Record<string, Type \| decorated<T>(...)>` | Class-level providers (≡ constructor injection). |
 | `injectOnRequest` | `Record<string, decorated<T>(...)>` | Per-request values (≡ `@Req()`, `@Session()`, …). |
 | `decorators` | `MethodDecorator[]` | Per-endpoint decorators, e.g. `UseGuards(AuthGuard)`. |
@@ -88,12 +94,15 @@ Returns `Promise<DynamicModule>` — pass it straight into `imports:` or
 `endpoint`, the router's own builders (`router.endpoint.query(...)` /
 `router.endpoint.mutation(...)`; §3.5).
 
+The app's root router takes the same options, as the `router` of
+`NestjsEndpoints.forRoot({ router })` in the app module (§5.6).
+
 | Option | Type | Notes |
 | --- | --- | --- |
 | `rootDirectory` | `string \| string[]` | Directory/directories to scan. Relative to the **calling file**. Default: the calling file's own directory. |
 | `basePath` | `string` | URL prefix for everything this router owns. Inferred when omitted (§5.2). `''` or `'/'` opts out. |
 | `namespace` | `boolean \| string` | SDK bucket segment. Does **not** affect URLs (§7). |
-| `description` | `string` | OpenAPI tag description + JSDoc on the generated SDK bucket. |
+| `description` | `string` | JSDoc on the generated SDK bucket. |
 | `endpoints` | `Type[] \| (() => (Type \| Promise<object>)[])` | Endpoints registered manually (they get this router's `basePath`). A callback runs when the router does, so the endpoints it `import()`s can use the router's `endpoint`; each `import()` lists every endpoint the module exports (§4.2). |
 | `middleware` | `(Type<NestMiddleware> \| Function)[]` | Optional trailing `{ exclude: string[] }` entry (paths relative to `basePath`). |
 | `interceptors` | `(Type<NestInterceptor> \| NestInterceptor)[]` | Applied controller-scoped to the whole subtree. |
@@ -151,17 +160,9 @@ Run with `npx nestjs-endpoints <command>` from the project root.
 
 | Command | What it does |
 | --- | --- |
-| `init` | One-time setup: writes the endpoint manifest `src/endpoints.gen.ts` (§5.6), marks `**/endpoints.gen.ts` as generated in `.gitattributes` (and `.prettierignore` if the project has one), installs the agent skill into `.claude/skills/` (mirrored into `.agents/` / `.cursor/` when present), and prints the import line to add to the app module. Safe to re-run. |
-| `init --refresh` | Only rewrites an installed, unedited, out-of-date skill; no-op otherwise. Never touches the manifest. For `postinstall` hooks. |
-| `generate` | Rewrites the endpoint manifest from the files on disk, only when its contents change. Put it in front of every script that starts the app (dev server, tests, codegen) so no process starts with an out-of-date manifest (§5.6). Also the fix when CI reports the manifest out of date. |
+| `init` | Installs the agent skill into `.claude/skills/` (mirrored into `.agents/` / `.cursor/` when present). Safe to re-run. |
+| `init --refresh` | Only rewrites an installed, unedited, out-of-date skill; no-op otherwise. For `postinstall` hooks. |
 | `help`, `--version` | Usage, and the installed version. |
-
-`init` and `generate` take:
-
-- `--dir <dir>` — the source directory the manifest covers (default `src`).
-- `--import-extension js|ts` — how the manifest's `import()` specifiers end:
-  `js` (default; tsc, tsx, swc, Vite) or `ts` (Node's native type stripping).
-  Without the flag, an existing manifest's setting is kept.
 
 ---
 
@@ -430,20 +431,19 @@ router instead (§5.5) — that's the whole point of router-scoped guards.
 ### 4.1 File-based (idiomatic)
 
 `export default` the endpoint; a router discovers the file and derives the URL
-from its location.
+from its location. The app module creates the root router with
+`NestjsEndpoints.forRoot` (§5.6):
 
 ```ts
 // src/app.module.ts
 import { Module } from '@nestjs/common';
-import { EndpointRouterModule } from 'nestjs-endpoints';
+import { NestjsEndpoints } from 'nestjs-endpoints';
 import { HealthService } from './health.service';
-import './endpoints.gen.js'; // the endpoint manifest (§5.6)
 
 @Module({
   imports: [
-    EndpointRouterModule.create({
-      rootDirectory: './endpoints',
-      providers: [HealthService],
+    NestjsEndpoints.forRoot({
+      router: { rootDirectory: './endpoints', providers: [HealthService] },
     }),
   ],
 })
@@ -514,9 +514,11 @@ but not in the generated SDK (§8).
 
 ## 5. The endpoint router
 
-`EndpointRouterModule.create()` walks its root directories — as listed in the
-endpoint manifest (§5.6) — auto-registers every endpoint file it finds, imports
-every nested router it finds, and gives each endpoint its HTTP path.
+A router walks its root directories when the app starts (§5.6), auto-registers
+every endpoint file it finds, imports every nested router it finds, and gives
+each endpoint its HTTP path. `NestjsEndpoints.forRoot({ router })` creates the
+app's root router, in the app module; `EndpointRouterModule.create()` creates
+every other one, with the same options (§2.2).
 
 ### 5.1 Discovery rules
 
@@ -529,8 +531,7 @@ every nested router it finds, and gives each endpoint its HTTP path.
   not scan inside it** — that subtree belongs to the child.
 - Directories whose name starts with `_` contribute nothing to the URL. Use
   `_endpoints/`, `_mutations/` etc. to group files without changing routes.
-- Files are found through the endpoint manifest, not by reading directories, and
-  each URL is derived from the file's own location. Keep the compiled layout
+- Each URL is derived from the file's own location. Keep the compiled layout
   identical to the source layout.
 
 ### 5.2 How a path is built
@@ -552,7 +553,7 @@ schema, and every key of `params` must correspond to a `:param`.
 
 ### 5.3 `basePath` inference
 
-| Where `create()` is called | Inferred `basePath` |
+| Where the router is created | Inferred `basePath` |
 | --- | --- |
 | A `router.module.*` file, top level | `/` + that file's folder name |
 | A `router.module.*` file, nested under a parent router | parent's `basePath` + the child's folder relative to the matching parent root (or, if outside it, relative to the parent module's folder) |
@@ -610,8 +611,8 @@ export default EndpointRouterModule.create({
 });
 ```
 
-A router can also live inside a regular `@Module` when you need normal NestJS
-wiring around it:
+A router can also live inside a regular `@Module`, beside the app's root
+router, when you need normal NestJS wiring around it:
 
 ```ts
 @Module({
@@ -655,72 +656,88 @@ export default EndpointRouterModule.create({
 - Guards/interceptors passed as classes must be resolvable — add them to
   `providers` on the same router (or an imported module).
 
-### 5.6 The endpoint manifest
+### 5.6 App setup, and how routers find files
 
-`src/endpoints.gen.ts` lists every endpoint and router-module file under `src/`
-as a lazy `() => import('./…')`. Routers find and load files through it, so the
-loads happen in app code: Vitest transforms them (no `server.deps.inline`
-needed) and `node --watch` / `tsx watch` restart when it changes.
+`NestjsEndpoints.forRoot()` sets the library up for an app and creates its root
+router. Call it **once, in the app's root module**; a second call fails
+startup.
 
-- **Never edit it by hand, and commit it.** It is generated.
-- **Import it once**, anywhere in the app's import graph — the app module is the
-  natural place. Order does not matter, and importing it loads no endpoints.
-- **Generate it before the app starts.** A process can only load the files
-  its manifest listed when it started, so scripts that start the app run
-  `nestjs-endpoints generate` first:
-  `"test": "nestjs-endpoints generate && vitest run"`, and the same in front
-  of the dev server and codegen scripts. It writes only when the contents
-  change.
-- **The app checks it too.** In development (`NODE_ENV` unset or
-  `development`) the app rewrites it at startup and on every add / delete /
-  rename of an endpoint or router-module file while running; a watcher then
-  restarts the app with the new route set. Test runs rewrite it at startup
-  only, and when endpoint files were added that run fails with "Run the tests
-  again" (it loaded the old list). With `CI` set, an out-of-date manifest fails startup. With
-  `NODE_ENV=production` it is used as is.
-- **A new endpoint added while the app runs is served after a restart.** Under
-  a watcher that is automatic; without one, restart the app.
-- **Deleted endpoints never fail startup** — entries whose file is gone are
-  skipped.
-- Regenerate on demand: `npx nestjs-endpoints generate` (`--dir <dir>` for a
-  source directory other than `src/`; `--import-extension ts` once for Node's
-  native type stripping, which needs `.ts` specifiers).
-- Compiled apps (`nest start --watch` runs `dist/`) find the source manifest
-  through the emitted source map; keep `sourceMap` on.
+```ts
+// src/app.module.ts
+import { Module } from '@nestjs/common';
+import { NestjsEndpoints } from 'nestjs-endpoints';
+
+@Module({
+  imports: [
+    NestjsEndpoints.forRoot({
+      router: { rootDirectory: './endpoints', providers: [OrdersService] },
+    }),
+  ],
+})
+export class AppModule {}
+```
+
+| Option | Type | Notes |
+| --- | --- | --- |
+| `router` | the options of §2.2 | The app's root router. `rootDirectory` is relative to the file that calls `forRoot()`. An app made only of routers it imports may leave `router` out. |
+| `watch` | `boolean` | Default `false`. When `true`, the app watches its endpoint folders so that `node --watch` restarts it when an endpoint file is added or removed, and keeps a small file per router under `node_modules/.cache/nestjs-endpoints/` for it. `nest start --watch` restarts by itself. |
+
+`forRoot()` returns what `EndpointRouterModule.create()` returns, the
+`endpoint` builders included (§3.5). Every other router is made with
+`EndpointRouterModule.create()`: a nested one in a `router.module.ts`, or one a
+module imports beside the root (§5.4).
+
+- **A router scans its root directories when the app starts, where the app
+  runs**: `src/` under a TypeScript loader or Vitest, `dist/` when compiled. It
+  loads the endpoint and router-module files that are there, the same way in
+  every environment.
+- **A new endpoint file is served after a restart.** `nest start --watch`
+  restarts by itself; without a watcher, restart the app.
+- **Under Vitest, each of the project's Vitest configs inlines the package**
+  (`server.deps.inline`, §10).
+- **A build keeps one output file per source file** (§1), **and writes into a
+  clean output folder**, as `nest build` does in a new Nest project
+  (`deleteOutDir` in `nest-cli.json`): the app serves the compiled endpoint
+  files it finds, and a file left over from a deleted endpoint is one of them.
+- **Where the app runs compiled output next to its source**, as under
+  `nest start`, a compiled endpoint whose source file is gone is not served.
+  That needs `sourceMap` on, as it is in a new Nest project.
 
 ---
 
 ## 6. OpenAPI
 
-### 6.1 `setupOpenAPI`
+### 6.1 The document
 
-Use this when you only want the spec (or want to drive your own generator).
-The document is for the docs viewer and other generators: `setupCodegen`
-generates its clients from the endpoints' Zod schemas, not from the document
-(§8). The document also covers plain Nest controllers, which the SDK does not.
+The package builds no OpenAPI document. Endpoints carry `@nestjs/swagger`
+metadata when the app has that package installed, so the document the app
+builds with it describes them, beside its plain Nest controllers. Building,
+writing and serving it is the app's own code, as in any NestJS app:
 
 ```ts
 import { NestFactory } from '@nestjs/core';
-import { setupOpenAPI } from 'nestjs-endpoints';
+import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 
 const app = await NestFactory.create(AppModule);
-const { document, changed } = await setupOpenAPI(app, {
-  configure: (builder) => builder.setTitle('My API'),
-  outputFile: process.cwd() + '/openapi.json',   // string path or a Writable
-  ui: { path: 'docs' },                          // optional viewer
-});
-if (changed) {
-  // the file on disk differed and was rewritten
-}
+const config = new DocumentBuilder()
+  .setTitle('My API')
+  .setOpenAPIVersion('3.1.1') // the endpoints' schemas are OpenAPI 3.1
+  .build();
+const document = SwaggerModule.createDocument(app, config);
+SwaggerModule.setup('docs', app, document); // optional viewer
 await app.listen(3000);
 ```
 
-- `configure` receives `@nestjs/swagger`'s `DocumentBuilder`.
-- `outputFile` accepts a path (relative paths resolve against the calling file)
-  or a `Writable` stream. `changed` is `true` only when the content differed.
-- `ui: { path, options? }` mounts a viewer. If `@scalar/api-reference` is
-  installed it's used (nicer UI, sidebar groups); otherwise Swagger UI. `options`
-  is forwarded to whichever one is active.
+- Nothing is called on `nestjs-endpoints` for this, and nothing else in it
+  needs `@nestjs/swagger`: `setupCodegen` generates its clients from the
+  endpoints' Zod schemas, not from the document (§8).
+- The document has a component schema for every schema an endpoint names
+  (§6.3). In an app without `@nestjs/swagger`, endpoints carry no such metadata.
+- `@nestjs/swagger` shows a literal as a one-value `enum`, and keeps the first
+  of a schema's `examples` as its `example`.
+- An app that passes `createDocument` a `standardSchemaConverter` has it return
+  `undefined` for a schema whose `~standard.vendor` is not its own: the
+  endpoints' schemas reach it with the vendor `nestjs-endpoints`.
 
 ### 6.2 Tags and grouping
 
@@ -730,10 +747,7 @@ Every operation gets one automatic tag:
 - if no namespace is declared, the URL prefix minus the leaf, with `:param`
   segments dropped (e.g. `/recipes/1/view` → `recipes`).
 
-`tags: [...]` on an endpoint adds to that. A router's `description` becomes the
-OpenAPI tag description for its group. When two or more distinct top-level
-groups exist, an `x-tagGroups` extension is emitted so Scalar/ReDoc render
-sidebar headers.
+`tags: [...]` on an endpoint adds to that.
 
 Each operation carries `x-endpoint-kind`: `query` for an `endpoint.query()`,
 `mutation` for an `endpoint.mutation()`. A generator run against the document
@@ -840,11 +854,6 @@ import { setupCodegen } from 'nestjs-endpoints';
 
 const app = await NestFactory.create(AppModule);
 await setupCodegen(app, {
-  openapi: {
-    outputFile: process.cwd() + '/openapi.json',
-    configure: (b) => b.setTitle('Shop API'),
-    ui: { path: 'docs' },
-  },
   clients: [
     { type: 'axios', outputFile: process.cwd() + '/generated/axios-client.ts' },
     {
@@ -856,12 +865,12 @@ await setupCodegen(app, {
 await app.listen(3000);
 ```
 
+`setupCodegen` only generates clients: an app that never calls it has all its
+endpoints, routers and OpenAPI metadata.
+
 The clients are generated from each endpoint's Zod schemas, so they cover
 endpoints only: routes of plain Nest controllers are in the OpenAPI document
-but not in the SDK. `openapi` is optional and takes the same options as
-`setupOpenAPI` (§6.1); when it is given, the document is built, written to its
-`outputFile` and served at its `ui.path`. Without it, no document is written or
-served. Kubb is the engine; the react-query client needs
+but not in the SDK. Kubb is the engine; the react-query client needs
 `@tanstack/react-query` >= 5.82 in the consuming app, plus `axios` and `react`.
 Every client needs `axios` >= 1.20, and its generated code type-checks with the `dom`
 lib: a Node-only project adds it to its tsconfig (`"lib": ["esnext", "dom"]`).
@@ -873,7 +882,7 @@ Per-client options:
 | `type` | `'axios'` or `'react-query'`. |
 | `outputFile` | **Must include an extension** (`.ts` / `.tsx`) — the generated tree goes in a sibling directory named after it, so an extensionless path would collide. |
 | `namespaces` | `string[]` restricting the client to those top-level namespaces. Omit for full access; `[]` is rejected. |
-| `options` | react-query only: forwarded to `@kubb/plugin-react-query` (query keys, suspense/infinite generation, …). The `client` and `hooks` fields are managed for you. The builder decides an operation's kind, so `query.methods` and `mutation.methods` are ignored; `include`, `exclude`, and a `query: false` or `mutation: false` (top level or in an `override`) decide which operations get hooks and query or mutation options (§9.2). |
+| `options` | react-query only: forwarded to `@kubb/plugin-react-query` (query keys, suspense/infinite generation, …). The `client`, `hooks`, `output` and `group` fields are managed for you. The builder decides an operation's kind, so `query.methods` and `mutation.methods` are ignored; `include`, `exclude`, and a `query: false` or `mutation: false` (top level or in an `override`) decide which operations get hooks and query or mutation options (§9.2). |
 
 `forceGenerate: true` (top level) wipes and regenerates every client.
 Otherwise a client regenerates when what it is generated from changes (its
@@ -888,12 +897,12 @@ directory is missing. The wrapper's first line,
 generated/
 ├── axios-client.ts            ← the ONLY file you import
 └── axios-client/              ← Kubb output; treat as build artifact
-    ├── .kubb/client.ts        ← Kubb's axios runtime
-    ├── clients/…
-    └── types/…
+    ├── .kubb/                 ← Kubb's axios runtime
+    ├── clients.ts             ← the request functions
+    └── types.ts               ← every operation's types
 ```
 
-For react-query, the sibling directory also holds `hooks/` and `schemas.ts`.
+For react-query, the sibling directory also holds `hooks.ts` and `schemas.ts`.
 **Import only from the top-level wrapper file.** The sibling tree is internal,
 is wiped and rewritten on every regeneration, and its per-operation hooks are
 unbound (they have no client).
@@ -1117,6 +1126,25 @@ zod schema: a field with a default, or a `.nullish()` one, may be left out.
 
 ## 10. Testing
 
+Under Vitest, add `nestjs-endpoints` to `server.deps.inline` in **each** of the
+project's Vitest configs (a new Nest project has `vitest.config.ts` and
+`vitest.config.e2e.ts`):
+
+```ts
+import { defineConfig } from 'vitest/config';
+
+export default defineConfig({
+  test: {
+    server: { deps: { inline: ['nestjs-endpoints'] } },
+  },
+});
+```
+
+Vitest runs installed packages in plain Node unless told to process them, and
+nestjs-endpoints loads the endpoint files, so they must go through Vite like
+the rest of the app's code. Without the setting, a test run fails with
+`Vitest must process this package to load endpoint files` (§13).
+
 ### 10.1 e2e over HTTP (supertest)
 
 ```ts
@@ -1190,17 +1218,19 @@ endpoint, and an `EndpointResponse { status, body }` for a multi-status one.
 
 ### 10.4 One router without the app module
 
-Import the manifest alongside the router (or list it in Vitest's
-`setupFiles`). It loads nothing by itself, so only that router's subtree loads:
+Import the router module on its own, and only that router's subtree loads:
 
 ```ts
-import '../src/endpoints.gen';
 import ShopRouterModule from '../src/shop/router.module';
 
 const moduleFixture = await Test.createTestingModule({
   imports: [ShopRouterModule],
 }).compile();
 ```
+
+A test that imports more than one router module imports
+`NestjsEndpoints.forRoot()` beside them, as the app's root module does;
+without it the app fails to start (`this app has N routers and no root`).
 
 ---
 
@@ -1212,14 +1242,13 @@ import {
   decorated,           // pair a NestJS decorator with a TS type
   schema,              // attach an OpenAPI description to a Zod schema
   EndpointResponse,    // what `response(status, body)` returns
+  NestjsEndpoints,     // `forRoot()`: app setup and the root router
   EndpointRouterModule,
-  setupOpenAPI,
   setupCodegen,
   ZodValidationException,    // 400 — input/query/params failed
   ZodSerializationException, // 500 — output failed
   ApiQueries,          // helper decorators, rarely needed directly
   ApiParams,
-  registerEndpointManifest, // called by the generated endpoints.gen.ts only
   z,                   // re-export of zod
 } from 'nestjs-endpoints';
 ```
@@ -1232,11 +1261,8 @@ import {
 `<router-root>/<segments>/<name>.endpoint.ts`,
 `export default endpoint.query({...})` for a read or
 `endpoint.mutation({...})` for a write, declare `input`/`output`, add any provider it needs to the nearest
-`router.module.ts`'s `providers`. Nothing else to register: the endpoint
-manifest picks the file up when the app's scripts next run
-`nestjs-endpoints generate`, or a running dev server sees it (or run
-`npx nestjs-endpoints generate` yourself); commit the updated
-`src/endpoints.gen.ts`.
+`router.module.ts`'s `providers`. Nothing else to register: the router serves
+the file after a restart, which `nest start --watch` does by itself.
 Regenerate the client if one exists.
 
 **Add a path parameter.** Rename the file/folder to use `$name`
@@ -1270,6 +1296,7 @@ whose folders should become buckets. URLs are unaffected.
 | 400 "Validation failed" on search or path parameters | `query` and `params` values arrive as strings — use `z.coerce.*`. |
 | 400 `Body cannot be empty when content-type is set to 'application/json'` (Fastify) | A request with `Content-Type: application/json` and no body. Send `{}`, or leave the header off. |
 | `` a GET endpoint cannot declare `input` `` at startup | `method: 'get'` with `input`: a GET has no body. Use `query`, or drop `method`. |
+| A long type error on `handler`: `Type '(…) => …' is not assignable to type 'HandlerMethod<…>'` | The handler's return value doesn't match `output`; the last line of the message names the field. TypeScript reports it at the value itself only for an expression-bodied handler (`=> ({ … })`). In a block body, annotate the handler's return type (`: Promise<z.input<typeof schema>>`) to get the error on the value. |
 | 500 on a response that looks right | Output schema mismatch (`ZodSerializationException`). |
 | `Did not find schema for status code N` | `response(N, ...)` used with a status absent from the `output` map. |
 | Handler returns a value but nothing validates | Multi-status `output` requires `response(status, body)`. |
@@ -1280,13 +1307,12 @@ whose folders should become buckets. URLs are unaffected.
 | `useApiClient must be used within an <ApiClientProvider>` | Missing provider above the component. |
 | Nothing regenerates after an endpoint change | Codegen isn't running, or the route isn't in that client (a plain controller, or a namespace its `namespaces` leaves out). `forceGenerate: true` regenerates every client. |
 | Routes disappear in production | The build bundles the app; file-based routing needs real files on disk. |
-| `no endpoint manifest covers "<dir>"` | `src/endpoints.gen.ts` is missing or not imported. Run `npx nestjs-endpoints init`, then import it from the app module — or, in a test that imports a router module directly, from the test or Vitest `setupFiles` (§10.4). |
-| `endpoints.gen.ts is out of date` (CI) | Endpoint files were added/removed without the manifest being regenerated. Run `npx nestjs-endpoints generate` and commit it. |
-| `endpoints.gen.ts was out of date and has been regenerated … Run the tests again` | A test run found endpoint files the manifest didn't list. It has been rewritten; re-run (Vitest's watch mode does so on its own). Run `nestjs-endpoints generate` in front of the test script to avoid it. |
-| A new endpoint 404s until restart | Expected without a watcher: the manifest was updated, the running process predates the file. Restart, or run under `node --watch` / `tsx watch`. If the file existed before the app started, the start script is missing `nestjs-endpoints generate &&`. |
+| A new endpoint 404s | An endpoint file is served after a restart. `nest start --watch` restarts by itself; with `node --watch`, set `watch: true` in `NestjsEndpoints.forRoot` (§5.6). A built app serves the endpoint files that are in its build: build again. |
+| `this app has N routers and no root` at startup | The app imports several routers and none is the root. Add `NestjsEndpoints.forRoot({ router })` to the app module; the other routers stay as `EndpointRouterModule.create()` (§5.6). |
+| `NestjsEndpoints.forRoot() is called more than once` | An app calls `forRoot` once, in its root module. Make every other router with `EndpointRouterModule.create()`. |
+| `Vitest must process this package to load endpoint files. Add it to "server.deps.inline" in your Vitest config` in a test run | The Vitest config the run uses doesn't inline the package. Add the setting to each Vitest config (§10). |
 | `Cannot access 'router' before initialization` (or `'endpoint'`: the binding the importing file used) at load; under Vitest, `Cannot read properties of undefined (reading 'endpoint')` (or `'query'` / `'mutation'`) | An import cycle: the router module statically imports, directly or through a provider, guard or listed endpoint, a file that imports its `endpoint`. Move what the router module needs out of that file, or list the endpoint with an `endpoints` callback (§4.2). |
 | `` `endpoints` lists a module that exports no endpoint `` | An `import()` in a router's `endpoints` callback resolves to a module without an endpoint export. Point it at the endpoint's file. |
 | `<endpoint file> is built with the endpoint of <router A> but is owned by <router B>` at startup | The endpoint is built with another router's `endpoint`: it imports another folder's router module, or another router lists it in `endpoints`. Build it with the `endpoint` of the router module that owns it; one listed in `endpoints` uses the package's `endpoint` (§3.5). |
 | `` `x` is already injected by its router `` (a type error, or thrown when the endpoint is defined) | The endpoint redeclares a key its router's `inject` / `injectOnRequest` already provides. Drop it from the endpoint. |
 | `` `x` is in both inject and injectOnRequest `` (a type error, or thrown by `create()`) | The router's `endpointConfig` declares the key in both maps. Keep it in one. |
-| `Cannot find the source of …endpoints.gen.js (no source map?)` | A compiled app without source maps can't locate the manifest to keep it in sync. Enable `sourceMap`, or run `npx nestjs-endpoints generate` after changing endpoint files. |

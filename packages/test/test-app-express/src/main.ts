@@ -1,4 +1,6 @@
+import { writeFile } from 'node:fs/promises';
 import { NestFactory } from '@nestjs/core';
+import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { setupCodegen } from 'nestjs-endpoints';
 import { AppModule } from './app.module';
 
@@ -7,10 +9,10 @@ async function bootstrap() {
   app.enableCors({
     origin: '*',
   });
+  // The OpenAPI document is the app's own to build: the endpoints carry what it needs.
+  const document = SwaggerModule.createDocument(app, new DocumentBuilder().build());
+  await writeFile(process.cwd() + '/openapi.json', JSON.stringify(document, null, 2));
   await setupCodegen(app, {
-    openapi: {
-      outputFile: process.cwd() + '/openapi.json',
-    },
     clients: [
       {
         type: 'axios',

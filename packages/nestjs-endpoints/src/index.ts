@@ -9,7 +9,6 @@ export {
 } from './endpoint-fn';
 export { ZodValidationException, ZodSerializationException } from './exceptions';
 export * from './helpers';
-export { setupOpenAPI, type SetupOpenAPIOptions } from './setup-openapi';
 export { setupCodegen } from './codegen/setup';
 export {
   EndpointRouterModule,
@@ -17,4 +16,4 @@ export {
   EndpointsRouterModule,
   type EndpointRouter,
 } from './endpoint-router.module';
-export { registerEndpointManifest, type EndpointManifestDefinition } from './manifest/registry';
+export { NestjsEndpoints, type NestjsEndpointsOptions } from './nestjs-endpoints';

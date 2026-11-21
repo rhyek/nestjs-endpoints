@@ -188,7 +188,7 @@ function responseErrorExport(params: {
 
 /**
  * Build the consumer-facing axios wrapper source. It imports the Kubb-generated
- * request functions (the flat `clients` barrel) plus Kubb's runtime, then
+ * request functions (the `clients` module) plus Kubb's runtime, then
  * assembles the namespaced client object, binding the instance's Kubb client
  * into each operation via `bindClient`. The bucket tree, name normalization,
  * and collision checks are shared with the react-query wrapper (see
@@ -201,11 +201,11 @@ export function buildAxiosWrapperSource(params: {
    * types.
    */
   shared: SharedSchemas;
-  /** Import specifier for the generated `clients` barrel (no extension). */
+  /** Import specifier for the generated `clients` module (no extension). */
   clientsImport: string;
   /** Import specifier for Kubb's runtime, `.kubb/client` (no extension). */
   runtimeImport: string;
-  /** Import specifier for the generated barrel whose types are re-exported. */
+  /** Import specifier for the generated module whose types are re-exported. */
   typesImport: string;
 }): string {
   const { descriptors, shared, clientsImport, runtimeImport, typesImport } = params;
@@ -260,9 +260,9 @@ export function buildAxiosWrapperSource(params: {
  *   `ApiClientContext`).
  *
  * It also exports `useApiClient` + `ApiClientProvider`. The request functions
- * come from the generated `clients` barrel, the same ones the standalone axios
+ * come from the generated `clients` module, the same ones the standalone axios
  * client exposes; the hooks and the key/options helpers come from the
- * generated `hooks` barrel and return unwrapped data.
+ * generated `hooks` module and return unwrapped data.
  */
 export function buildReactQueryWrapperSource(params: {
   descriptors: readonly EndpointDescriptor[];
@@ -271,13 +271,13 @@ export function buildReactQueryWrapperSource(params: {
    * types.
    */
   shared: SharedSchemas;
-  /** Import for the generated `clients` barrel (request functions). */
+  /** Import for the generated `clients` module (request functions). */
   opsImport: string;
-  /** Import for the generated `hooks` barrel. */
+  /** Import for the generated `hooks` module. */
   hooksImport: string;
   /** Import for Kubb's runtime, `.kubb/client`. */
   runtimeImport: string;
-  /** Import for the generated barrel whose types are re-exported. */
+  /** Import for the generated module whose types are re-exported. */
   typesImport: string;
   /** Import for the emitted `schemas.ts` module. */
   schemasImport: string;

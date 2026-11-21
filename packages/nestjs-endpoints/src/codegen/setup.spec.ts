@@ -5,7 +5,7 @@ import { INestApplication, Module } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { z } from 'zod';
 import { endpoint } from '../endpoint-fn';
-import { stripExtension } from '../manifest/scan';
+import { stripExtension } from '../routing-files';
 import { hashHeader } from './hash';
 import { generateAxiosClient } from './kubb/generate';
 import { setupCodegen } from './setup';

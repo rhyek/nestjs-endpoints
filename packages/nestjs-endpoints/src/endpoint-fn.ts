@@ -15,20 +15,21 @@ import {
   Res,
   Type,
 } from '@nestjs/common';
-import { HttpAdapterHost } from '@nestjs/core';
-import { ApiBody, ApiExtension, ApiOperation, ApiResponse } from '@nestjs/swagger';
+import { HttpAdapterHost, ModulesContainer } from '@nestjs/core';
 import { z, ZodType } from 'zod';
 import { DESCRIPTOR_METADATA_KEY, EndpointDescriptor, toOpenApiPath } from './descriptors';
+import { documentedPart, endpointSetUp, instantiatedIn, outputJson } from './document-schemas';
 import { ZodSerializationException, ZodValidationException } from './exceptions';
 import { getCallsiteFile, getEndpointHttpPath, getHttpPathPascalName, moduleAls } from './helpers';
-import { isSameModule } from './manifest/scan';
 import {
   apiParameters,
   convertObject,
   ObjectSchemaLike,
   loneValuesAsArrays,
 } from './object-parameters';
+import { isSameModule } from './routing-files';
 import { EndpointSetupFn, settings } from './settings';
+import { ApiBody, ApiExtension, ApiOperation, ApiResponse } from './swagger';
 import { toJsonSchema } from './zod-to-openapi';
 
 const httpMethodDecorators = {
@@ -667,7 +668,15 @@ function defineEndpoint(
   // query anyway, or on first use. `null` reads them as they come.
   let readQuery: ((query: unknown) => unknown) | null | undefined;
 
-  class cls {}
+  class cls {
+    // Each app that mounts the endpoint instantiates it, with its own modules.
+    constructor(modules?: ModulesContainer) {
+      if (modules) {
+        instantiatedIn(modules);
+      }
+    }
+  }
+  Inject(ModulesContainer)(cls, undefined, 0);
   const proto = cls.prototype as any;
   const httpAdapterHostKey = Symbol('httpAdapterHost');
   Inject(HttpAdapterHost)(proto, httpAdapterHostKey);
@@ -839,26 +848,35 @@ function defineEndpoint(
       ...(decorators ?? []),
     ];
     // Each schema is converted once; the decorators and the descriptor read
-    // the same results.
+    // the same results. The decorators give `@nestjs/swagger` each schema as
+    // the document should have it, which is known when the document is built.
+    const document = (json: Parameters<typeof documentedPart>[2]) =>
+      documentedPart(cls, () => descriptor, json);
     const endpointLabel = `endpoint "${httpPathPascalName}" (${httpMethod.toUpperCase()} /${httpPathSegments.join('/')})`;
     const input = inputSchema && toJsonSchema(inputSchema, 'input', httpPathPascalName + 'Input');
     if (input) {
-      methodDecorators.push(ApiBody({ schema: input.json }));
+      methodDecorators.push(ApiBody({ standardSchema: document(() => input.json) }));
     }
     const query = querySchema && convertObject(querySchema, `The query of ${endpointLabel}`);
     if (query) {
-      methodDecorators.push(...apiParameters('query', query.parameters));
+      methodDecorators.push(
+        ...apiParameters('query', query.parameters, (schema) => document(() => schema)),
+      );
       readQuery = loneValuesAsArrays(query.parameters);
     }
     const paramsObject =
       paramsSchema && convertObject(paramsSchema, `The params of ${endpointLabel}`);
     if (paramsObject) {
-      methodDecorators.push(...apiParameters('path', paramsObject.parameters));
+      methodDecorators.push(
+        ...apiParameters('path', paramsObject.parameters, (schema) => document(() => schema)),
+      );
     }
     const descriptorOutputs = (outputs ?? []).map(({ status, schema, description }) => {
       const schemaName = httpPathPascalName + (status === 200 ? '' : status) + 'Output';
       const converted = toJsonSchema(schema, 'output', schemaName);
-      methodDecorators.push(ApiResponse({ status, schema: converted.json, description }));
+      methodDecorators.push(
+        ApiResponse({ status, description, standardSchema: document(outputJson(converted.json)) }),
+      );
       return { status, description, schema: converted };
     });
     applyDecorators(...methodDecorators)(
@@ -888,6 +906,7 @@ function defineEndpoint(
       outputs: descriptorOutputs,
     };
     Reflect.defineMetadata(DESCRIPTOR_METADATA_KEY, descriptor, cls);
+    endpointSetUp();
   };
   Reflect.defineMetadata('endpoints:setupFn', setupFn, cls);
   if (moduleAls.getStore()) {

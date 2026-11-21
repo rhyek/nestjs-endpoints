@@ -1,14 +1,14 @@
 ---
 name: nestjs-endpoints
-description: Use when working on an HTTP API built with nestjs-endpoints, or when unsure whether this repo uses it (the guide says how to tell) — creating, editing, moving, or deleting an endpoint (`endpoint.query()` / `endpoint.mutation()`); how a file's location maps to its URL (`$param` path parameters, `_`-prefixed folders, `endpoint.ts` vs `*.endpoint.ts`); `router.module.ts` routers, `basePath`, providers, `endpointConfig`, middleware, interceptors, or guards; Zod `input` / `query` / `params` / `output` schemas or multi-status responses; DI via `inject` / `injectOnRequest` / `decorated`; OpenAPI output and the docs viewer; the endpoint manifest (`endpoints.gen.ts`, `nestjs-endpoints generate`); `setupCodegen` and the generated axios / `@tanstack/react-query` client SDK, its namespaces and namespace filters; calling that client from a front-end or a test, including `queryOptions` / `mutationOptions` and `schemas.input` / `schemas.query`; or testing endpoints with supertest, the generated client, or `invoke()`.
+description: Use when working on an HTTP API built with nestjs-endpoints, or when unsure whether this repo uses it (the guide says how to tell) — creating, editing, moving, or deleting an endpoint (`endpoint.query()` / `endpoint.mutation()`); how a file's location maps to its URL (`$param` path parameters, `_`-prefixed folders, `endpoint.ts` vs `*.endpoint.ts`); `router.module.ts` routers, `basePath`, providers, `endpointConfig`, middleware, interceptors, or guards; Zod `input` / `query` / `params` / `output` schemas or multi-status responses; DI via `inject` / `injectOnRequest` / `decorated`; OpenAPI through `@nestjs/swagger`; app setup with `NestjsEndpoints.forRoot`; `setupCodegen` and the generated axios / `@tanstack/react-query` client SDK, its namespaces and namespace filters; calling that client from a front-end or a test, including `queryOptions` / `mutationOptions` and `schemas.input` / `schemas.query`; or testing endpoints with supertest, the generated client, or `invoke()`.
 ---
 
 # nestjs-endpoints
 
 `nestjs-endpoints` writes clean, end-to-end type-safe HTTP APIs on NestJS. One
 `endpoint.query({...})` or `endpoint.mutation({...})` call becomes a real
-NestJS controller; Zod schemas give you runtime validation, an OpenAPI 3.1.1
-document, and generated axios / react-query clients. Routes come either from
+NestJS controller; Zod schemas give you runtime validation and generated
+axios / react-query clients. Routes come either from
 where the file sits on disk (file-based routing) or from an explicit `path`.
 
 The consolidated guide ships inside the installed `nestjs-endpoints` package, so

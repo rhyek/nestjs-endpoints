@@ -16,13 +16,6 @@ async function bootstrap() {
     '../../client/src/generated',
   );
   await setupCodegen(app, {
-    openapi: {
-      // optional. setting so the openapi doc is visible.
-      outputFile: path.join(process.cwd(), 'openapi.json'),
-      configure: (b) => b.setTitle('Shop API'),
-      // Serves Swagger UI at /docs.
-      ui: { path: 'docs' },
-    },
     clients: [
       {
         type: 'react-query',
@@ -33,8 +26,7 @@ async function bootstrap() {
 
   const port = 3000;
   await app.listen(port, () => {
-    console.log(`API:        http://localhost:${port}`);
-    console.log(`Swagger UI: http://localhost:${port}/docs`);
+    console.log(`API: http://localhost:${port}`);
   });
 }
 void bootstrap();

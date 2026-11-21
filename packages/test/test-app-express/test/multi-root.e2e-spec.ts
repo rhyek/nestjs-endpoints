@@ -1,9 +1,8 @@
-import { Writable } from 'node:stream';
 import { Test, TestingModule } from '@nestjs/testing';
-import { setupOpenAPI } from 'nestjs-endpoints';
 import request from 'supertest';
 import { AppModule } from '../src/app.module';
 import { createApp } from './create-app';
+import { openApiDocument } from './openapi-document';
 
 describe('multi-root + folder-inferred basePath', () => {
   async function setup() {
@@ -84,18 +83,7 @@ describe('multi-root + folder-inferred basePath', () => {
     app.useLogger(false);
     await app.init();
     try {
-      let spec = '';
-      const stream = new Writable({
-        write(chunk, _, callback) {
-          spec += chunk.toString();
-          callback();
-        },
-      });
-      await setupOpenAPI(app, {
-        configure: (b) => b.setTitle('multi-root'),
-        outputFile: stream,
-      });
-      const parsed = JSON.parse(spec);
+      const parsed = JSON.parse(JSON.stringify(openApiDocument(app)));
       expect(parsed.paths).toHaveProperty('/shop/stats');
       expect(parsed.paths).toHaveProperty('/shop/promo/today');
       expect(parsed.paths).toHaveProperty('/shop/category/list');

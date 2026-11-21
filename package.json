@@ -11,6 +11,9 @@
     "lint:fix": "oxlint --disable-nested-config --fix",
     "format": "oxfmt --disable-nested-config",
     "format:check": "oxfmt --check --disable-nested-config",
+    "docs:dev": "./scripts/build.sh && pnpm --filter nestjs-endpoints-docs dev",
+    "docs:build": "./scripts/build.sh && pnpm --filter nestjs-endpoints-docs build",
+    "docs:preview": "pnpm --filter nestjs-endpoints-docs preview",
     "prepare": "husky"
   },
   "devDependencies": {

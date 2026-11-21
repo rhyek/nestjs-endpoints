@@ -1,4 +1,3 @@
-import { Writable } from 'node:stream';
 import {
   ArgumentsHost,
   CallHandler,
@@ -9,13 +8,7 @@ import {
 } from '@nestjs/common';
 import { APP_FILTER, APP_INTERCEPTOR, BaseExceptionFilter, HttpAdapterHost } from '@nestjs/core';
 import { Test, TestingModule } from '@nestjs/testing';
-import {
-  endpoint,
-  setupOpenAPI,
-  z,
-  ZodSerializationException,
-  ZodValidationException,
-} from 'nestjs-endpoints';
+import { endpoint, z, ZodSerializationException, ZodValidationException } from 'nestjs-endpoints';
 import { tap } from 'rxjs';
 import request from 'supertest';
 import { AppModule } from '../src/app.module';
@@ -23,6 +16,7 @@ import { AppointmentRepositoryToken } from '../src/endpoints/user/appointment/ap
 import { AppointmentRepository } from '../src/endpoints/user/appointment/appointment.repository';
 import { UserService } from '../src/endpoints/user/user.service';
 import { createApp } from './create-app';
+import { openApiDocument } from './openapi-document';
 
 describe('api', { concurrent: true }, () => {
   async function setup() {
@@ -722,20 +716,9 @@ test('spec works', async () => {
   app.useLogger(false);
   await app.init();
 
-  let spec = '';
-  const stream = new Writable({
-    write(chunk, _, callback) {
-      spec += chunk.toString();
-      callback();
-    },
-  });
-  await setupOpenAPI(app, {
-    configure: (builder) => builder.setTitle('Test Api'),
-    outputFile: stream,
-  });
-
-  expect(spec).toBeTruthy();
-  const parsed = JSON.parse(spec);
+  const parsed = JSON.parse(
+    JSON.stringify(openApiDocument(app, (builder) => builder.setTitle('Test Api'))),
+  );
   expect(parsed).toMatchObject({
     openapi: '3.0.0',
     paths: {

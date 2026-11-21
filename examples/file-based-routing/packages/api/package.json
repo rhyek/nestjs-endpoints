@@ -3,16 +3,14 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "nestjs-endpoints generate && node --watch --watch-preserve-output --import @oxc-node/core/register src/main.ts",
-    "test": "nestjs-endpoints generate && vitest run",
+    "dev": "node --watch --watch-preserve-output --import @oxc-node/core/register src/main.ts",
+    "test": "vitest run",
     "tscheck": "tsc --noEmit"
   },
   "dependencies": {
     "@nestjs/common": "^12.4.0",
     "@nestjs/core": "^12.4.0",
     "@nestjs/platform-node": "^12.4.0",
-    "@nestjs/swagger": "^12.1.1",
-    "@scalar/api-reference": "^1.67.0",
     "nestjs-endpoints": "file:../../../../packages/nestjs-endpoints",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.2",

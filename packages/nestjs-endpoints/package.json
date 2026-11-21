@@ -51,11 +51,13 @@
   },
   "dependencies": {
     "@kubb/ast": "5.20.1",
+    "@kubb/core": "5.20.1",
+    "@kubb/kit": "5.20.1",
+    "@kubb/parser-ts": "5.20.1",
     "@kubb/plugin-axios": "6.0.3",
     "@kubb/plugin-react-query": "5.10.3",
     "@kubb/plugin-ts": "5.5.3",
     "callsites": "^4.2.0",
-    "kubb": "5.20.1",
     "openapi-types": "^12.1.3",
     "zod-openapi": "^6.0.2"
   },
@@ -63,15 +65,15 @@
     "@nestjs/common": ">=12.0.0",
     "@nestjs/core": ">=12.0.0",
     "@nestjs/swagger": ">=12.0.0",
-    "@scalar/api-reference": ">=1.0.0",
     "zod": ">=4.1.0"
   },
   "peerDependenciesMeta": {
-    "@scalar/api-reference": {
+    "@nestjs/swagger": {
       "optional": true
     }
   },
   "devDependencies": {
+    "@nestjs/swagger": "^12.1.1",
     "@types/node": "^26.6.6",
     "tsdown": "0.23.7",
     "typescript": "~7.0.2",

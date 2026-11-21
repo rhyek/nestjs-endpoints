@@ -8,7 +8,7 @@ import type {
   SchemaNode,
   StatusCode,
 } from '@kubb/ast';
-import { casing, childName, defineExtension, enumPropName, type Adapter } from 'kubb/kit';
+import { casing, childName, defineExtension, enumPropName, type Adapter } from '@kubb/kit';
 import type { EndpointDescriptor } from '../../descriptors';
 import type { ValueShape } from '../../object-parameters';
 import {

@@ -78,45 +78,52 @@ export function collectDescriptors(app: INestApplicationContext): EndpointDescri
   const globalPrefix = config.getGlobalPrefix().replace(/\/$/, '');
   const versioningOptions = config.getVersioning();
   const routePaths = new RoutePathFactory(config);
-  // One descriptor per class, as the SDK has one function per operation.
-  const descriptors = new Map<unknown, EndpointDescriptor>();
-  for (const module of modules.values()) {
+  const descriptors: EndpointDescriptor[] = [];
+  for (const { module, cls, descriptor } of mountedEndpoints(modules)) {
     const modulePath: string | undefined =
       Reflect.getMetadata(MODULE_PATH + modules.applicationId, module.metatype) ??
       Reflect.getMetadata(MODULE_PATH, module.metatype);
+    const [routePath] = routePaths.create(
+      {
+        ctrlPath: Reflect.getMetadata('endpoints:path', cls) as string,
+        methodPath: '',
+        modulePath,
+        globalPrefix,
+        versioningOptions,
+        methodVersion: Reflect.getMetadata(VERSION_METADATA, cls.prototype.handler),
+        controllerVersion:
+          versioningOptions?.type === VersioningType.URI
+            ? (Reflect.getMetadata(VERSION_METADATA, cls) ?? versioningOptions.defaultVersion)
+            : undefined,
+      },
+      requestMethods[descriptor.method],
+    );
+    descriptors.push({ ...descriptor, path: toOpenApiPath(routePath ?? descriptor.path) });
+  }
+  return descriptors.sort((a, b) => compare(a.path, b.path) || compare(a.method, b.method));
+}
+
+/**
+ * The endpoints mounted in an app's `modules`, each once, with the first module that mounts
+ * it: one descriptor per class, as the SDK has one function per operation.
+ */
+export function* mountedEndpoints(modules: ModulesContainer) {
+  const seen = new Set<unknown>();
+  for (const module of modules.values()) {
     for (const { metatype: cls } of module.controllers.values()) {
-      if (typeof cls !== 'function' || descriptors.has(cls)) {
+      if (typeof cls !== 'function' || seen.has(cls)) {
         continue;
       }
       const descriptor: EndpointDescriptor | undefined = Reflect.getMetadata(
         DESCRIPTOR_METADATA_KEY,
         cls,
       );
-      if (!descriptor) {
-        continue;
+      if (descriptor) {
+        seen.add(cls);
+        yield { module, cls, descriptor };
       }
-      const [routePath] = routePaths.create(
-        {
-          ctrlPath: Reflect.getMetadata('endpoints:path', cls) as string,
-          methodPath: '',
-          modulePath,
-          globalPrefix,
-          versioningOptions,
-          methodVersion: Reflect.getMetadata(VERSION_METADATA, cls.prototype.handler),
-          controllerVersion:
-            versioningOptions?.type === VersioningType.URI
-              ? (Reflect.getMetadata(VERSION_METADATA, cls) ?? versioningOptions.defaultVersion)
-              : undefined,
-        },
-        requestMethods[descriptor.method],
-      );
-      const path = toOpenApiPath(routePath ?? descriptor.path);
-      descriptors.set(cls, { ...descriptor, path });
     }
   }
-  return [...descriptors.values()].sort(
-    (a, b) => compare(a.path, b.path) || compare(a.method, b.method),
-  );
 }
 
 function compare(a: string, b: string) {

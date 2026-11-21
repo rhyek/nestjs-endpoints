@@ -1,9 +1,9 @@
-import { Writable } from 'node:stream';
 import { Module } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
-import { endpoint, setupOpenAPI, z } from 'nestjs-endpoints';
+import { endpoint, z } from 'nestjs-endpoints';
 import request from 'supertest';
 import { createApp } from './create-app';
+import { openApiDocument } from './openapi-document';
 
 describe('zod-openapi', () => {
   test('payloads are correct', async () => {
@@ -78,19 +78,8 @@ describe('zod-openapi', () => {
     }).compile();
 
     const { app } = await createApp(moduleFixture);
-    let spec = '';
-    const stream = new Writable({
-      write(chunk, _, callback) {
-        spec += chunk.toString();
-        callback();
-      },
-    });
-    await setupOpenAPI(app, {
-      outputFile: stream,
-    });
     try {
-      expect(spec).toBeTruthy();
-      const parsed = JSON.parse(spec);
+      const parsed = JSON.parse(JSON.stringify(openApiDocument(app)));
       expect(parsed).toMatchObject({
         openapi: '3.0.0',
         servers: [],
@@ -98,9 +87,6 @@ describe('zod-openapi', () => {
         info: {
           contact: {},
           description: '',
-          'nestjs-endpoints': {
-            version: '0.0.0',
-          },
           title: '',
           version: '1.0.0',
         },
@@ -196,7 +182,7 @@ describe('zod-openapi', () => {
 
     const { app } = await createApp(moduleFixture);
     try {
-      const { document } = await setupOpenAPI(app as any);
+      const document = openApiDocument(app);
       const schemas = document.components!.schemas as any;
       expect(schemas.Address.required).toEqual(['city']);
       expect(schemas.AddressOutput.required).toEqual(['city', 'country']);
