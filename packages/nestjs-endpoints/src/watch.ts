@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { Logger } from '@nestjs/common';
-import { scanRoutingFiles } from './routing-files';
+import { isSkippedDirectory, scanRoutingFiles } from './routing-files';
 
 const DEBOUNCE_MS = 100;
 
@@ -39,13 +39,15 @@ export async function watchRoutingFiles(opts: {
   near: string;
 }): Promise<void> {
   const cacheFile = cacheFileFor(opts.near, opts.directories);
-  if (cacheFile) {
-    if (watchers.has(cacheFile)) {
-      return;
-    }
-    // Before anything is awaited: an app starts its routers at once.
-    watchers.set(cacheFile, { close: () => {} });
+  if (!cacheFile) {
+    warnNotWritable(path.join('node_modules', '.cache', 'nestjs-endpoints'));
+    return;
   }
+  if (watchers.has(cacheFile)) {
+    return;
+  }
+  // Before anything is awaited: an app starts its routers at once.
+  watchers.set(cacheFile, { close: () => {} });
   const list = () =>
     opts.directories
       .flatMap((dir) => scanRoutingFiles(dir).map((file) => path.join(dir, file)))
@@ -53,9 +55,6 @@ export async function watchRoutingFiles(opts: {
   let current = render(list());
   let created = false;
   try {
-    if (!cacheFile) {
-      throw new Error('no node_modules');
-    }
     // A file an earlier run left is used as it is, whatever it lists: only a change to it
     // matters, and writing it now, moments before `node --watch` starts to watch it, can be
     // reported as a change and restart the app that has just started.
@@ -66,25 +65,21 @@ export async function watchRoutingFiles(opts: {
       created = true;
     }
   } catch {
-    const shown = cacheFile
-      ? path.dirname(cacheFile)
-      : path.join('node_modules', '.cache', 'nestjs-endpoints');
-    if (cacheFile) {
-      watchers.delete(cacheFile);
-    }
-    if (!warned.has(shown)) {
-      warned.add(shown);
-      logger.warn(
-        `nestjs-endpoints: watch is on, but ${shown} cannot be written, so a new endpoint file needs a manual restart.`,
-      );
-    }
+    watchers.delete(cacheFile);
+    warnNotWritable(path.dirname(cacheFile));
     return;
   }
-  if (created) {
-    await new Promise((resolve) => setTimeout(resolve, SETTLE_MS));
+  try {
+    if (created) {
+      await new Promise((resolve) => setTimeout(resolve, SETTLE_MS));
+    }
+    // What puts the file among those `node --watch` restarts for.
+    await import(pathToFileURL(cacheFile).href);
+  } catch (error) {
+    // A later app in the process starts afresh.
+    watchers.delete(cacheFile);
+    throw error;
   }
-  // What puts the file among those `node --watch` restarts for.
-  await import(pathToFileURL(cacheFile).href);
 
   let timer: NodeJS.Timeout | undefined;
   const rescan = () => {
@@ -146,6 +141,15 @@ export function closeRoutingFileWatchers(): void {
   warned.clear();
 }
 
+function warnNotWritable(shown: string): void {
+  if (!warned.has(shown)) {
+    warned.add(shown);
+    logger.warn(
+      `nestjs-endpoints: watch is on, but ${shown} cannot be written, so a new endpoint file needs a manual restart.`,
+    );
+  }
+}
+
 /** `dir`, or the nearest folder above it that exists. */
 function nearestExisting(dir: string): string {
   let current = dir;
@@ -156,11 +160,11 @@ function nearestExisting(dir: string): string {
 }
 
 /**
- * Whether a change reported from a folder above the router's own is one to pass over: packages,
- * and dot-folders such as `.git`. This module's own file is among them.
+ * Whether a change reported from a folder above the router's own is one to pass over: in a
+ * folder a router leaves alone. This module's own file is among them.
  */
 function isOutsideTheApp(filename: string): boolean {
-  return filename.split(/[\\/]/).some((part) => part === 'node_modules' || part.startsWith('.'));
+  return filename.split(/[\\/]/).some(isSkippedDirectory);
 }
 
 /** `<nearest node_modules>/.cache/nestjs-endpoints/<id of the router>.mjs`. */

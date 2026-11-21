@@ -58,7 +58,6 @@
     "@kubb/plugin-react-query": "5.10.3",
     "@kubb/plugin-ts": "5.5.3",
     "callsites": "^4.2.0",
-    "openapi-types": "^12.1.3",
     "zod-openapi": "^6.0.2"
   },
   "peerDependencies": {

@@ -29,7 +29,7 @@ defineProps({
           />
         </div>
       </div>
-      <CodeWindow class="code" :file="intro.file">
+      <CodeWindow :file="intro.file">
         <HeroEndpoint />
       </CodeWindow>
     </div>

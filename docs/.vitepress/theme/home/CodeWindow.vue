@@ -43,7 +43,7 @@ defineProps({
   overflow-wrap: anywhere;
 }
 
-/* The block fills the window: no margin, corners or language label of its own. */
+/* The block fills the window, on a phone too: no margin, corners or language label of its own. */
 .body :deep(div[class*='language-']) {
   margin: 0;
   border-radius: 0;
@@ -64,27 +64,7 @@ defineProps({
 }
 
 /* A second block in the same window (one sample, then another) sits under a rule. */
-.body :deep(div[class*='language-'] + div[class*='language-']),
-.body :deep(.vp-code-group + div[class*='language-']) {
+.body :deep(div[class*='language-'] + div[class*='language-']) {
   border-top: 1px solid var(--vp-c-divider);
-}
-
-/* Tabs in a window: flush with it, the window's own background. */
-.body :deep(.vp-code-group) {
-  margin: 0;
-}
-
-.body :deep(.vp-code-group .tabs) {
-  margin: 0;
-  border-radius: 0;
-  background: var(--vp-c-bg-soft);
-}
-
-/* The base theme pulls blocks to the screen's edges on a phone; a window keeps its own. */
-@media (max-width: 639px) {
-  .body :deep(div[class*='language-']),
-  .body :deep(.vp-code-group .tabs) {
-    margin: 0;
-  }
 }
 </style>

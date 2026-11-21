@@ -1,6 +1,6 @@
-import { cp, readdir, readFile, rm, writeFile } from 'node:fs/promises';
+import { cp, readFile, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
-import { createInstalledProject, platformPackage, run } from './installed-project';
+import { createInstalledProject, filesIn, platformPackage, run } from './installed-project';
 import type { Report } from './without-swagger/app';
 
 const fixture = path.join(import.meta.dirname, 'without-swagger/app.ts');
@@ -24,13 +24,9 @@ async function runApp({ directory, output }: Project): Promise<Report> {
 
 /** Every file under `directory`, by its path under it. */
 async function files(directory: string): Promise<Record<string, string>> {
-  const entries = await readdir(directory, { recursive: true, withFileTypes: true });
-  const read = entries
-    .filter((entry) => entry.isFile())
-    .map(async (entry) => {
-      const file = path.join(entry.parentPath, entry.name);
-      return [path.relative(directory, file), await readFile(file, 'utf-8')] as const;
-    });
+  const read = (await filesIn(directory)).map(
+    async (file) => [file, await readFile(path.join(directory, file), 'utf-8')] as const,
+  );
   return Object.fromEntries(await Promise.all(read));
 }
 

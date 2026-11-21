@@ -59,15 +59,33 @@ export const scenarios: Scenario[] = [
   },
 ];
 
+/**
+ * The headline requests, which the home page shows: the two that validate on the way in and out,
+ * and the one that validates nothing.
+ */
+export const headline = ['params', 'body', 'none'];
+
+/** The scenarios with these ids, in the order of `scenarios`. */
+export function scenariosById(ids: string[]): Scenario[] {
+  return scenarios.filter((scenario) => ids.includes(scenario.id));
+}
+
 /** How much faster nestjs-endpoints is, in percent. */
-export function difference({ endpoints, nest }: Scenario): number {
+function difference({ endpoints, nest }: Scenario): number {
   return (endpoints.median / nest.median - 1) * 100;
+}
+
+/** Whether the two are within the noise of each other. */
+export function isLevel(scenario: Scenario): boolean {
+  return Math.abs(difference(scenario)) <= noisePercent;
 }
 
 /** The difference as a reader sees it: `+27%`, or `Level` when it is within the noise. */
 export function differenceLabel(scenario: Scenario): string {
-  const percent = difference(scenario);
-  return Math.abs(percent) <= noisePercent ? 'Level' : `+${Math.round(percent)}%`;
+  return isLevel(scenario) ? 'Level' : `+${Math.round(difference(scenario))}%`;
 }
 
 export const count = (value: number) => value.toLocaleString('en-US');
+
+/** The range a median was measured in: `40,481 to 41,507`. */
+export const rangeLabel = ({ range }: Measured) => `${count(range[0])} to ${count(range[1])}`;

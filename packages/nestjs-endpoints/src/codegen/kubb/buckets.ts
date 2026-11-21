@@ -1,4 +1,3 @@
-import { casing } from '@kubb/kit';
 /**
  * Shared logic for turning the endpoints' descriptors into the nested,
  * namespaced client shape — operation collection (by `namespaceChain`, under
@@ -7,6 +6,8 @@ import { casing } from '@kubb/kit';
  * the axios and react-query wrapper builders in `./kubb`, which supply the
  * per-operation access expressions.
  */
+
+import { casing } from '@kubb/kit';
 import { resolverReactQuery } from '@kubb/plugin-react-query';
 import type { EndpointDescriptor, HttpMethod } from '../../descriptors';
 

@@ -1,9 +1,7 @@
-import { InjectOnRequestMap, InjectProvidersMap } from './endpoint-fn';
-import {
-  createRootRouter,
-  EndpointRouter,
-  EndpointRouterModuleParams,
-} from './endpoint-router.module';
+import { DynamicModule, Module } from '@nestjs/common';
+import { topLevelProviders } from './app-root';
+import { createRouterEndpoint, InjectOnRequestMap, InjectProvidersMap } from './endpoint-fn';
+import { createLazily, EndpointRouter, EndpointRouterModuleParams } from './endpoint-router.module';
 import { getCallsiteFile } from './helpers';
 
 export interface NestjsEndpointsOptions<
@@ -33,8 +31,17 @@ export class NestjsEndpoints {
   >(
     options: NestjsEndpointsOptions<RouterInject, RouterInjectOnRequest> = {},
   ): EndpointRouter<RouterInject, RouterInjectOnRequest> {
-    return createRootRouter(getCallsiteFile(), options.router, {
-      watch: options.watch ?? false,
+    const callsiteFile = getCallsiteFile();
+    const root = { watch: options.watch ?? false };
+    if (options.router) {
+      return createLazily(callsiteFile, options.router, root);
+    }
+    // An app that describes no root router: a module that only carries the root options.
+    class RootModule {}
+    Module({})(RootModule);
+    const module: DynamicModule = { module: RootModule, providers: topLevelProviders(root) };
+    return Object.assign(Promise.resolve(module), {
+      endpoint: createRouterEndpoint(callsiteFile, undefined, undefined),
     });
   }
 }

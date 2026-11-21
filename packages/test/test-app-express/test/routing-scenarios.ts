@@ -1,8 +1,8 @@
 import { rename, rm } from 'node:fs/promises';
 import path from 'node:path';
 import {
+  Booted,
   createNestProject,
-  lastServed,
   NestProject,
   Served,
   SETUP_TIMEOUT,
@@ -36,10 +36,6 @@ export type Runtime = {
 
 const WAIT = { timeout: 30_000, interval: 100 };
 
-/** How many times the app has started: it reports its routes once each time. */
-const starts = (output: string) =>
-  output.split('\n').filter((line) => line.startsWith('statuses ')).length;
-
 // Every environment an app is started in. None of them changes what it serves.
 const environments: [name: string, env: Record<string, string>][] = [
   ['no NODE_ENV', {}],
@@ -58,6 +54,8 @@ export function describeRouting(runtime: Runtime) {
 
     // What turns the package's `watch` on in the project's app module.
     const watchOn = { WATCH: 'true' };
+    // What the app needs for the runtime's watcher to restart it for a new file.
+    const watchIfNeeded = runtime.restartsForNewFiles ? {} : watchOn;
 
     beforeAll(async () => {
       project = await createNestProject('routing-');
@@ -68,23 +66,47 @@ export function describeRouting(runtime: Runtime) {
       await project?.remove();
     });
 
-    type Booted = Awaited<ReturnType<NestProject['runOnce']>>;
-
     /** Runs the app to its end. */
     const runOnce = (env: Record<string, string> = {}) => project.runOnce(runtime.once, env);
 
     /** Starts the app under the runtime's watcher, and stops it once it has answered its routes. */
     async function runWatched(env: Record<string, string> = {}): Promise<Booted> {
-      const app = project.start(runtime.watch.args, { STAY_UP: 'true', ...env });
+      const app = project.start(runtime.watch.args, env);
       try {
         await vi.waitFor(() => {
-          if (!lastServed(app.output)) {
+          if (!app.served()) {
             throw new Error(`The app has not started:\n${app.output}`);
           }
         }, WAIT);
-        return { failed: false, output: app.output, served: lastServed(app.output) };
+        return { failed: false, output: app.output, served: app.served() };
       } finally {
         app.stop();
+      }
+    }
+
+    /**
+     * Makes a change to the endpoint files under the running `app` until `reached` holds,
+     * waiting up to `timeout` for it each time. A watcher can miss what happens in its first
+     * moments (macOS FSEvents does), and the app has just restarted when a test begins.
+     */
+    async function changeUntil(
+      app: Started,
+      change: () => Promise<unknown>,
+      reached: () => unknown,
+      timeout: number,
+    ) {
+      for (let attempt = 1; ; attempt++) {
+        await change();
+        try {
+          await vi.waitFor(reached, { timeout, interval: 100 });
+          return;
+        } catch (error) {
+          if (attempt === 4) {
+            // What the app and its watcher said, for whoever reads the failure.
+            console.error(app.output);
+            throw error;
+          }
+        }
       }
     }
 
@@ -124,29 +146,9 @@ export function describeRouting(runtime: Runtime) {
     describe(`while it runs under ${runtime.watch.name}`, () => {
       let app: Started;
 
-      const serves = (expected: Served, wait = WAIT) =>
-        vi.waitFor(() => expect(lastServed(app.output)).toEqual(expected), wait);
-
-      /**
-       * Makes a change to the endpoint files until the app serves `expected`. A watcher can
-       * miss what happens in its first moments (macOS FSEvents does), and the app has just
-       * restarted when a test begins.
-       */
-      async function until(expected: Served, change: () => Promise<void>) {
-        for (let attempt = 1; ; attempt++) {
-          await change();
-          try {
-            await serves(expected, { timeout: 8_000, interval: 100 });
-            return;
-          } catch (error) {
-            if (attempt === 4) {
-              // What the app and its watcher said, for whoever reads the failure.
-              console.error(app.output);
-              throw error;
-            }
-          }
-        }
-      }
+      /** Makes a change until the app serves `expected`. */
+      const until = (expected: Served, change: () => Promise<unknown>) =>
+        changeUntil(app, change, () => expect(app.served()).toEqual(expected), 8_000);
 
       beforeAll(async () => {
         await project.endpoints('a', 'b');
@@ -156,10 +158,7 @@ export function describeRouting(runtime: Runtime) {
           recursive: true,
           force: true,
         });
-        app = project.start(runtime.watch.args, {
-          STAY_UP: 'true',
-          ...(runtime.restartsForNewFiles ? {} : watchOn),
-        });
+        app = project.start(runtime.watch.args, watchIfNeeded);
       });
 
       afterAll(() => {
@@ -167,10 +166,10 @@ export function describeRouting(runtime: Runtime) {
       });
 
       test('serves its endpoint files, and starts once, on a first run too', async () => {
-        await serves(['a', 'b']);
+        await vi.waitFor(() => expect(app.served()).toEqual(['a', 'b']), WAIT);
         // Long enough for a watcher to restart an app that had changed a file it watches.
         await new Promise((resolve) => setTimeout(resolve, 2000));
-        expect(starts(app.output)).toBe(1);
+        expect(app.starts()).toBe(1);
       });
 
       test('serves an endpoint file added to it', async () => {
@@ -198,30 +197,14 @@ export function describeRouting(runtime: Runtime) {
     describe(`a new endpoint folder, while it runs under ${runtime.watch.name}`, () => {
       let app: Started;
 
-      /** Makes a change until `reached` holds: see `until()` above for why it is repeated. */
-      async function until(change: () => Promise<void>, reached: () => Promise<void>) {
-        for (let attempt = 1; ; attempt++) {
-          await change();
-          try {
-            await vi.waitFor(reached, { timeout: 10_000, interval: 100 });
-            return;
-          } catch (error) {
-            if (attempt === 4) {
-              console.error(app.output);
-              throw error;
-            }
-          }
-        }
-      }
+      /** Makes a change until `reached` holds, which also waits for the client the app writes. */
+      const until = (change: () => Promise<unknown>, reached: () => Promise<void>) =>
+        changeUntil(app, change, reached, 10_000);
 
       beforeAll(async () => {
         // No endpoint folder at all, as in a project that has just added the package.
         await project.endpoints();
-        app = project.start(runtime.watch.args, {
-          STAY_UP: 'true',
-          CODEGEN: 'true',
-          ...(runtime.restartsForNewFiles ? {} : watchOn),
-        });
+        app = project.start(runtime.watch.args, { CODEGEN: 'true', ...watchIfNeeded });
       });
 
       afterAll(() => {
@@ -229,7 +212,7 @@ export function describeRouting(runtime: Runtime) {
       });
 
       test('starts with no endpoint folder: nothing to serve, and a client with no operations', async () => {
-        await vi.waitFor(() => expect(lastServed(app.output)).toEqual([]), WAIT);
+        await vi.waitFor(() => expect(app.served()).toEqual([]), WAIT);
         expect(await project.generatedClient()).not.toMatch(/bindClient\(_ops\./);
       });
 
@@ -237,7 +220,7 @@ export function describeRouting(runtime: Runtime) {
         await until(
           () => project.addEndpoint('shop/e'),
           async () => {
-            expect(lastServed(app.output)).toEqual(['shop/e']);
+            expect(app.served()).toEqual(['shop/e']);
             expect(await project.generatedClient()).toMatch(
               /^\s+shopE: bindClient\(_ops\.shopE, _client\),$/m,
             );
@@ -252,7 +235,7 @@ export function describeRouting(runtime: Runtime) {
             expect(await project.generatedClient()).toMatch(
               /^\s+shop: \{\n\s+e: bindClient\(_ops\.shopE, _client\),$/m,
             );
-            expect(lastServed(app.output)).toEqual(['shop/e']);
+            expect(app.served()).toEqual(['shop/e']);
           },
         );
       });
@@ -271,16 +254,16 @@ export function describeRouting(runtime: Runtime) {
       // What `watch` is for: without it, this watcher never learns of the new file.
       test(`under ${runtime.watch.name} with \`watch\` off, a new endpoint file waits for a restart`, async () => {
         await project.endpoints('a', 'b');
-        const app = project.start(runtime.watch.args, { STAY_UP: 'true' });
+        const app = project.start(runtime.watch.args);
         try {
-          await vi.waitFor(() => expect(lastServed(app.output)).toEqual(['a', 'b']), WAIT);
-          expect(starts(app.output)).toBe(1);
+          await vi.waitFor(() => expect(app.served()).toEqual(['a', 'b']), WAIT);
+          expect(app.starts()).toBe(1);
 
           await project.addEndpoint('c');
           await new Promise((resolve) => setTimeout(resolve, 3000));
 
-          expect(starts(app.output)).toBe(1);
-          expect(lastServed(app.output)).toEqual(['a', 'b']);
+          expect(app.starts()).toBe(1);
+          expect(app.served()).toEqual(['a', 'b']);
         } finally {
           app.stop();
         }

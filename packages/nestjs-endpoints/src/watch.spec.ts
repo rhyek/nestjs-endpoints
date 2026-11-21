@@ -1,3 +1,4 @@
+import crypto from 'node:crypto';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -191,6 +192,22 @@ test('two routers created in one file each have a file of their own, written onc
   await Promise.all([watch(), admin()]);
   await quiet();
   expect(mtimes()).toEqual(before);
+});
+
+test('a start that failed leaves nothing behind: a later app in the process tries again', async () => {
+  // The file an earlier run left, cut short.
+  const id = crypto
+    .createHash('sha1')
+    .update([near, path.join(src, 'endpoints')].join('\0'))
+    .digest('hex')
+    .slice(0, 12);
+  fs.mkdirSync(cacheDir(), { recursive: true });
+  fs.writeFileSync(path.join(cacheDir(), `${id}.mjs`), 'export default [');
+
+  await expect(watch()).rejects.toThrow(SyntaxError);
+  // The module loader remembers the failed import of that file, so the second fails the same
+  // way: what matters is that it is not passed over as an app already watched.
+  await expect(watch()).rejects.toThrow(SyntaxError);
 });
 
 test('warns once and carries on where node_modules cannot be written', async () => {

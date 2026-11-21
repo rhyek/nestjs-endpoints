@@ -11,6 +11,7 @@ import TypedClient from './home/TypedClient.md';
 import TypedHandler from './home/TypedHandler.md';
 import WrongResponse from './home/WrongResponse.md';
 import BenchmarkChart from './performance/BenchmarkChart.vue';
+import { headline } from './performance/results';
 
 // The home page's words are its frontmatter (docs/index.md), one key per section below. Its code
 // samples are the Markdown files in ./home, so they are highlighted and type-checked like any
@@ -40,13 +41,10 @@ const { frontmatter } = useData();
       <HomeRow v-if="frontmatter.nest" v-bind="frontmatter.nest" flip>
         <StillNest />
       </HomeRow>
-      <HomeRow
-        v-if="frontmatter.performance"
-        v-bind="{ ...frontmatter.performance, requests: undefined }"
-      >
+      <HomeRow v-if="frontmatter.performance" v-bind="frontmatter.performance">
         <template #visual>
           <div class="home-benchmark">
-            <BenchmarkChart :only="frontmatter.performance.requests" />
+            <BenchmarkChart :only="headline" />
           </div>
         </template>
       </HomeRow>

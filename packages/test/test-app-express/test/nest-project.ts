@@ -1,32 +1,20 @@
 import { spawn } from 'node:child_process';
-import {
-  cp,
-  mkdir,
-  readdir,
-  readFile,
-  realpath,
-  rename,
-  rm,
-  stat,
-  symlink,
-  writeFile,
-} from 'node:fs/promises';
+import { mkdir, readdir, readFile, rename, rm, stat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
-import { createInstalledProject, platformPackage, run } from './installed-project';
+import {
+  createInstalledProject,
+  filesIn,
+  linkPackage,
+  platformPackage,
+  run,
+} from './installed-project';
 
 // The project the routing specs run: one made the way Nest's First steps guide makes one, with
 // `nest new`, and with nestjs-endpoints added to it the way Getting started says. Its
 // `package.json`, `tsconfig.json`, `tsconfig.build.json`, `nest-cli.json`, lint, format and test
 // configs are the ones the Nest CLI wrote, so the specs run the setup a new Nest project has.
 //
-// Its packages are this test app's, linked: nothing is installed from the network.
-
-const modulesOf = {
-  /** This test app's packages. */
-  app: path.resolve(import.meta.dirname, '../node_modules'),
-  /** The workspace's own, which every package in it shares. */
-  workspace: path.resolve(import.meta.dirname, '../../../../node_modules'),
-};
+// Its packages are this test app's, linked: see `installed-project.ts`.
 
 /** For the hook that makes the project: it runs the Nest CLI, among several others doing so. */
 export const SETUP_TIMEOUT = 120_000;
@@ -34,49 +22,14 @@ export const SETUP_TIMEOUT = 120_000;
 /** The Nest CLI, from the project's directory. */
 export const NEST = 'node_modules/@nestjs/cli/bin/nest.js';
 
-/** Links a package this test app (or the workspace) depends on into the project at `directory`. */
-export async function linkPackage(
-  directory: string,
-  name: string,
-  from: keyof typeof modulesOf = 'app',
-): Promise<void> {
-  const link = path.join(directory, 'node_modules', name);
-  await mkdir(path.dirname(link), { recursive: true });
-  await symlink(await realpath(path.join(modulesOf[from], name)), link);
-}
-
 /**
- * Installs a copy of a package this test app depends on into the project at `directory`, with
- * links to its dependencies. Unlike a link, a copy finds its peers in the project: pnpm gave
- * the package this test app's own, among them a TypeScript the project replaces.
+ * Source that gets the HTTP adapter of this test app as `Adapter`, for the app and the specs
+ * that run in the project: it is named by `PLATFORM_PACKAGE`, which `start` and `runOnce` set.
  */
-export async function copyPackage(directory: string, name: string) {
-  const source = await realpath(path.join(modulesOf.app, name));
-  const modules = path.join(directory, 'node_modules');
-  await cp(source, path.join(modules, name), { recursive: true });
-  // pnpm installs a package's dependencies beside it.
-  const beside = path.resolve(source, ...name.split('/').map(() => '..'));
-  const { dependencies = {} } = JSON.parse(
-    await readFile(path.join(source, 'package.json'), 'utf-8'),
-  );
-  for (const dependency of Object.keys(dependencies)) {
-    await mkdir(path.dirname(path.join(modules, dependency)), { recursive: true });
-    await symlink(await realpath(path.join(beside, dependency)), path.join(modules, dependency));
-  }
-}
-
-/**
- * Gives the project the TypeScript a new Nest project has, version 6, in place of the
- * workspace's 7: the Nest CLI and SWC's loader read the project's config through the compiler
- * API, which TypeScript 7 doesn't have. It is the one the Nest CLI itself depends on, which
- * pnpm installs beside it.
- */
-export async function linkTypescriptWithApi(directory: string) {
-  const cli = await realpath(path.join(modulesOf.app, '@nestjs/cli'));
-  const link = path.join(directory, 'node_modules/typescript');
-  await rm(link, { recursive: true });
-  await symlink(await realpath(path.join(cli, '../../typescript')), link);
-}
+export const adapterSource = `const platform: Record<string, unknown> = await import(process.env.PLATFORM_PACKAGE!);
+const Adapter = Object.entries(platform).find(([name]) =>
+  name.endsWith('Adapter'),
+)![1] as new () => never;`;
 
 // The routes the app asks itself for, each named by its endpoint file under `src/endpoints`.
 const ROUTES = ['a', 'b', 'c', 'd', 'shop/e'] as const;
@@ -140,11 +93,9 @@ const mainSource = `import { NestFactory } from '@nestjs/core';
 import { setupCodegen } from 'nestjs-endpoints';
 import { AppModule } from './app.module.js';
 
+${adapterSource}
+
 async function bootstrap() {
-  const platform: Record<string, unknown> = await import(process.env.PLATFORM_PACKAGE!);
-  const Adapter = Object.entries(platform).find(([name]) =>
-    name.endsWith('Adapter'),
-  )![1] as new () => never;
   const app = await NestFactory.create(AppModule, new Adapter(), { logger: ['error'] });
   if (process.env.CODEGEN) {
     await setupCodegen(app, {
@@ -166,9 +117,13 @@ async function bootstrap() {
 await bootstrap();
 `;
 
+/** The lines in which the app reported its routes: one each time it started. */
+const statusLines = (output: string) =>
+  output.split('\n').filter((line) => line.startsWith('statuses '));
+
 /** What the app last printed about its routes: those that answered 200. */
-export function lastServed(output: string): Served | undefined {
-  const line = output.split('\n').findLast((candidate) => candidate.startsWith('statuses '));
+function lastServed(output: string): Served | undefined {
+  const line = statusLines(output).at(-1);
   if (!line) {
     return undefined;
   }
@@ -198,6 +153,10 @@ export default EndpointRouterModule.create({
 export type Started = {
   output: string;
   exited: Promise<number | null>;
+  /** The routes the app served when it last reported them, if it has. */
+  served(): Served | undefined;
+  /** How many times the app has started: it reports its routes once each time. */
+  starts(): number;
   stop(): void;
 };
 
@@ -214,13 +173,18 @@ export async function createNestProject(prefix: string) {
   const directory = await createInstalledProject(prefix);
   const platform = await platformPackage();
 
+  // What the project's own scripts and config need, beyond what the package does.
+  for (const name of ['@nestjs/cli', '@nestjs/testing', 'vitest']) {
+    await linkPackage(directory, name);
+  }
+
   // As the guide's own command for a script has it; `--skip-install` because the packages are
   // linked, and `--no-observe` to leave out an SDK that reports to a hosted service.
   const scaffold = path.join(directory, 'scaffold');
   const generating = run(
     process.execPath,
     [
-      path.join(modulesOf.app, '@nestjs/cli/bin/nest.js'),
+      NEST,
       'new',
       path.basename(scaffold),
       '--skip-git',
@@ -238,11 +202,6 @@ export async function createNestProject(prefix: string) {
     await rename(path.join(scaffold, entry), path.join(directory, entry));
   }
   await rm(scaffold, { recursive: true });
-
-  // What the project's own scripts and config need, beyond what the package does.
-  for (const name of ['@nestjs/cli', '@nestjs/testing', 'vitest']) {
-    await linkPackage(directory, name);
-  }
 
   const cli = (...args: string[]) =>
     run(process.execPath, ['node_modules/nestjs-endpoints/dist/cli.js', ...args], {
@@ -276,7 +235,7 @@ export async function createNestProject(prefix: string) {
    * it also stops what it started: the Nest CLI runs the app in a child process, and so does
    * `node --watch`.
    */
-  function start(args: string[], env: Record<string, string> = {}): Started {
+  function spawnNode(args: string[], env: Record<string, string>): Started {
     // An environment that says nothing of where the app runs, but for `env`.
     const { NODE_ENV: _, CI: __, ...inherited } = process.env;
     const child = spawn(process.execPath, args, {
@@ -288,6 +247,8 @@ export async function createNestProject(prefix: string) {
     const started: Started = {
       output: '',
       exited: new Promise<number | null>((resolve) => child.on('exit', resolve)),
+      served: () => lastServed(started.output),
+      starts: () => statusLines(started.output).length,
       stop() {
         try {
           process.kill(-child.pid!);
@@ -301,36 +262,23 @@ export async function createNestProject(prefix: string) {
     return started;
   }
 
-  /** The files under `dir`, relative to the project, sorted. */
-  async function filesIn(dir: string): Promise<string[]> {
-    const entries = await readdir(path.join(directory, dir), {
-      recursive: true,
-      withFileTypes: true,
-    });
-    return entries
-      .filter((entry) => entry.isFile())
-      .map((entry) => path.relative(directory, path.join(entry.parentPath, entry.name)))
-      .sort();
-  }
-
   return {
     directory,
     appModule,
     endpointFile,
     addEndpoint,
-    start,
+
+    /** Starts `node` with `args` in the project, and keeps the app up until it is stopped. */
+    start: (args: string[], env: Record<string, string> = {}): Started =>
+      spawnNode(args, { STAY_UP: 'true', ...env }),
 
     /** Runs `node` with `args` in the project to its end. */
     async runOnce(args: string[], env: Record<string, string> = {}): Promise<Booted> {
-      const started = start(args, env);
+      const started = spawnNode(args, env);
       const timeout = setTimeout(() => started.stop(), 90_000);
       try {
         const code = await started.exited;
-        return {
-          failed: code !== 0,
-          output: started.output,
-          served: lastServed(started.output),
-        };
+        return { failed: code !== 0, output: started.output, served: started.served() };
       } finally {
         clearTimeout(timeout);
       }
@@ -364,7 +312,9 @@ export async function createNestProject(prefix: string) {
             (name) => name !== 'node_modules' && name !== 'dist' && !name.endsWith('.tsbuildinfo'),
           )
           .map(async (name) =>
-            (await stat(path.join(directory, name))).isDirectory() ? filesIn(name) : [name],
+            (await stat(path.join(directory, name))).isDirectory()
+              ? (await filesIn(path.join(directory, name))).map((file) => path.join(name, file))
+              : [name],
           ),
       );
       return nested.flat().sort();

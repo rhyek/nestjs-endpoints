@@ -1,18 +1,16 @@
 <script setup>
 import { computed } from 'vue';
-import { count, difference, differenceLabel, noisePercent, scenarios } from './results';
+import { count, differenceLabel, isLevel, rangeLabel, scenarios, scenariosById } from './results';
 
 // Requests per second, two bars per request: nestjs-endpoints in the accent color, the plain
 // NestJS controller in gray. Every bar is on one scale, so a bar's length is its throughput
 // whichever request it is for, and each is labeled with its name and its number.
 const props = defineProps({
-  /** The ids of the scenarios to show, in the order given here; all of them when left out. */
+  /** The ids of the scenarios to show; all of them when left out. */
   only: { type: Array, default: undefined },
 });
 
-const rows = computed(() =>
-  scenarios.filter((scenario) => !props.only || props.only.includes(scenario.id)),
-);
+const rows = computed(() => (props.only ? scenariosById(props.only) : scenarios));
 const longest = Math.max(
   ...scenarios.flatMap(({ endpoints, nest }) => [endpoints.median, nest.median]),
 );
@@ -23,7 +21,7 @@ const bars = (scenario) => [
 ];
 const width = (median) => `${(median / longest) * 100}%`;
 const about = (bar) =>
-  `${bar.name}: ${count(bar.median)} requests per second (${count(bar.range[0])} to ${count(bar.range[1])} across rounds)`;
+  `${bar.name}: ${count(bar.median)} requests per second (${rangeLabel(bar)} across rounds)`;
 </script>
 
 <template>
@@ -32,10 +30,7 @@ const about = (bar) =>
       <li v-for="scenario in rows" :key="scenario.id">
         <p class="request">
           <span>{{ scenario.label }}</span>
-          <span
-            class="difference"
-            :class="{ level: Math.abs(difference(scenario)) <= noisePercent }"
-          >
+          <span class="difference" :class="{ level: isLevel(scenario) }">
             {{ differenceLabel(scenario) }}
           </span>
         </p>

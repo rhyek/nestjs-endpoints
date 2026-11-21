@@ -39,7 +39,7 @@
 - **`endpoint()` is replaced by `endpoint.query()` and `endpoint.mutation()`, which decide whether the react-query client gives an operation query or mutation hooks.** Rename each `endpoint(` to the builder for its kind. See [Queries and mutations](README.md#queries-and-mutations).
 - **Endpoints are POSTs by default, and `input` is always the JSON body.** Send a read's input as the body, or add `method: 'get'` to an endpoint that must stay a GET and declare its input as `query`.
 - **This package is now ESM-only.** Set `"type": "module"` in your project; CommonJS is no longer supported.
-- **`setupOpenAPI` is removed.** Build the document with `@nestjs/swagger`'s `SwaggerModule.createDocument()`, which finds everything it needs on the endpoints. See [OpenAPI](README.md#openapi).
+- **`setupOpenAPI` and `setupCodegen`'s `openapi` option are removed.** Build the document with `@nestjs/swagger`'s `SwaggerModule.createDocument()`, which finds everything it needs on the endpoints. See [OpenAPI](README.md#openapi).
 - **NestJS >= 12 is required, and `@nestjs/swagger` >= 12 where it is installed.** Run `nest upgrade` to migrate.
 - **Node.js >= 24.22 is required.**
 - **TypeScript >= 6 is required.**

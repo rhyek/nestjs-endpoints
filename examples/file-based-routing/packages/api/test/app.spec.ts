@@ -2,8 +2,7 @@ import { NodeAdapter } from '@nestjs/platform-node';
 import { Test } from '@nestjs/testing';
 import { AppModule } from '../src/app.module';
 
-// Boots the whole app through file-based routing. `vitest.config.ts` has Vitest process
-// nestjs-endpoints, so the endpoint files it loads are transformed like any other import.
+// Boots the whole app through file-based routing, which needs the setting in `vitest.config.ts`.
 test('the app serves its file-based routes', async () => {
   const moduleRef = await Test.createTestingModule({
     imports: [AppModule],

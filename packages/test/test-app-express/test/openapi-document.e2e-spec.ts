@@ -5,9 +5,14 @@ import { AppModule } from '../src/app.module';
 import { createApp } from './create-app';
 import { openApiDocument, schemaRefs } from './openapi-document';
 
-async function documentOf(module: object, configure?: Parameters<typeof openApiDocument>[1]) {
+/** A running app of `module` alone. */
+async function appOf(module: object) {
   const moduleFixture = await Test.createTestingModule({ imports: [module as never] }).compile();
-  const { app } = await createApp(moduleFixture);
+  return (await createApp(moduleFixture)).app;
+}
+
+async function documentOf(module: object, configure?: Parameters<typeof openApiDocument>[1]) {
+  const app = await appOf(module);
   try {
     return openApiDocument(app, configure);
   } finally {
@@ -158,10 +163,6 @@ describe('the document @nestjs/swagger builds from the endpoints alone', () => {
       input: z.object({ bin: z.object({ label: z.number() }).meta({ id: 'WarehouseBin' }) }),
       handler: () => ({}),
     });
-    const appOf = async (module: object) => {
-      const fixture = await Test.createTestingModule({ imports: [module as never] }).compile();
-      return (await createApp(fixture)).app;
-    };
     // The app with the disagreement is the newer of the two, and still running.
     const sound = await appOf(moduleOf(stock));
     const unsound = await appOf(moduleOf(move, relabel));

@@ -144,7 +144,7 @@ const clientGroups = { input: 'body', query: 'query' } as const;
  */
 export function buildSchemasModuleSource(params: {
   entries: Iterable<InputSchemaEntry>;
-  /** Import specifier for the generated `types` barrel (no extension). */
+  /** Import specifier for the generated `types` module (no extension). */
   typesImport: string;
 }): string {
   const { typesImport } = params;

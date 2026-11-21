@@ -1,4 +1,4 @@
-import { copyPackage, linkPackage, linkTypescriptWithApi } from './nest-project';
+import { copyPackage, linkPackage, linkTypescriptWithApi } from './installed-project';
 import { describeRouting } from './routing-scenarios';
 
 const node = ['--import', '@swc-node/register/esm-register'];

@@ -97,6 +97,13 @@ describe('watch', () => {
     expect(files).toContain(path.join(fixtures, 'siblings/blog/list.endpoint.ts'));
     expect(files).not.toContain(path.join(fixtures, 'siblings/team/list.endpoint.ts'));
   });
+
+  test('turned on in a root with no router, watches the routers beside it alone', async () => {
+    await start(NestjsEndpoints.forRoot({ watch: true }), blogRouter);
+    expect(watched()).toEqual([
+      expect.stringContaining(path.join(fixtures, 'siblings/blog/list.endpoint.ts')),
+    ]);
+  });
 });
 
 describe('an app with no NestjsEndpoints.forRoot', () => {

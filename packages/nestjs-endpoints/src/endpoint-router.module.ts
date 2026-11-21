@@ -15,7 +15,7 @@ import {
   UseInterceptors,
 } from '@nestjs/common';
 import { ModulesContainer } from '@nestjs/core';
-import { sourceGoneFilter } from './compiled-source';
+import { RootOptions, topLevelProviders } from './app-root';
 import { instantiatedIn } from './document-schemas';
 import {
   createRouterEndpoint,
@@ -26,14 +26,12 @@ import {
 } from './endpoint-fn';
 import { getCallsiteFile, moduleAls } from './helpers';
 import {
-  endpointFileRegex,
+  findRouterFiles,
   isSameModule,
-  listRoutingEntries,
   routerModuleFileRegex,
   stripExtension,
 } from './routing-files';
 import { EndpointSetupFn, settings } from './settings';
-import { watchRoutingFiles } from './watch';
 
 /**
  * A provider every router has, which an app creates as it starts: it tells the endpoints'
@@ -45,61 +43,6 @@ const appOfRouter: Provider = {
   inject: [ModulesContainer],
   useFactory: (modules: ModulesContainer) => instantiatedIn(modules),
 };
-
-/** What `NestjsEndpoints.forRoot()` sets for an app. */
-export interface RootOptions {
-  watch: boolean;
-}
-
-/** In the module `NestjsEndpoints.forRoot()` returns: the app's root options. */
-const ROOT = Symbol('nestjs-endpoints:root');
-/** In the module of a router no other router discovered. */
-const TOP_LEVEL_ROUTER = Symbol('nestjs-endpoints:top-level-router');
-
-/**
- * An app has one root: `NestjsEndpoints.forRoot()`, or else its only top-level
- * router. Checked as the app instantiates the root's and each top-level
- * router's module, against that app's own modules.
- */
-const rootRules: Provider = {
-  provide: Symbol('nestjs-endpoints:root-rules'),
-  inject: [ModulesContainer],
-  useFactory: (modules: ModulesContainer) => {
-    const having = (token: symbol) =>
-      [...modules.values()].filter((module) => module.providers.has(token)).length;
-    const roots = having(ROOT);
-    if (roots > 1) {
-      throw new Error(
-        'nestjs-endpoints: NestjsEndpoints.forRoot() is called more than once. An app calls it once, in its root module.',
-      );
-    }
-    const routers = having(TOP_LEVEL_ROUTER);
-    if (roots === 0 && routers > 1) {
-      throw new Error(
-        `nestjs-endpoints: this app has ${routers} routers and no root. Add NestjsEndpoints.forRoot({ router: { … } }) to its root module; further routers stay as EndpointRouterModule.create().`,
-      );
-    }
-  },
-};
-
-/**
- * For the module of the root router, and of each top-level one: watches the
- * router's folders when the app's root asked for it.
- */
-function watching(directories: string[], near: string): Provider {
-  return {
-    provide: Symbol('nestjs-endpoints:watch'),
-    inject: [ModulesContainer],
-    useFactory: async (modules: ModulesContainer) => {
-      const root = [...modules.values()]
-        .map((module) => module.providers.get(ROOT)?.instance as RootOptions | undefined)
-        .find((options) => options !== undefined);
-      if (root?.watch) {
-        await watchRoutingFiles({ directories, near });
-      }
-    },
-  };
-}
 
 /**
  * Express 5 / path-to-regexp v8, used by every NestJS version this library
@@ -206,7 +149,7 @@ const nestedRouterParents = new Map<string, ParentStore>();
  * has been evaluated, so an endpoint file the router then imports finds the
  * modules it depends on ready, the router's own among them.
  */
-function createLazily(
+export function createLazily(
   callsiteFile: string,
   params: EndpointRouterModuleParams<any, any> | undefined,
   root?: RootOptions,
@@ -222,29 +165,6 @@ function createLazily(
       ),
     },
   );
-}
-
-/**
- * What `NestjsEndpoints.forRoot()` returns: the app's root router, or, for an
- * app that describes none, a module that only carries the root options.
- */
-export function createRootRouter(
-  callsiteFile: string,
-  params: EndpointRouterModuleParams<any, any> | undefined,
-  root: RootOptions,
-): EndpointRouter<any, any> {
-  if (params) {
-    return createLazily(callsiteFile, params, root);
-  }
-  class RootModule {}
-  Module({})(RootModule);
-  const module: DynamicModule = {
-    module: RootModule,
-    providers: [{ provide: ROOT, useValue: root }, rootRules],
-  };
-  return Object.assign(Promise.resolve(module), {
-    endpoint: createRouterEndpoint(callsiteFile, undefined, undefined),
-  });
 }
 
 @Module({})
@@ -483,14 +403,11 @@ export class EndpointRouterModule {
       ? [...parentNamespaceChain, ownNamespaceSegment]
       : parentNamespaceChain;
     let endpoints: Type[] = [];
-    // Discovered file → what imports it.
-    const nestedRouterModuleFiles = new Map<string, RoutingFileLoader>();
-    const endpointFiles = new Map<string, RoutingFileLoader>();
-    const isSourceGone = sourceGoneFilter(callsiteFile);
-    for (const root of rootDirectories) {
-      findEndpoints(root, nestedRouterModuleFiles, endpointFiles, callsiteFile, isSourceGone);
-    }
-    const endpointFilesNotImported = [...endpointFiles].filter(([f]) =>
+    const { endpointFiles, nestedRouterModuleFiles } = findRouterFiles(
+      rootDirectories,
+      callsiteFile,
+    );
+    const endpointFilesNotImported = [...endpointFiles].filter((f) =>
       settings.endpoints.every((e) => !isSameModule(e.file, f)),
     );
     const nestedModules: DynamicModule[] = [];
@@ -521,20 +438,20 @@ export class EndpointRouterModule {
       parentRootDirectories: rootDirectories,
       parentNamespaceChain: effectiveNamespaceChain,
     };
-    for (const file of nestedRouterModuleFiles.keys()) {
+    for (const file of nestedRouterModuleFiles) {
       nestedRouterParents.set(stripExtension(file), ownStore);
     }
     let listedEndpoints: Type[] = [];
     await moduleAls.run(ownStore, async () => {
-      for (const [, load] of endpointFilesNotImported) {
-        const endpoint = await loadDefault(load);
+      for (const file of endpointFilesNotImported) {
+        const endpoint = await importDefault(file);
         if (endpoint) {
           endpoints.push(endpoint);
         }
       }
-      for (const load of nestedRouterModuleFiles.values()) {
+      for (const file of nestedRouterModuleFiles) {
         // Awaiting the router's default export runs it.
-        const nestedModule = await loadDefault(load);
+        const nestedModule = await importDefault(file);
         if (nestedModule) {
           nestedModules.push(nestedModule);
         }
@@ -554,7 +471,7 @@ export class EndpointRouterModule {
     // listed, or both.
     const setupFns = new Set<EndpointSetupFn>([
       ...settings.endpoints
-        .filter((e) => endpointFilesNotImported.some(([f]) => isSameModule(f, e.file)))
+        .filter((e) => endpointFilesNotImported.some((f) => isSameModule(f, e.file)))
         .map((e) => e.setupFn),
       ...listedEndpoints
         .map((ep) => Reflect.getMetadata('endpoints:setupFn', ep) as EndpointSetupFn | undefined)
@@ -626,15 +543,9 @@ export class EndpointRouterModule {
         ...(params?.providers ?? []),
         appOfRouter,
         // The app's root, or a router no other router discovered.
-        ...(root
-          ? [{ provide: ROOT, useValue: root }, rootRules, watching(rootDirectories, callsiteFile)]
-          : parentStore
-            ? []
-            : [
-                { provide: TOP_LEVEL_ROUTER, useValue: true },
-                rootRules,
-                watching(rootDirectories, callsiteFile),
-              ]),
+        ...(root || !parentStore
+          ? topLevelProviders(root, { directories: rootDirectories, near: callsiteFile })
+          : []),
       ],
       controllers: endpoints,
       [ALL_ENDPOINTS_SYMBOL]: allEndpoints,
@@ -651,9 +562,6 @@ export const EndpointsRouterModule = EndpointRouterModule;
  * @deprecated Use `EndpointRouterModule` instead.
  */
 export type EndpointsRouterModule = EndpointRouterModule;
-
-/** Imports an endpoint or router-module file a router found. */
-type RoutingFileLoader = () => Promise<unknown>;
 
 /**
  * Vitest runs an installed package in plain Node unless the project inlines
@@ -678,56 +586,11 @@ function assertVitestProcessesThisPackage(): void {
   }
 }
 
-function loaderOf(file: string): RoutingFileLoader {
-  return () => {
-    assertVitestProcessesThisPackage();
-    return import(pathToFileURL(file).href);
-  };
-}
-
-/**
- * Walks `dir` where the app runs: the source tree under a TypeScript loader
- * or Vitest, the compiled output otherwise. `isSourceGone` leaves out a
- * compiled file whose source file was deleted.
- */
-function findEndpoints(
-  dir: string,
-  nestedRouterModuleFiles: Map<string, RoutingFileLoader>,
-  endpointFiles: Map<string, RoutingFileLoader>,
-  callerRouterModuleFile: string,
-  isSourceGone: (file: string) => boolean,
-) {
-  const entries = new Map(
-    listRoutingEntries(dir).filter(
-      ([name, isDirectory]) => isDirectory || !isSourceGone(path.join(dir, name)),
-    ),
-  );
-  // A directory that contains a `router.module.*` file is treated as a
-  // nested router — regardless of depth. The only exception is the
-  // caller's own router module file (avoids self-registration when a
-  // `rootDirectory` entry happens to resolve to the caller's own folder).
-  const routerFile = [...entries.keys()].find((f) => routerModuleFileRegex.test(f));
-  if (routerFile) {
-    const routerFilePath = path.join(dir, routerFile);
-    if (!isSameModule(routerFilePath, callerRouterModuleFile)) {
-      nestedRouterModuleFiles.set(routerFilePath, loaderOf(routerFilePath));
-      return;
-    }
-  }
-  for (const [f, isDirectory] of entries) {
-    const file = path.join(dir, f);
-    if (isDirectory) {
-      findEndpoints(
-        file,
-        nestedRouterModuleFiles,
-        endpointFiles,
-        callerRouterModuleFile,
-        isSourceGone,
-      );
-    } else if (endpointFileRegex.test(f)) {
-      endpointFiles.set(file, loaderOf(file));
-    }
-  }
+/** The default export of an endpoint or router-module file a router found. */
+async function importDefault(file: string): Promise<any> {
+  assertVitestProcessesThisPackage();
+  const module = (await import(pathToFileURL(file).href)) as { default?: unknown };
+  return module.default;
 }
 
 async function resolveListedEndpoints(listed: ListedEndpoint, routerFile: string): Promise<Type[]> {
@@ -747,9 +610,4 @@ async function resolveListedEndpoints(listed: ListedEndpoint, routerFile: string
     );
   }
   return exported;
-}
-
-async function loadDefault(load: RoutingFileLoader): Promise<any> {
-  const module = (await load()) as { default?: unknown };
-  return module.default;
 }

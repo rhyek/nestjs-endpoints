@@ -1,13 +1,7 @@
 import { mkdir, readFile, realpath, rename, rm, symlink, writeFile } from 'node:fs/promises';
 import path from 'node:path';
-import {
-  createNestProject,
-  linkPackage,
-  linkTypescriptWithApi,
-  NEST,
-  NestProject,
-  SETUP_TIMEOUT,
-} from './nest-project';
+import { linkPackage, linkTypescriptWithApi } from './installed-project';
+import { adapterSource, createNestProject, NEST, NestProject, SETUP_TIMEOUT } from './nest-project';
 
 // The scripts of the project `nest new` makes, run on that project once nestjs-endpoints was
 // added to it. `start` and `start:dev` have a spec of their own, `routing-nest-cli`; these are
@@ -29,12 +23,10 @@ const endpointSpecSource = `import { Test } from '@nestjs/testing';
 import { AppModule } from './../src/app.module.js';
 import { Clock } from './../src/health.service.js';
 
+${adapterSource}
+
 describe('the endpoints (e2e)', () => {
   test('answers on every endpoint file, with the provider the spec replaced', async () => {
-    const platform: Record<string, unknown> = await import(process.env.PLATFORM_PACKAGE!);
-    const Adapter = Object.entries(platform).find(([name]) =>
-      name.endsWith('Adapter'),
-    )![1] as new () => never;
     const moduleFixture = await Test.createTestingModule({ imports: [AppModule] })
       .overrideProvider(Clock)
       .useValue({ now: () => 0 })

@@ -1,4 +1,5 @@
-import { linkTypescriptWithApi, NEST } from './nest-project';
+import { linkTypescriptWithApi } from './installed-project';
+import { NEST } from './nest-project';
 import { describeRouting } from './routing-scenarios';
 
 // The Nest CLI compiles the app into `dist/` and runs that. Its watcher compiles a new file and

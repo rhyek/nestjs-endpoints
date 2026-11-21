@@ -78,10 +78,6 @@ performance:
   eyebrow: Performance
   title: Faster than a controller that validates.
   details: Validating a request and its response costs less in an endpoint than in a NestJS controller with NestJS's own schema validation. The same API, with the same Zod schemas, serves about a quarter more requests per second where both are validated, and the same number where nothing is.
-  requests:
-    - params
-    - body
-    - none
   linkText: Performance
   link: /guide/performance
 

@@ -1,8 +1,8 @@
 <script setup>
-import { count, differenceLabel, scenarios } from './results';
+import { count, differenceLabel, rangeLabel, scenarios } from './results';
 
 // The chart's numbers as a table, with the range each median comes from.
-const cell = ({ median, range }) => `${count(median)} (${count(range[0])} to ${count(range[1])})`;
+const cell = (measured) => `${count(measured.median)} (${rangeLabel(measured)})`;
 </script>
 
 <template>

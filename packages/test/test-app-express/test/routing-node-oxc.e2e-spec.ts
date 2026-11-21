@@ -1,4 +1,4 @@
-import { linkPackage } from './nest-project';
+import { linkPackage } from './installed-project';
 import { describeRouting } from './routing-scenarios';
 
 const node = ['--import', '@oxc-node/core/register'];

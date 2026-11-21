@@ -1,11 +1,7 @@
 <script setup>
-import { count, differenceLabel, scenarios } from './results';
+import { count, differenceLabel, headline, scenariosById } from './results';
 
-// The headline numbers: the two requests that validate on the way in and out, and the one
-// that validates nothing.
-const tiles = ['params', 'body', 'none'].map((id) =>
-  scenarios.find((scenario) => scenario.id === id),
-);
+const tiles = scenariosById(headline);
 </script>
 
 <template>
