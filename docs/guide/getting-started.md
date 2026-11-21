@@ -66,6 +66,29 @@ export class AppModule {}
 `rootDirectory` is relative to the file that calls `forRoot()`. The router takes `providers`,
 `imports` and `exports` as any Nest module does.
 
+## Set up Vitest
+
+A new Nest project tests with Vitest. Add `nestjs-endpoints` to `server.deps.inline` in both of
+its configs, `vitest.config.ts` and `vitest.config.e2e.ts`, so that the endpoint files the
+package loads go through Vite like the rest of your code:
+
+```ts
+// vitest.config.e2e.ts
+import { defineConfig } from 'vitest/config';
+
+export default defineConfig({
+  resolve: { tsconfigPaths: true },
+  test: {
+    globals: true,
+    root: './',
+    include: ['**/*.e2e-spec.ts'],
+    server: { deps: { inline: ['nestjs-endpoints'] } }, // [!code ++]
+  },
+});
+```
+
+See [Testing](./testing.md) for how to test endpoints.
+
 ## Write an endpoint
 
 An endpoint file is named `<name>.endpoint.ts` and default-exports its endpoint:

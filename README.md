@@ -129,6 +129,8 @@ Endpoint available at `GET /status/health`.
 - `router`: the app's root [router](#endpoint-router). It takes what `EndpointRouterModule.create()` takes, and its `rootDirectory` is relative to the file that calls `forRoot()`.
 - `watch`: whether the app watches its endpoint folders, so that `node --watch` restarts it when an endpoint file is added or removed. `nest start --watch` restarts by itself. The app keeps a small file per router under `node_modules/.cache/nestjs-endpoints/` for it. Defaults to `false`.
 
+A project that tests with Vitest, as a new Nest project does, adds one line to each of its Vitest configs: see [Vitest](#vitest).
+
 ### Option 2. Traditional
 
 Import endpoints like regular NestJS controllers. No extra setup.

@@ -10,14 +10,19 @@ Nest app. You can test at four levels, from the whole app down to one handler.
 ## Vitest
 
 Add `nestjs-endpoints` to `server.deps.inline` in each of your Vitest configs. A new Nest project
-has two, `vitest.config.ts` and `vitest.config.e2e.ts`:
+has two, `vitest.config.ts` and `vitest.config.e2e.ts`; in the first, as Nest writes it:
 
 ```ts
+// vitest.config.ts
 import { defineConfig } from 'vitest/config';
 
 export default defineConfig({
+  resolve: { tsconfigPaths: true },
   test: {
-    server: { deps: { inline: ['nestjs-endpoints'] } },
+    globals: true,
+    root: './',
+    include: ['**/*.spec.ts'],
+    server: { deps: { inline: ['nestjs-endpoints'] } }, // [!code ++]
   },
 });
 ```
