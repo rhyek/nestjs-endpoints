@@ -1,0 +1,37 @@
+{
+  "name": "nestjs-endpoints-docs",
+  "private": true,
+  "type": "module",
+  "config": {
+    "port": 22510
+  },
+  "scripts": {
+    "dev": "pnpm snippets && vitepress dev . --port $npm_package_config_port --strictPort",
+    "build": "pnpm snippets && vitepress build .",
+    "preview": "vitepress preview . --port $npm_package_config_port",
+    "snippets": "node --import @oxc-node/core/register snippets/src/codegen.ts",
+    "check": "pnpm snippets && tsc --noEmit -p snippets"
+  },
+  "devDependencies": {
+    "@nestjs/common": "^12.4.0",
+    "@nestjs/core": "^12.4.0",
+    "@nestjs/platform-node": "^12.4.0",
+    "@nestjs/swagger": "^12.1.1",
+    "@nestjs/testing": "^12.4.0",
+    "@oxc-node/core": "^1.0.1",
+    "@shikijs/vitepress-twoslash": "4.6.0",
+    "@tanstack/react-query": "^5.102.8",
+    "@types/node": "^26.6.6",
+    "@types/react": "^19.2.18",
+    "axios": "^1.20.0",
+    "nestjs-endpoints": "workspace:*",
+    "react": "^19.2.8",
+    "reflect-metadata": "^0.2.2",
+    "rxjs": "^7.8.2",
+    "typescript": "~6.0.3",
+    "vitepress": "1.6.4",
+    "vitepress-plugin-llms": "1.14.0",
+    "vue": "^3.5.45",
+    "zod": "^4.6.7"
+  }
+}

@@ -5,26 +5,34 @@
   "type": "module",
   "scripts": {
     "test": "./scripts/build.sh && ./scripts/test.sh",
-    "dev": "pnpm --filter nestjs-endpoints --filter test-app-express-cjs run --parallel dev",
-    "prepare": "husky"
+    "dev": "pnpm --filter nestjs-endpoints --filter test-app-express run --parallel dev",
+    "bench": "node benchmarks/scripts/run.ts",
+    "build": "./scripts/build.sh && pnpm --filter nestjs-endpoints-docs build && node scripts/package-docs.ts",
+    "lint": "oxlint --disable-nested-config && oxfmt --check --disable-nested-config",
+    "format": "oxfmt --disable-nested-config",
+    "docs:dev": "./scripts/build.sh && dotenvx run -f .env.local --ignore=MISSING_ENV_FILE -- pnpm --filter nestjs-endpoints-docs dev",
+    "docs:preview": "pnpm --filter nestjs-endpoints-docs preview",
+    "prepare": "simple-git-hooks"
+  },
+  "simple-git-hooks": {
+    "pre-commit": "pnpm lint-staged"
   },
   "devDependencies": {
-    "@eslint/js": "^9.29.0",
-    "@nestjs/common": "^11.0.13",
-    "@nestjs/core": "^11.0.13",
-    "@nestjs/swagger": "^11.1.1",
-    "@types/node": "^22.13.1",
-    "@typescript-eslint/parser": "^8.23.0",
-    "eslint": "^9.29.0",
-    "eslint-config-prettier": "^10.1.5",
-    "eslint-plugin-import": "^2.31.0",
-    "eslint-plugin-prettier": "^5.4.1",
-    "eslint-plugin-unused-imports": "^4.1.4",
-    "husky": "^9.1.7",
-    "lint-staged": "^15.4.3",
-    "prettier": "^3.0.0",
-    "reflect-metadata": "^0.1.13",
-    "typescript-eslint": "^8.24.0",
-    "zod": "^4.1.5"
+    "@dotenvx/dotenvx": "^2.38.2",
+    "@nestjs/common": "^12.4.0",
+    "@nestjs/core": "^12.4.0",
+    "@nestjs/swagger": "^12.1.1",
+    "@types/node": "^26.6.6",
+    "lint-staged": "^17.6.0",
+    "simple-git-hooks": "^2.14.0",
+    "oxfmt": "^0.74.0",
+    "oxlint": "^1.89.0",
+    "oxlint-tsgolint": "^7.0.2005",
+    "reflect-metadata": "^0.2.2",
+    "typescript": "~7.0.2",
+    "zod": "^4.6.7"
+  },
+  "dependencies": {
+    "@rhyek/oxc-config": "workspace:*"
   }
 }

@@ -1,135 +1,88 @@
 import { AsyncLocalStorage } from 'node:async_hooks';
 import path from 'node:path';
-import { applyDecorators } from '@nestjs/common';
-import { ApiQuery, ApiQueryOptions } from '@nestjs/swagger';
 import callsites from 'callsites';
-import { z, ZodPipe, ZodTransform } from 'zod';
-import { createSchema } from 'zod-openapi';
-import { zodToOpenApi } from './zod-to-openapi';
+import { callsiteFileToPath } from './callsite';
+import { objectParameters, type ObjectSchemaLike } from './object-parameters';
 
-function isDirPathSegment(dir: string) {
-  const segment = path.basename(dir);
-  if (!segment.startsWith('_')) {
-    return true;
-  }
-  return false;
+/**
+ * Expand one filename-derived path segment into one or more URL segments.
+ *
+ * - Splits on `.` so `$id.view` → `[$id, view]` and `$id.delete` →
+ *   `[$id, delete]`. This is what lets a single folder or file express a
+ *   URL with a path parameter inline (e.g., `recipes/$id.delete.endpoint.ts`
+ *   → `recipes/:id/delete`).
+ * - Subsegments starting with `$` become `:` parameters: `$id` → `:id`.
+ *
+ * Empty pieces are dropped, which gracefully handles oddities like a
+ * leading or trailing `.`.
+ */
+function expandUrlSegment(segment: string): string[] {
+  return segment
+    .split('.')
+    .filter(Boolean)
+    .map((sub) => (sub.startsWith('$') ? ':' + sub.slice(1) : sub));
 }
-const shortCircuitDirs: Record<string, boolean> = {
-  [process.cwd()]: true,
-};
-export function getEndpointHttpPath(
-  rootDirectories: string[],
-  basePath: string,
-  file: string,
-) {
-  const stopDirs: Record<string, boolean> = { ...shortCircuitDirs };
-  for (const d of rootDirectories) {
-    stopDirs[d] = true;
-  }
-  let pathSegments: string[] = [];
-  let start = path.dirname(file);
-  let lastDirPathSegment: string | null = null;
 
-  while (true) {
-    if (
-      Object.keys(stopDirs).some(
-        (d) =>
-          path.normalize(d + path.sep) ===
-          path.normalize(start + path.sep),
-      ) ||
-      start === path.parse(start).root
-    ) {
-      break;
+/**
+ * An endpoint file's URL: the router's base path, the folders between the
+ * file and the root directory it is in (or the working directory), leaving
+ * out `_`-prefixed ones, then the file's name unless it is `endpoint.ts`.
+ */
+export function getEndpointHttpPath(rootDirectories: string[], basePath: string, file: string) {
+  const stopDirs = new Set([process.cwd(), ...rootDirectories].map((d) => path.resolve(d)));
+  const folderSegments: string[] = [];
+  for (
+    let dir = path.dirname(file);
+    !stopDirs.has(dir) && dir !== path.parse(dir).root;
+    dir = path.dirname(dir)
+  ) {
+    const folder = path.basename(dir);
+    if (!folder.startsWith('_')) {
+      folderSegments.unshift(...expandUrlSegment(folder));
     }
-    if (isDirPathSegment(start)) {
-      pathSegments.push(path.basename(start));
-      lastDirPathSegment = start;
-    }
-    start = path.dirname(start);
   }
-  if (lastDirPathSegment) {
-    shortCircuitDirs[path.dirname(lastDirPathSegment)] = true;
-  }
-  const basePathSegments = basePath.split('/').filter(Boolean);
-  pathSegments = [...basePathSegments, ...pathSegments.reverse()];
-
+  const pathSegments = [...basePath.split('/').filter(Boolean), ...folderSegments];
   const basename = path.basename(file, path.extname(file));
   if (basename !== 'endpoint') {
-    const leaf = basename.split('.endpoint')[0];
-    pathSegments.push(leaf);
+    pathSegments.push(...expandUrlSegment(basename.split('.endpoint')[0]));
   }
-  const httpPath = path.join(...pathSegments);
-  const httpPathPascalName = getHttpPathPascalName(httpPath);
-
-  return { httpPath, httpPathPascalName, httpPathSegments: pathSegments };
+  const httpPath = path.posix.join(...pathSegments);
+  return {
+    httpPath,
+    httpPathPascalName: getHttpPathPascalName(httpPath),
+    httpPathSegments: pathSegments,
+  };
 }
 
 export function getHttpPathPascalName(httpPath: string) {
+  // Drop entire `:param` segments from the name so the SDK method for
+  // `/recipes/edit/:recipeId` reads as `recipesEdit({ path, body })`
+  // instead of `recipesEditRecipeId({ path, body })`. The path param is
+  // already conveyed by the typed `path` group; repeating its name in the
+  // method is just noise.
   return httpPath
+    .replace(/\/:[^/]+/g, '')
+    .replace(/^:[^/]+\/?/g, '')
     .replace(/^[a-z]/, (letter) => letter.toUpperCase())
     .replace(/[/-]([a-z0-9])/g, (_, char: string) => char.toUpperCase());
 }
 
-export const ApiQueries = <
-  T extends
-    | z.ZodObject
-    | z.ZodPipe<z.ZodObject>
-    | z.ZodPipe<any, z.ZodObject>,
->(
-  zodObject: T,
-) => {
-  const source: z.ZodObject = (() => {
-    if (zodObject instanceof ZodPipe) {
-      if (zodObject.def.in instanceof ZodTransform) {
-        return zodObject.def.out;
-      } else {
-        return zodObject.def.in;
-      }
-    }
-    return zodObject;
-  })();
-  const optionsList = Object.keys(source.shape).reduce<
-    Array<
-      ApiQueryOptions & {
-        schema: ReturnType<typeof createSchema>['schema'];
-      }
-    >
-  >((acc, name) => {
-    const zodType = source.shape[name];
-    if (zodType) {
-      const { openApiSchema } = zodToOpenApi({
-        schema: zodType,
-        schemaType: 'input',
-      });
-      acc.push({
-        name,
-        required: !zodType.isOptional(),
-        schema: openApiSchema,
-      });
-    }
+export const ApiQueries = <T extends ObjectSchemaLike>(zodObject: T) =>
+  objectParameters('query', zodObject, 'The schema given to ApiQueries()');
 
-    return acc;
-  }, []);
-
-  return applyDecorators(
-    ...optionsList.map((options) => ApiQuery(options)),
-  );
-};
-
-export function shouldJson(value: unknown) {
-  return typeof value !== 'string';
-}
+export const ApiParams = <T extends ObjectSchemaLike>(zodObject: T) =>
+  objectParameters('path', zodObject, 'The schema given to ApiParams()');
 
 export function getCallsiteFile() {
   const callsite = callsites()[2];
   if (!callsite) {
     throw new Error('Callsite not found');
   }
-  const result = callsite.getFileName()?.replace(/^file:\/\//, '');
-  if (!result) {
+  const fileName = callsite.getFileName();
+  if (!fileName) {
     throw new Error('Callsite file not found');
   }
-  return result;
+  return callsiteFileToPath(fileName);
 }
 
 export const moduleAls = new AsyncLocalStorage<{
@@ -154,4 +107,10 @@ export const moduleAls = new AsyncLocalStorage<{
    * `rootDirectory: './endpoints'` + nested-router pattern.
    */
   parentRootDirectories: string[];
+  /**
+   * The parent router's effective namespace chain. Child routers that
+   * declare their own `namespace` extend this chain; children without a
+   * namespace inherit the parent's chain unchanged.
+   */
+  parentNamespaceChain: string[];
 }>();

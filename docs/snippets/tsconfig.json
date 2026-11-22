@@ -1,0 +1,19 @@
+{
+  // What an app using the library compiles with: decorators for Nest, and the `dom` lib the
+  // generated clients need. The site's code samples compile with these options too.
+  "compilerOptions": {
+    "module": "esnext",
+    "target": "esnext",
+    "moduleResolution": "bundler",
+    "lib": ["esnext", "dom"],
+    "jsx": "react-jsx",
+    "esModuleInterop": true,
+    "experimentalDecorators": true,
+    "emitDecoratorMetadata": true,
+    "strict": true,
+    "skipLibCheck": true,
+    "noEmit": true,
+    "types": ["node"]
+  },
+  "include": ["src/**/*", "generated/**/*"]
+}

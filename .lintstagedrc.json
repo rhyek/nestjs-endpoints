@@ -1,3 +1,7 @@
 {
-  "*.{ts,tsx}": "pnpm eslint --fix --max-warnings=0 --no-warn-ignored"
+  "*.{ts,tsx}": [
+    "oxlint --fix --max-warnings=0 --disable-nested-config --no-error-on-unmatched-pattern",
+    "oxfmt --disable-nested-config --no-error-on-unmatched-pattern"
+  ],
+  "*.{js,mjs,cjs,json,jsonc,yaml,yml,css,html}": "oxfmt --disable-nested-config --no-error-on-unmatched-pattern"
 }

@@ -1,611 +1,82 @@
 # nestjs-endpoints
 
-![PR workflow](https://github.com/rhyek/nestjs-endpoints/actions/workflows/pr.yaml/badge.svg)
+![CI](https://github.com/rhyek/nestjs-endpoints/actions/workflows/ci.yaml/badge.svg)
 
-## Introduction
+End-to-end type safety, built on NestJS controllers.
 
-**nestjs-endpoints** is a lightweight tool for writing clean, succinct, end-to-end type-safe HTTP APIs with NestJS that encourages the [REPR](https://www.apitemplatepack.com/docs/introduction/repr-pattern/) design pattern, code colocation, and the Single Responsibility Principle.
+Write each endpoint as one file, with Zod schemas for its request and response and a handler.
+nestjs-endpoints serves it at a route that comes from where the file sits, validates what goes
+in and out, and generates a typed axios or React Query client from the same schemas.
 
-It's inspired by the [Fast Endpoints](https://fast-endpoints.com/) .NET library, [tRPC](https://trpc.io/), and Next.js' file-based routing.
-
-An endpoint can be as simple as this:
-
-`src/greet.endpoint.ts`
-
-```ts
-export default endpoint({
-  input: z.object({
-    name: z.string(),
-  }),
-  output: z.string(),
-  inject: {
-    helloService: HelloService,
-  },
-  handler: ({ input, helloService }) => helloService.greet(input.name),
-});
-```
-
-```bash
-❯ curl 'http://localhost:3000/greet?name=Satie'
-Hello, Satie!%
-```
-
-```ts
-// axios client
-const greeting = await client.greet({ name: 'Satie' });
-
-// react-query client
-const { data: greeting, error, status } = useGreet({ name: 'Satie' });
-```
+**Documentation: [nestjs-endpoints.dev](https://nestjs-endpoints.dev)**
 
 ## Features
 
-- **Stable:** Produces regular **NestJS Controllers** under the hood.
-- **Two routing styles:** manual imports with explicit paths, or file-based routing that scans your project.
-- **Module-scoped middleware, interceptors, and guards** — a gap in vanilla NestJS.
-- **Schema validation:** compile- and run-time validation of input and output using Zod.
-- **OpenAPI 3.1.1:** generated via `@nestjs/swagger` + [zod-openapi](https://github.com/samchungy/zod-openapi).
-- **End-to-end type safety:** `axios` and `@tanstack/react-query` client libraries auto-generated with [orval](https://orval.dev/).
-- **Adapter-agnostic:** Express or Fastify; CommonJS or ESM.
+- **NestJS controllers underneath.** Modules, providers, guards, interceptors and the Express,
+  Fastify and `node:http` adapters work as they do in any Nest app.
+- **File-based routing.** An endpoint's URL is its path in the folder, or a `path` you give it.
+- **Validation and types from one schema.** Bodies, search parameters and path parameters are
+  parsed before the handler runs, and a response that doesn't match its schema doesn't compile.
+- **Generated clients.** A typed axios client or React Query hooks, nested by the routers'
+  namespaces.
+- **Router-scoped middleware, interceptors and guards.**
+- **Built for coding agents.** An agent rules file and a skill that point an agent at the docs
+  shipped inside the package.
 
-## New in v2
-
-- **Zod v4**
-- **zod-openapi v5**
-- **OpenAPI 3.1.1**
-
-## Requirements
-
-- Node.js >= 20
-- Zod >= 4.1
-
-## Installation
+## Install
 
 ```bash
-npm install nestjs-endpoints @nestjs/swagger zod
+npm install nestjs-endpoints zod
 ```
 
-## Setup
+Requires Node.js 24.22, NestJS 12, TypeScript 6 and Zod 4.1 or newer, in an ESM project.
 
-Pick automatic scanning, traditional manual imports, or mix both.
+## Quick start
 
-### Option 1. Traditional
-
-Import endpoints like regular NestJS controllers. No extra setup.
-
-`src/health-check.ts`
-
-```typescript
-import { endpoint } from 'nestjs-endpoints';
-
-export const healthCheck = endpoint({
-  path: '/status/health',
-  inject: {
-    health: HealthService,
-  },
-  handler: ({ health }) => health.check(),
-});
-```
-
-`src/app.module.ts`
-
-```typescript
+```ts
+// src/app.module.ts
 import { Module } from '@nestjs/common';
-import { healthCheck } from './health-check';
+import { NestjsEndpoints } from 'nestjs-endpoints';
 
 @Module({
-  controllers: [healthCheck],
-  providers: [HealthService],
-})
-class AppModule {}
-```
-
-Endpoint available at `/status/health`.
-
-### Option 2. Automatic (file-based routing)
-
-`src/endpoints/status/health.ts`
-
-```typescript
-import { endpoint } from 'nestjs-endpoints';
-
-export default endpoint({
-  inject: {
-    health: HealthService,
-  },
-  handler: ({ health }) => health.check(),
-});
-```
-
-`src/app.module.ts`
-
-```typescript
-import { EndpointRouterModule } from 'nestjs-endpoints';
-
-@Module({
-  imports: [
-    EndpointRouterModule.create({
-      rootDirectory: './endpoints',
-      providers: [HealthService],
-    }),
-  ],
+  imports: [NestjsEndpoints.forRoot({ router: { rootDirectory: './endpoints' } })],
 })
 export class AppModule {}
 ```
 
-Endpoint available at `/status/health`.
-
-### Complex query parameters
-
-For GET endpoints with nested-object query params, [configure](https://docs.nestjs.com/controllers#query-parameters) the Express or Fastify adapter accordingly.
-
-## Usage
-
-`src/endpoints/user/find.endpoint.ts`
-
-```typescript
+```ts
+// src/endpoints/greet.endpoint.ts  →  POST /greet
 import { endpoint, z } from 'nestjs-endpoints';
 
-export default endpoint({
-  input: z.object({
-    // GET endpoints use query params for input,
-    // so we need to coerce the string to a number
-    id: z.coerce.number(),
-  }),
-  output: z
-    .object({
-      id: z.number(),
-      name: z.string(),
-      email: z.string().email(),
-    })
-    .nullable(),
-  inject: {
-    db: DbService,
-  },
-  injectOnRequest: {
-    session: decorated<Session>(Session()),
-  }
-  // The handler's parameters are fully typed, and its
-  // return value is type-checked against the output schema
-  handler: async ({ input, db, session }) => {
-    if (session.isAuthorized()) {
-      return await db.user.find(input.id);
-    }
-    return null;
-  }
+export default endpoint.query({
+  input: z.object({ name: z.string() }),
+  output: z.string(),
+  handler: ({ input }) => `Hello, ${input.name}!`,
 });
 ```
-
-`src/endpoints/user/create.endpoint.ts`
-
-```typescript
-import { endpoint, z } from 'nestjs-endpoints';
-
-export default endpoint({
-  method: 'post',
-  input: z.object({
-    name: z.string(),
-    email: z.string().email(),
-  }),
-  output: z.object({
-    id: z.number(),
-  }),
-  inject: {
-    db: DbService,
-  },
-  handler: async ({ input, db }) => {
-    const user = await db.user.create(input);
-    return {
-      id: user.id,
-      // Stripped during zod validation
-      name: user.name,
-    };
-  },
-});
-```
-
-You call the above using:
-
-```bash
-❯ curl 'http://localhost:3000/user/find?id=1'
-null%
-
-# bad input
-❯ curl -s -X 'POST' 'http://localhost:3000/user/create' \
--H 'Content-Type: application/json' \
--d '{"name": "Art", "emailTYPO": "art@gmail.com"}' | jq
-{
-  "statusCode": 400,
-  "message": "Validation failed",
-  "errors": [
-    {
-      "code": "invalid_type",
-      "expected": "string",
-      "received": "undefined",
-      "path": [
-        "email"
-      ],
-      "message": "Required"
-    }
-  ]
-}
-
-# success
-❯ curl -X 'POST' 'http://localhost:3000/user/create' \
--H 'Content-Type: application/json' \
--d '{"name": "Art", "email": "art@vandelayindustries.com"}'
-{"id":1}%
-```
-
-### File-based routing
-
-HTTP paths for endpoints are derived from the file's path on disk:
-
-- `rootDirectory` is trimmed from the start
-- Optional `basePath` is prepended
-- Path segments that begin with an underscore (`_`) are removed
-- Filenames must either end in `.endpoint.ts` or be `endpoint.ts`
-- `js`, `cjs`, `mjs`, `mts` are also supported.
-- Route parameters are **not** supported (`user/:userId`)
-
-Examples (assume `rootDirectory` is `./endpoints`):
-
-- `src/endpoints/user/find-all.endpoint.ts` -> `user/find-all`
-- `src/endpoints/user/_mutations/create/endpoint.ts` -> `user/create`
-
-> _**Note:**_ Bundled projects via Webpack or similar are not supported.
-
-### Nested router modules
-
-A subdirectory can own its endpoints and providers by adding a `router.module.ts` that default-exports an `EndpointRouterModule`. The parent auto-discovers it and derives the child's `basePath` from its folder name.
-
-```
-src/
-├── app.module.ts
-└── endpoints/
-    └── shop/
-        ├── homepage.endpoint.ts
-        └── recipes/
-            ├── router.module.ts
-            ├── repository.service.ts
-            ├── endpoint.ts
-            └── create.endpoint.ts
-```
-
-```typescript
-// src/endpoints/shop/recipes/router.module.ts
-import { EndpointRouterModule } from 'nestjs-endpoints';
-import { RecipesRepository } from './repository.service';
-
-export default EndpointRouterModule.create({
-  providers: [RecipesRepository],
-});
-```
-
-```bash
-❯ curl 'http://localhost:3000/shop/recipes/create?name=Pizza'
-{"id":1,"name":"Pizza"}
-
-# `endpoint.ts` inherits its path from the folder, so it maps to GET /shop/recipes.
-❯ curl 'http://localhost:3000/shop/recipes'
-[{"id":1,"name":"Pizza"}]
-```
-
-### Middleware, interceptors, and guards
-
-`EndpointRouterModule.create()` accepts `middleware`, `interceptors`, and `guards` that apply to every endpoint in the router, including nested ones.
-
-> Module-scoped interceptors and guards aren't really a thing in vanilla NestJS — you'd have to register them globally (via `APP_INTERCEPTOR` / `APP_GUARD`) or per-controller with `@UseInterceptors` / `@UseGuards` on each class. Here you declare them once on the router and they automatically apply to its whole subtree.
-
-- `middleware`: class-based (`NestMiddleware`) or functional. The last entry may be an options object; `exclude` paths are resolved relative to the router's `basePath`.
-- `interceptors`: applied via `@UseInterceptors(...)` at controller level.
-- `guards`: applied via `@UseGuards(...)` at controller level.
-
-```typescript
-// src/endpoints/recipes/router.module.ts
-import { IncomingMessage, ServerResponse } from 'node:http';
-import { EndpointRouterModule } from 'nestjs-endpoints';
-import { RecipesGuard } from './recipes.guard';
-import { RecipesInterceptor } from './recipes.interceptor';
-import { RecipesMiddleware } from './recipes.middleware';
-
-export default EndpointRouterModule.create({
-  middleware: [
-    RecipesMiddleware, // class-based
-    (_req: IncomingMessage, _res: ServerResponse, next: () => void) => {
-      console.log('before handler');
-      next();
-    }, // functional
-    { exclude: ['list'] }, // options (last); skips /recipes/list
-  ],
-  interceptors: [RecipesInterceptor],
-  guards: [RecipesGuard],
-});
-```
-
-## Codegen (optional)
-
-Generate a type-safe client SDK (axios and/or react-query) from your endpoints. Uses [orval](https://orval.dev/) under the hood and works with both scanned and manually-imported endpoints.
-
-### Using `setupCodegen`
-
-`src/main.ts`
-
-```typescript
-import { setupCodegen } from 'nestjs-endpoints';
-
-async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
-  await setupCodegen(app, {
-    clients: [
-      {
-        type: 'axios',
-        outputFile: process.cwd() + '/generated/axios-client.ts',
-      },
-      {
-        type: 'react-query',
-        outputFile: process.cwd() + '/generated/react-query-client.tsx',
-      },
-    ],
-  });
-  await app.listen(3000);
-}
-```
-
-### axios
 
 ```ts
-import { createApiClient } from './generated/axios-client';
-
-const client = createApiClient({
-  baseURL: process.env.API_BASE_URL,
-  headers: {
-    'x-test': 'test-1',
-  },
-});
-// Access to axios instance
-client.axios.defaults.headers.common['x-test'] = 'test-2';
-
-const { id } = await client.userCreate({
-  name: 'Tom',
-  email: 'tom@gmail.com',
-});
+// with the generated clients
+const greeting = await client.greet({ body: { name: 'Satie' } });
+const { data } = client.useGreet({ body: { name: 'Satie' } });
 ```
 
-### react-query
+## Documentation
 
-```typescript
-import {
-  ApiClientProvider,
-  createApiClient,
-} from './generated/react-query-client';
+- [Getting started](https://nestjs-endpoints.dev/guide/getting-started)
+- [Writing an endpoint](https://nestjs-endpoints.dev/guide/endpoints)
+- [File-based routing](https://nestjs-endpoints.dev/guide/file-based-routing)
+- [Generating clients](https://nestjs-endpoints.dev/clients/codegen)
+- [Testing](https://nestjs-endpoints.dev/guide/testing)
+- [Built for agents](https://nestjs-endpoints.dev/ai/overview)
 
-export function App() {
-  const queryClient = useMemo(() => new QueryClient({}), []);
-  const apiClient = useMemo(
-    () =>
-      createApiClient({
-        baseURL: import.meta.env.VITE_API_BASE_URL,
-      }),
-    [],
-  );
+A complete example, an API with a React front end, is in
+[`examples/file-based-routing`](https://github.com/rhyek/nestjs-endpoints/tree/main/examples/file-based-routing).
 
-  return (
-    <QueryClientProvider client={queryClient}>
-      <ApiClientProvider client={apiClient}>
-        <UserPage />
-      </ApiClientProvider>
-    </QueryClientProvider>
-  );
-}
---
-import {
-  useUserCreate,
-  useApiClient,
-} from './generated/react-query-client';
+For coding agents, the docs are indexed at
+[nestjs-endpoints.dev/llms.txt](https://nestjs-endpoints.dev/llms.txt), and ship inside the
+package at `node_modules/nestjs-endpoints/docs/llms.txt`.
 
-export function UserPage() {
-  // react-query mutation hook
-  const userCreate = useUserCreate();
-  const handler = () => userCreate.mutateAsync({ ... });
+## License
 
-  // You can also use the api client, directly
-  const client = useApiClient();
-  const handler = () => client.userCreate({ ... });
-  ...
-}
-```
-
-More examples:
-
-- [axios](https://github.com/rhyek/nestjs-endpoints/blob/f9fc77c0af9439e35e2ed3f26aa3e645795ed44f/packages/test/test-app-express-cjs/test/client.e2e-spec.ts#L15)
-- [react-query](https://github.com/rhyek/nestjs-endpoints/tree/main/packages/test/test-react-query-client)
-
-### Manual codegen with OpenAPI spec file
-
-If you only need the OpenAPI spec or want to drive orval (or another tool) yourself:
-
-`src/main.ts`
-
-```typescript
-import { setupOpenAPI } from 'nestjs-endpoints';
-
-async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
-  const { document, changed } = await setupOpenAPI(app, {
-    configure: (builder) => builder.setTitle('My Api'),
-    outputFile: process.cwd() + '/openapi.json',
-  });
-  if (changed) {
-    void import('orval').then(({ generate }) => generate());
-  }
-  await app.listen(3000);
-}
-```
-
-## Advanced Usage
-
-A fuller endpoint example: multi-status output, per-endpoint decorators, request-time injection. Full example [here](https://github.com/rhyek/nestjs-endpoints/tree/main/packages/test/test-app-express-cjs). You can also freely mix these with plain NestJS controllers.
-
-`src/endpoints/user/appointment/create.endpoint.ts`
-
-```typescript
-import { Inject, Req, UseGuards } from '@nestjs/common';
-import type { Request } from 'express';
-import { decorated, endpoint, schema, z } from 'nestjs-endpoints';
-
-export default endpoint({
-  method: 'post',
-  summary: 'Create an appointment',
-  input: z.object({
-    userId: z.number(),
-    date: z.coerce.date(),
-  }),
-  output: {
-    201: schema(
-      z.object({
-        id: z.number(),
-        date: z.date().transform((date) => date.toISOString()),
-        address: z.string(),
-      }),
-      {
-        description: 'Appointment created',
-      },
-    ),
-    400: z.union([
-      z.string(),
-      z.object({
-        message: z.string(),
-        errorCode: z.string(),
-      }),
-    ]),
-  },
-  // Per-endpoint decorators. Guards, interceptors, and middleware that
-  // should apply to every endpoint in the router can instead be passed
-  // to `EndpointRouterModule.create({ guards, interceptors, middleware })`.
-  decorators: [UseGuards(AuthGuard)],
-  inject: {
-    db: DbService,
-    appointmentsRepository: decorated<IAppointmentRepository>(
-      Inject(AppointmentRepositoryToken),
-    ),
-  },
-  injectOnRequest: {
-    req: decorated<Request>(Req()),
-  },
-  handler: async ({
-    input,
-    db,
-    appointmentsRepository,
-    req,
-    response,
-  }) => {
-    const user = await db.find(input.userId);
-    if (!user) {
-      // Need to use response fn when multiple output status codes
-      // are defined
-      return response(400, 'User not found');
-    }
-    if (await appointmentsRepository.hasConflict(input.date)) {
-      return response(400, {
-        message: 'Appointment has conflict',
-        errorCode: 'APPOINTMENT_CONFLICT',
-      });
-    }
-    return response(
-      201,
-      await appointmentsRepository.create(
-        input.userId,
-        input.date,
-        req.ip,
-      ),
-    );
-  },
-});
-```
-
-To call this endpoint:
-
-```bash
-❯ curl -X 'POST' 'http://localhost:3000/user/appointment/create' \
--H 'Content-Type: application/json' \
--H 'Authorization: secret' \
--d '{"userId": 1, "date": "2021-11-03"}'
-{"id":1,"date":"2021-11-03T00:00:00.000Z","address":"::1"}%
-```
-
-## Handling ZodEffects in output schemas
-
-`.transform()` in an output schema produces a `ZodEffect` whose runtime type can't always be inferred for OpenAPI ([more info](https://github.com/samchungy/zod-openapi?tab=readme-ov-file#effecttype)). Use `.overwrite()` or `.meta({ type: ... })` instead:
-
-```typescript
-// Use .overwrite for same-type transforms:
-z.string().overwrite((s) => s.toUpperCase())
-
-// Or annotate the output type:
-z.string().transform((s) => s.toUpperCase()).meta({ type: 'string' })
-```
-
-## Testing
-
-### End-to-end tests
-
-Use the generated client or `supertest`.
-
-```ts
-test('client library', async () => {
-  const moduleFixture: TestingModule = await Test.createTestingModule({
-    imports: [AppModule],
-  }).compile();
-  const app = moduleFixture.createNestApplication();
-  await app.init();
-  await app.listen(0);
-  const client = createApiClient({
-    baseURL: await app.getUrl(),
-  });
-  await expect(client.userFind({ id: 1 })).resolves.toMatchObject({
-    data: {
-      id: 1,
-      email: 'john@hotmail.com',
-    },
-  });
-});
-
-test('supertest', async () => {
-  const moduleFixture: TestingModule = await Test.createTestingModule({
-    imports: [AppModule],
-  }).compile();
-  const app = moduleFixture.createNestApplication();
-  await request(app.getHttpServer())
-    .get('/user/find?id=1')
-    .expect(200)
-    .then((resp) => {
-      expect(resp.body).toMatchObject({
-        id: 1,
-        email: 'john@hotmail.com',
-      });
-    });
-});
-```
-
-### Integration tests
-
-Load individual endpoints without the full app:
-
-```ts
-import userFindEndpoint from 'src/endpoints/user/find.endpoint';
-
-test('integration', async () => {
-  const moduleFixture: TestingModule = await Test.createTestingModule({
-    controllers: [userFindEndpoint],
-    providers: [DbService],
-  }).compile();
-  const app = moduleFixture.createNestApplication();
-  await app.init();
-  const userFind = app.get(userFindEndpoint);
-  await expect(userFind.invoke({ id: 1 })).resolves.toMatchObject({
-    id: 1,
-    email: 'john@hotmail.com',
-  });
-});
-```
+MIT

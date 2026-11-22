@@ -1,6 +1,11 @@
 {
   "compilerOptions": {
-    "module": "commonjs",
+    // tsdown resolves the sources' extensionless relative imports and writes them out as
+    // `./x.js`, so TypeScript resolves them as a bundler does.
+    "module": "preserve",
+    "moduleResolution": "bundler",
+    // tsdown (oxc) compiles each file on its own.
+    "isolatedModules": true,
     "lib": ["esnext"],
     "target": "esnext",
     "declaration": true,
@@ -12,8 +17,8 @@
     "skipLibCheck": true,
     "experimentalDecorators": true,
     "emitDecoratorMetadata": true,
-    "types": ["vitest/globals"]
+    "types": ["node", "vitest/globals"]
   },
-  "include": ["src", "vitest.config.ts"],
+  "include": ["src", "test", "vitest.config.ts", "tsdown.config.ts"],
   "exclude": ["node_modules", "dist"]
 }

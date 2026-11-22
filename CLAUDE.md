@@ -1,10 +1,13 @@
 - Please read the README.md file to understand what this project is about.
 - The only deployable lives at packages/nestjs-endpoints
-- There are five test projects at packages/test:
+  - It builds with tsdown in unbundle mode (`packages/nestjs-endpoints/tsdown.config.ts`, run by `scripts/build.sh`; `pnpm dev` watches): one `dist/*.js`, `.d.ts` and their maps per source file, as `tsc` would lay it out. It type-checks while it writes the declarations, so a type error fails the build.
+  - Its sources import each other without an extension (`from './helpers'`); the build writes them out as `./helpers.js`. The test apps, benchmarks, examples and docs keep `.js`: they're written the way a consumer on Node ESM writes them.
+- There are four test projects at packages/test:
   - All test-app-\* projects are meant to test backend calls both regular http calls and using the generated axios client
-  - I only write tests for those in packages/test/test-app-express-cjs, since scripts/test.sh copies the app and test source files to the other test-app-\* projects.
-    - Main test file for http calls using supertest are in packages/test/test-app-express-cjs/test/app.e2e-spec.ts
-    - Test file for calls using the axios client are in packages/test/test-app-express-cjs/test/client.e2e-spec.ts
+  - I only write tests for those in packages/test/test-app-express, since scripts/test.sh copies the app and test source files to the other test-app-\* projects.
+    - Main test file for http calls using supertest are in packages/test/test-app-express/test/app.e2e-spec.ts
+    - Test file for calls using the axios client are in packages/test/test-app-express/test/client.e2e-spec.ts
     - Other files have specific purposes
   - packages/test/test-react-query-client is meant to test the generated react-query client.
     - You will need to first add code in packages/test/test-react-query-client/src that imports the client queries or mutations, and then add tests in packages/test/test-react-query-client/test
+- Superpowers writes to `maintenance/docs/superpowers/`, not its default `docs/superpowers/`: brainstorming's specs go in `specs/YYYY-MM-DD-<topic>-design.md` and writing-plans' plans in `plans/YYYY-MM-DD-<feature-name>.md`. The folder is gitignored, so they are never committed. `docs/` is only for the public documentation site.
