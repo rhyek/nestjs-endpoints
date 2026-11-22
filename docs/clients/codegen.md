@@ -161,7 +161,7 @@ An operation's name comes from the endpoint's URL and its router's namespace. Se
 
 ## What a client covers
 
-The clients are generated from endpoints, so they cover endpoints only. Routes of plain
-`@Controller()` classes are not in a client: call them through the client's axios instance,
-`client.axios`, or [run a generator of your own](./openapi.md#your-own-generator) against an
-OpenAPI document.
+The clients are generated from endpoints, so they cover <Endpoint>endpoints</Endpoint> only. Routes
+of plain `@Controller()` classes are not in a client: call them through the client's axios instance,
+`client.axios`, or [run a generator of your own](./openapi.md#your-own-generator) against an OpenAPI
+document.

@@ -14,7 +14,8 @@ repeated on every controller it should cover. There is no way to say "everything
 module". A new controller that is added without the decorator is unguarded, and nothing tells
 you.
 
-A router module declares them once, for every endpoint it owns, nested routers included:
+A router module declares them once, for every <Endpoint>endpoint</Endpoint> it owns, nested routers
+included:
 
 ```ts
 // src/endpoints/admin/router.module.ts
@@ -34,12 +35,12 @@ decorator of its own. See
 
 ## Faster schema validation
 
-An endpoint validates its request and its response in one step, without the pipe and the
-interceptor NestJS's own schema validation runs. The same API serves about 25% more requests
-per second where both are validated. See [Performance](./performance.md).
+An <Endpoint>endpoint</Endpoint> validates its request and its response in one step, without the
+pipe and the interceptor NestJS's own schema validation runs. The same API serves about 25% more
+requests per second where both are validated. See [Performance](./performance.md).
 
 ## Responses the compiler checks
 
-NestJS validates a response when the request runs. An endpoint's return value is also checked
-against `output` by the compiler, so a handler that returns the wrong shape doesn't build. See
-[Type safety](./type-safety.md#the-return-value).
+NestJS validates a response when the request runs. An <Endpoint>endpoint</Endpoint>'s return value
+is also checked against `output` by the compiler, so a handler that returns the wrong shape doesn't
+build. See [Type safety](./type-safety.md#the-return-value).

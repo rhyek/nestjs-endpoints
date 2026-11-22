@@ -8,6 +8,7 @@ defineProps({
   /** A small label over the title, such as "Server". */
   eyebrow: { type: String, default: '' },
   title: { type: String, required: true },
+  /** The paragraph under the title. It is HTML, so it can set a word apart with a `<span>`. */
   details: { type: String, required: true },
   /** Short lines under the details, each `{ term, text }`. */
   points: { type: Array, default: () => [] },
@@ -27,7 +28,7 @@ defineProps({
     <div class="pitch">
       <p v-if="eyebrow" class="home-eyebrow">{{ eyebrow }}</p>
       <h2 class="home-title">{{ title }}</h2>
-      <p class="home-details">{{ details }}</p>
+      <p class="home-details" v-html="details" />
       <dl v-if="points.length">
         <div v-for="point in points" :key="point.term">
           <dt>

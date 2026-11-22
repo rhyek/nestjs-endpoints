@@ -56,3 +56,18 @@ old way still applies. History belongs in `CHANGELOG.md` and in commit messages.
 Released versions are on npm (`npm view nestjs-endpoints versions`); the git tag of the same
 name is the commit each was published from. A version not on npm is unreleased, and its
 changelog section describes the difference from the latest released one, not the work in between.
+
+## The word "endpoint", set apart
+
+On the documentation site, `<Endpoint>endpoint</Endpoint>` shows the word in the accent color
+(`docs/.vitepress/theme/Endpoint.vue`). It marks a nestjs-endpoints endpoint where a reader could
+take the word for any HTTP endpoint.
+
+- **Use it where a sentence or a table sets an endpoint against a NestJS controller or plain
+  NestJS**, and where a page says what an endpoint is. Once in a paragraph is enough.
+- **Leave the word plain everywhere else**: pages that tell how to write one, the reference, and
+  any sentence with no controller in sight. Marked everywhere, it marks nothing.
+- **Never in "nestjs-endpoints"**, in code, in a heading, or in a frontmatter `description`.
+- **The word is the tag's content** (`<Endpoint>Endpoints</Endpoint>`, and `'s` goes after the
+  tag), so the Markdown copies agents read keep it. In a frontmatter string the home page prints,
+  write `<span class="endpoint-term">endpoint</span>`.

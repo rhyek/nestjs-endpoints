@@ -35,6 +35,16 @@
 }
 
 /*
+ * The word "endpoint" where it means a nestjs-endpoints endpoint as against a NestJS controller
+ * (see Endpoint.vue): the accent, as the chart's nestjs-endpoints bar is, and heavier than the
+ * text around it. A link is the same color, and is underlined.
+ */
+.endpoint-term {
+  font-weight: 600;
+  color: var(--vp-c-brand-1);
+}
+
+/*
  * The home page's own sections share the default theme's frame, so their edges line up with the
  * feature cards': content up to 1152px wide, inside the page's side padding. `--home-section-gap`
  * is the space a section leaves before the next one.

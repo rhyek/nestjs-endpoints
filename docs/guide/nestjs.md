@@ -11,7 +11,7 @@ two facts is NestJS as you know it.
 
 ## An endpoint is a controller
 
-Whatever you can do with a controller class, you can do with an endpoint:
+Whatever you can do with a controller class, you can do with an <Endpoint>endpoint</Endpoint>:
 
 ```ts
 import { Module } from '@nestjs/common';
@@ -35,8 +35,8 @@ Most apps let a [router](./routers.md) find their endpoint files instead of list
 the result is the same: controllers registered in a module. See
 [Explicit paths](./explicit-paths.md) for endpoints registered by hand.
 
-Each thing a controller says with a decorator is an option of the endpoint. See the
-[endpoint options](../reference/endpoint.md#options).
+Each thing a controller says with a decorator is an option of the <Endpoint>endpoint</Endpoint>. See
+the [endpoint options](../reference/endpoint.md#options).
 
 ## A router is a module
 
@@ -49,7 +49,7 @@ would import any module, and give the router `providers`, `imports` and `exports
 ## Guards, interceptors, filters and pipes
 
 - **Global ones still apply.** `app.useGlobalGuards()`, `APP_INTERCEPTOR`, `APP_FILTER` and the
-  like see endpoints as they see any controller.
+  like see <Endpoint>endpoints</Endpoint> as they see any controller.
 - **Per endpoint**, pass method decorators in `decorators`.
 - **Per folder**, declare them on the [router](./routers.md).
 - **Validation is the endpoint's own.** `input`, `query` and `params` are parsed with their Zod
@@ -76,9 +76,9 @@ the `ZodError`, from `getZodError()`.
 
 ## Plain controllers
 
-Endpoints and `@Controller()` classes share an app, its modules and its providers. An
-[OpenAPI document](../clients/openapi.md) built with `@nestjs/swagger` covers both, and the
-[generated clients](../clients/codegen.md#what-a-client-covers) cover endpoints only.
+<Endpoint>Endpoints</Endpoint> and `@Controller()` classes share an app, its modules and its
+providers. An [OpenAPI document](../clients/openapi.md) built with `@nestjs/swagger` covers both,
+and the [generated clients](../clients/codegen.md#what-a-client-covers) cover endpoints only.
 
 ## HTTP adapters
 

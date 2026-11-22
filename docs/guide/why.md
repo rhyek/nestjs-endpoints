@@ -56,7 +56,7 @@ export class OrdersController {
 }
 ```
 
-And as an endpoint:
+And as an <Endpoint>endpoint</Endpoint>:
 
 ```ts twoslash
 // @filename: src/endpoints/orders/create.sample.ts
@@ -82,7 +82,7 @@ export default endpoint.mutation({
 Both serve `POST /orders/create`, validate the body, and validate the response. The differences
 are in what you leave out, and in what the compiler can check:
 
-| | Controller | Endpoint |
+| | Controller | <Endpoint>Endpoint</Endpoint> |
 | --- | --- | --- |
 | The route's path | In `@Controller()` and `@Post()` | The file's path |
 | The handler's parameter types | Written beside each schema | Inferred from the schemas |
@@ -105,9 +105,10 @@ are in what you leave out, and in what the compiler can check:
 - **A [typed client](../clients/codegen.md)** for axios or React Query, generated from the same
   schemas.
 
-It leaves NestJS alone. An endpoint is a controller class, so modules, providers, guards,
-interceptors, exception filters and the testing module work as they do in any Nest app, and
-endpoints live beside your existing controllers. See [How it fits NestJS](./nestjs.md).
+It leaves NestJS alone. An <Endpoint>endpoint</Endpoint> is a controller class, so modules,
+providers, guards, interceptors, exception filters and the testing module work as they do in any
+Nest app, and endpoints live beside your existing controllers. See
+[How it fits NestJS](./nestjs.md).
 
 ## What it asks of you
 
