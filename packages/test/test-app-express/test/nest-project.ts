@@ -203,10 +203,17 @@ export async function createNestProject(prefix: string) {
   }
   await rm(scaffold, { recursive: true });
 
-  const cli = (...args: string[]) =>
-    run(process.execPath, ['node_modules/nestjs-endpoints/dist/cli.js', ...args], {
-      cwd: directory,
+  /**
+   * The package's `postinstall`, as a package manager runs it: in the package's directory, with
+   * `INIT_CWD` the project's, and outside CI.
+   */
+  const postinstall = () => {
+    const { CI: _, NESTJS_ENDPOINTS_SKIP_AGENT_FILES: __, ...inherited } = process.env;
+    return run(process.execPath, ['postinstall.js'], {
+      cwd: path.join(directory, 'node_modules/nestjs-endpoints'),
+      env: { ...inherited, INIT_CWD: directory },
     });
+  };
   const appModule = path.join(directory, 'src/app.module.ts');
   const scaffolded = await readFile(appModule, 'utf-8');
   const lastImport = "import { AppService } from './app.service.js';";
@@ -284,8 +291,8 @@ export async function createNestProject(prefix: string) {
       }
     },
 
-    /** The `nestjs-endpoints` command, run in the project. */
-    cli,
+    /** The package's `postinstall`, run in the project. */
+    postinstall,
 
     /** Gives the folder `src/endpoints/<folder>` a router module with a namespace. */
     async addRouterModule(folder: string) {

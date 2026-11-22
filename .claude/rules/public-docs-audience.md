@@ -14,8 +14,8 @@ builds an app with nestjs-endpoints.** Never add an item that only a maintainer 
 would care about.
 
 This covers `CHANGELOG.md`, `README.md`, everything under `docs/` (the public documentation site),
-the agent guide shipped in the package (`packages/nestjs-endpoints/docs/agents.md`) and the
-examples' READMEs. Maintainers' notes, including Superpowers' specs and plans, live in
+the agent files the package installs (`packages/nestjs-endpoints/assets/agent-rules.md`,
+`packages/nestjs-endpoints/skills/nestjs-endpoints/SKILL.md`) and the examples' READMEs. Maintainers' notes, including Superpowers' specs and plans, live in
 `maintenance/docs/`, which this rule does not cover.
 
 ## Only what a user acts on

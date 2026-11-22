@@ -98,15 +98,28 @@ describe('a project made by `nest new`, with nestjs-endpoints added', { timeout:
     expect((await json('nest-cli.json')).compilerOptions).toEqual({ deleteOutDir: true });
   });
 
-  test('`nestjs-endpoints init` installs the agent skill, and leaves the project as Nest made it', async () => {
-    const before = await project.files();
+  test('installing the package into a git checkout writes the agent files, and leaves the project as Nest made it', async () => {
+    await mkdir(inProject('.git'));
+    try {
+      const before = await project.files();
 
-    await project.cli('init');
+      await project.postinstall();
 
-    expect(await project.files()).toEqual(
-      [...before, '.claude/skills/nestjs-endpoints/SKILL.md'].sort(),
-    );
-    expect(await read('.gitattributes')).toBe('* text=auto eol=lf\n');
+      expect(await project.files()).toEqual(
+        [
+          ...before,
+          '.claude/rules/nestjs-endpoints.md',
+          '.claude/skills/nestjs-endpoints/SKILL.md',
+        ].sort(),
+      );
+      expect(await read('.claude/rules/nestjs-endpoints.md')).toContain(
+        `require.resolve('nestjs-endpoints/docs/llms.txt')`,
+      );
+      expect(await read('.gitattributes')).toBe('* text=auto eol=lf\n');
+    } finally {
+      await rm(inProject('.git'), { recursive: true });
+      await rm(inProject('.claude'), { recursive: true, force: true });
+    }
   });
 
   describe('`build`, then `start:prod`', () => {

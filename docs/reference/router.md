@@ -46,7 +46,7 @@ default-export it from a `router.module.ts` for a parent router to find.
 
 The returned promise also has an `endpoint` property: the router's own `endpoint.query()` and
 `endpoint.mutation()` builders, which add the router's
-[`endpointConfig`](../guide/dependency-injection.md#router-injections) to the endpoints built
+[`endpointConfig`](../guide/routers.md#shared-injections) to the endpoints built
 with them.
 
 ## Options

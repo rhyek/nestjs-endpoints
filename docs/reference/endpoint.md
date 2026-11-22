@@ -50,7 +50,7 @@ The handler receives one object:
 | `params` | `params` is declared | The parsed path parameters. |
 | `schemas` | always | The Zod schemas: `{ input?, query?, params? }`. |
 | `response` | always | `response(status, body)`. Required when `output` has a schema per status. |
-| your own keys | | Everything from `inject` and `injectOnRequest`, and from the [router's injections](../guide/dependency-injection.md#router-injections), by name. |
+| your own keys | | Everything from `inject` and `injectOnRequest`, and from the [router's injections](../guide/routers.md#shared-injections), by name. |
 
 ## Behavior
 

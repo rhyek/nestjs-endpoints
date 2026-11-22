@@ -25,26 +25,28 @@
   ],
   "files": [
     "src",
+    "!src/**/*.spec.ts",
     "dist",
     "docs",
-    "assets"
+    "assets",
+    "skills",
+    "postinstall.js"
   ],
   "type": "module",
   "types": "./dist/index.d.ts",
-  "bin": {
-    "nestjs-endpoints": "./dist/cli.js"
-  },
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
-    }
+    },
+    "./docs/*": "./docs/*"
   },
   "sideEffects": false,
   "engines": {
     "node": ">=24.22"
   },
   "scripts": {
+    "postinstall": "node ./postinstall.js",
     "dev": "tsdown --watch",
     "test": "vitest",
     "tscheck": "tsc --noEmit"

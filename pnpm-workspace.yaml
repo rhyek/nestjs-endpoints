@@ -35,6 +35,8 @@ allowBuilds:
   # Its binary is an optional dependency; the script only looks for it.
   '@swc/core': false
   es5-ext: false
+  # The git hooks are set up by our own `prepare` script, so its postinstall is not needed.
+  simple-git-hooks: false
   vue-demi: false
 
 # Kubb 5 ships several releases a day, so a current set of its packages rarely

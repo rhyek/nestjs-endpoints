@@ -19,3 +19,12 @@ docs/.vitepress/config.ts.timestamp-*
 
 # This machine's preview server config
 .claude/launch.json
+
+# The docs an agent reads are generated into the package from the site's build
+# (scripts/package-docs.ts)
+packages/nestjs-endpoints/docs/
+# Copied into the package at release time (.github/workflows/release.yaml)
+packages/nestjs-endpoints/README.md
+packages/nestjs-endpoints/LICENSE
+# The agent eval's transcripts (maintenance/scripts/agent-eval): they hold this machine's paths
+maintenance/agent-runs/

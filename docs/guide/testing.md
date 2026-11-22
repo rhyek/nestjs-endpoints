@@ -142,5 +142,5 @@ with [several statuses](./responses.md#several-statuses) it resolves to an `Endp
 `{ status, body }`.
 
 An endpoint built with a router's `endpoint` builder carries the
-[router's injections](./dependency-injection.md#router-injections) into such a test. List the
+[router's injections](./routers.md#shared-injections) into such a test. List the
 providers the router's `inject` names in the testing module.

@@ -1,0 +1,114 @@
+name: ci
+
+# Runs on every pull request. The jobs run side by side; `check` waits for all of them, and it is
+# the required status check for merging into `main` (.github/rulesets/main.json), so a job can be
+# added or split without touching the ruleset.
+on:
+  pull_request:
+    branches: [main]
+
+permissions: {}
+
+concurrency:
+  group: ci-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  lint:
+    name: build and lint
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    env:
+      SKIP_SIMPLE_GIT_HOOKS: 1
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # The changelog check compares against the release tags.
+          fetch-depth: 0
+          persist-credentials: false
+
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
+        with:
+          version: 12.15.0
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: '.tool-versions'
+
+      # Fails a top CHANGELOG.md section that can't be released: empty, edited after its
+      # release, or not newer than the latest release.
+      - run: node scripts/changelog.ts check
+
+      - run: pnpm install --frozen-lockfile
+
+      # The library, then the docs site, which type-checks its samples against the built library
+      # and fails on a dead link, then its llms.txt and pages, copied into the package.
+      - run: pnpm build
+
+      # The source maps name the package's own sources, so a build change that would publish the
+      # runner's paths fails here, before a release.
+      - run: node scripts/check-source-maps.ts
+
+      # oxlint's type-aware rules, and the formatting check.
+      - run: pnpm lint
+
+      # The docs' snippets, which their samples are cut from, type-checked as a project.
+      - run: pnpm --filter nestjs-endpoints-docs check
+
+  test:
+    name: test (${{ matrix.suite }})
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    strategy:
+      # One suite failing doesn't cancel the others, so a run reports every suite that fails.
+      fail-fast: false
+      matrix:
+        # The suites of scripts/test.sh.
+        suite: [unit, express, fastify, node, react-query, example]
+    env:
+      SKIP_SIMPLE_GIT_HOOKS: 1
+      SUITE: ${{ matrix.suite }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
+        with:
+          version: 12.15.0
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: '.tool-versions'
+
+      - run: pnpm install --frozen-lockfile
+
+      # Every suite runs against the built library: the unit specs run its CLI, and the test apps,
+      # the example and the projects the specs make install it from `dist/`.
+      - run: ./scripts/build.sh
+
+      # The example is a workspace of its own, which installs the library from its built copy.
+      - if: matrix.suite == 'example'
+        run: pnpm --dir examples/file-based-routing install --frozen-lockfile
+
+      - run: ./scripts/test.sh "$SUITE"
+
+  # The required status check: passes only when every job above did. It runs always, cancelled
+  # runs included, so it fails rather than being skipped, which a required check would let through.
+  check:
+    needs: [lint, test]
+    if: always()
+    runs-on: ubuntu-latest
+    permissions: {}
+    steps:
+      - env:
+          RESULTS: ${{ join(needs.*.result, ' ') }}
+        run: |
+          for result in $RESULTS; do
+            if [ "$result" != success ]; then
+              echo "::error::a job did not succeed: $RESULTS"
+              exit 1
+            fi
+          done

@@ -67,7 +67,7 @@ export default EndpointRouterModule.create({
 ```
 
 Endpoints built with the router's own `endpoint` builder, to receive its
-[router injections](./dependency-injection.md#router-injections), are listed with a callback of
+[router injections](./routers.md#shared-injections), are listed with a callback of
 `import()`s. A static import of them from the router module would be an import cycle.
 
 ```ts

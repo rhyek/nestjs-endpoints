@@ -3,8 +3,10 @@ import { fileURLToPath } from 'node:url';
 import { rendererFloatingVue, transformerTwoslash } from '@shikijs/vitepress-twoslash';
 import ts from 'typescript';
 import { defineConfig } from 'vitepress';
+import llmstxt from 'vitepress-plugin-llms';
 
 const repo = 'https://github.com/rhyek/nestjs-endpoints';
+const site = 'https://nestjs-endpoints.dev';
 
 // The app the site's code samples are type-checked against (docs/snippets/): its endpoints, and
 // the clients generated from them by `pnpm snippets`. A sample marked `twoslash` is compiled as a
@@ -79,16 +81,36 @@ export default defineConfig({
     'Write each NestJS endpoint as one file with Zod schemas, and get validation and a typed axios or React Query client.',
   cleanUrls: true,
   lastUpdated: false,
+  sitemap: { hostname: site },
   // The samples' app is TypeScript the samples import, not pages.
   srcExclude: ['snippets/**'],
 
-  // Each page's link preview names the page.
-  transformHead({ title, description }) {
+  head: [
+    // Cookieless page-view counts (Umami), served from the site's own subdomain. `defer` keeps it
+    // off the render path, and a failed report is dropped silently, so the site never waits on
+    // it. `data-host-url` is required: without it the tracker posts relative to the script's
+    // directory. `data-domains` keeps local dev servers from being counted.
+    [
+      'script',
+      {
+        defer: '',
+        src: 'https://u.nestjs-endpoints.dev/w/s.js',
+        'data-host-url': 'https://u.nestjs-endpoints.dev',
+        'data-website-id': 'dac4d8d0-d9cc-4af6-9ff0-09d9df84f5da',
+        'data-domains': 'nestjs-endpoints.dev',
+      },
+    ],
+  ],
+
+  // Each page's link preview names the page: its title, its description and its URL.
+  transformHead({ pageData, title, description }) {
+    const path = pageData.relativePath.replace(/\.md$/, '').replace(/(^|\/)index$/, '$1');
     return [
       ['meta', { property: 'og:type', content: 'website' }],
       ['meta', { property: 'og:site_name', content: 'nestjs-endpoints' }],
       ['meta', { property: 'og:title', content: title }],
       ['meta', { property: 'og:description', content: description }],
+      ['meta', { property: 'og:url', content: `${site}/${path}` }],
     ];
   },
 
@@ -97,6 +119,7 @@ export default defineConfig({
       { text: 'Guide', link: '/guide/getting-started', activeMatch: '^/guide/' },
       { text: 'Clients', link: '/clients/codegen', activeMatch: '^/clients/' },
       { text: 'Reference', link: '/reference/endpoint', activeMatch: '^/reference/' },
+      { text: 'AI agents', link: '/ai/overview', activeMatch: '^/ai/' },
       { text: 'Changelog', link: `${repo}/blob/main/CHANGELOG.md` },
     ],
     sidebar: [
@@ -142,7 +165,13 @@ export default defineConfig({
         items: [
           { text: 'Development', link: '/guide/development' },
           { text: 'Testing', link: '/guide/testing' },
-          { text: 'Coding agents', link: '/guide/coding-agents' },
+        ],
+      },
+      {
+        text: 'AI agents',
+        items: [
+          { text: 'Built for agents', link: '/ai/overview' },
+          { text: 'Agent playbook', link: '/ai/playbook' },
         ],
       },
       {
@@ -150,7 +179,6 @@ export default defineConfig({
         items: [
           { text: 'Endpoint options', link: '/reference/endpoint' },
           { text: 'Router options', link: '/reference/router' },
-          { text: 'CLI', link: '/reference/cli' },
           { text: 'Exports', link: '/reference/exports' },
           { text: 'Troubleshooting', link: '/reference/troubleshooting' },
         ],
@@ -166,8 +194,29 @@ export default defineConfig({
     footer: { message: 'Released under the MIT License.' },
   },
 
+  // llms.txt, llms-full.txt and a Markdown copy of every page, generated from the same files.
+  // scripts/package-docs.ts copies them into the npm package, where the agent rules file and
+  // skill the package installs point. The index opens by sending a coding agent to the playbook,
+  // so whatever points an agent at llms.txt names this one file.
   vite: {
     server: publicOrigin && { allowedHosts: [publicOrigin.hostname] },
+    plugins: [
+      llmstxt({
+        ignoreFiles: ['.vitepress/**', 'snippets/**', 'node_modules/**'],
+        customLLMsTxtTemplate: [
+          '# {title}',
+          '{description}',
+          '{details}',
+          '{agents}',
+          '## Table of Contents',
+          '{toc}',
+        ].join('\n\n'),
+        customTemplateVariables: {
+          agents:
+            '**Coding agents:** read the [Agent playbook](/ai/playbook.md) first. It has the rules and a recipe for each task, and links to the pages below.',
+        },
+      }),
+    ],
   },
 
   markdown: {

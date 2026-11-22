@@ -159,8 +159,8 @@ features:
     link: /guide/testing
   - icon: 🤖
     title: Ready for coding agents
-    details: The package ships a complete guide written for agents, and init installs a skill that points yours at it.
-    link: /guide/coding-agents
+    details: The docs ship inside the package, indexed by llms.txt, and installing it gives your agent a rules file and a skill that point at them.
+    link: /ai/overview
   - icon: 🔌
     title: Your HTTP adapter
     details: Express, Fastify, or node:http through @nestjs/platform-node.

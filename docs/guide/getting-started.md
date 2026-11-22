@@ -43,6 +43,29 @@ yarn add nestjs-endpoints zod
 
 :::
 
+Installing it writes a rules file and a skill for coding agents into your repository, which point
+an agent at the docs inside the package. See [Built for agents](../ai/overview.md). pnpm and bun
+run a dependency's install script only once your project allows it:
+
+::: code-group
+
+```yaml [pnpm]
+# pnpm-workspace.yaml
+allowBuilds:
+  nestjs-endpoints: true # false: install without the agent files
+```
+
+```jsonc [bun]
+// package.json
+{
+  "trustedDependencies": ["nestjs-endpoints"]
+}
+```
+
+:::
+
+pnpm 11 and later stop the install until the package is listed, with `true` or `false`.
+
 ## Set up the app module
 
 `NestjsEndpoints.forRoot` sets the library up, once, in your app's root module. Its `router` is
@@ -106,12 +129,10 @@ export default endpoint.mutation({
   input: z.object({
     productId: z.string(),
     quantity: z.number().int().min(1),
-    notes: z.string().optional(),
   }),
   output: z.object({
     id: z.number(),
     status: z.enum(['pending', 'paid', 'cancelled']),
-    total: z.number(),
   }),
   inject: { orders: OrdersService },
   handler: ({ input, orders }) => orders.create(input),
@@ -145,7 +166,7 @@ Then send a request:
 $ curl -X POST localhost:3000/orders/create \
     -H 'Content-Type: application/json' \
     -d '{"productId": "sku_42", "quantity": 2}'
-{"id":1,"status":"pending","total":25}
+{"id":1,"status":"pending"}
 ```
 
 A body that doesn't match `input` is answered with a `400` and the Zod issues, before the handler

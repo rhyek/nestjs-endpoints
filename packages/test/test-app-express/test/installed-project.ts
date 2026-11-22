@@ -93,7 +93,7 @@ export async function createInstalledProject(
   const library = JSON.parse(await readFile(path.join(libraryDirectory, 'package.json'), 'utf-8'));
   const copy = path.join(modules, 'nestjs-endpoints');
   await mkdir(copy, { recursive: true });
-  for (const entry of ['package.json', 'dist', 'assets']) {
+  for (const entry of ['package.json', 'postinstall.js', 'dist', 'assets', 'skills']) {
     await cp(path.join(libraryDirectory, entry), path.join(copy, entry), { recursive: true });
   }
   // Its dependencies and its peers, but for the optional ones: `@nestjs/swagger` is below.

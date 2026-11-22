@@ -3,7 +3,7 @@ import { defineConfig } from 'tsdown';
 // The package's build (`scripts/build.sh`): one `dist/*.js` per source file, as `tsc` lays it
 // out, with the sources' extensionless relative imports written out as `./x.js`. Nothing is
 // bundled, so `dist/` keeps the layout the package reads itself from (`../package.json`,
-// `../assets/skill.md`).
+// `../assets/`, `../skills/`).
 export default defineConfig({
   entry: ['src/**/*.ts', '!src/**/*.spec.ts'],
   root: 'src',

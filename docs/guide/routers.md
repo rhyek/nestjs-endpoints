@@ -128,8 +128,54 @@ For a single endpoint, use its own [`decorators`](./dependency-injection.md#per-
 
 ## Shared injections
 
-A router can declare `inject` and `injectOnRequest` once, for every endpoint built with its own
-`endpoint` builder. See [Router injections](./dependency-injection.md#router-injections).
+What every endpoint of a router needs, `inject` and `injectOnRequest` alike, can be declared once,
+on the router, in `endpointConfig`. `create()` returns the router with an `endpoint` builder of
+its own, as `NestjsEndpoints.forRoot()` does for the root router, and each endpoint built with it
+receives the router's injections along with its own:
+
+```ts
+// src/workspace/router.module.ts
+import { decorated, EndpointRouterModule } from 'nestjs-endpoints';
+
+export default EndpointRouterModule.create({
+  providers: [WorkspaceService, AuditService],
+  endpointConfig: {
+    inject: { workspace: WorkspaceService },
+    injectOnRequest: { user: decorated<User>(CurrentUser()) },
+  },
+});
+```
+
+```ts
+// src/workspace/rename.endpoint.ts
+import { z } from 'nestjs-endpoints';
+import router from './router.module.js';
+
+export default router.endpoint.mutation({
+  input: z.object({ name: z.string() }),
+  inject: { audit: AuditService },
+  handler: ({ input, workspace, user, audit }) => {
+    // …
+  },
+});
+```
+
+A router module can also re-export the builder, with `export const { endpoint } = router;`, so
+its endpoints import `endpoint` from `./router.module.js`.
+
+- **The injections reach the endpoints built with the router's `endpoint`.** A
+  [nested router](#nested-routers) declares its own.
+- **A key is declared once.** An endpoint that declares a key its router already injects is a
+  type error.
+
+### Import cycles
+
+An endpoint file imports its router module to get `endpoint`, so the router module must not
+import the endpoint file back: not directly, and not through a provider or a guard. That cycle
+fails when the app loads, with `Cannot access 'router' before initialization`.
+
+A router that lists such endpoints by hand lists them with a
+[callback of `import()`s](./explicit-paths.md#on-a-router).
 
 ## Inside a regular module
 

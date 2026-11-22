@@ -7,14 +7,15 @@
     "test": "./scripts/build.sh && ./scripts/test.sh",
     "dev": "pnpm --filter nestjs-endpoints --filter test-app-express run --parallel dev",
     "bench": "node benchmarks/scripts/run.ts",
-    "lint": "oxlint --disable-nested-config",
-    "lint:fix": "oxlint --disable-nested-config --fix",
+    "build": "./scripts/build.sh && pnpm --filter nestjs-endpoints-docs build && node scripts/package-docs.ts",
+    "lint": "oxlint --disable-nested-config && oxfmt --check --disable-nested-config",
     "format": "oxfmt --disable-nested-config",
-    "format:check": "oxfmt --check --disable-nested-config",
     "docs:dev": "./scripts/build.sh && dotenvx run -f .env.local --ignore=MISSING_ENV_FILE -- pnpm --filter nestjs-endpoints-docs dev",
-    "docs:build": "./scripts/build.sh && pnpm --filter nestjs-endpoints-docs build",
     "docs:preview": "pnpm --filter nestjs-endpoints-docs preview",
-    "prepare": "husky"
+    "prepare": "simple-git-hooks"
+  },
+  "simple-git-hooks": {
+    "pre-commit": "pnpm lint-staged"
   },
   "devDependencies": {
     "@dotenvx/dotenvx": "^2.38.2",
@@ -22,8 +23,8 @@
     "@nestjs/core": "^12.4.0",
     "@nestjs/swagger": "^12.1.1",
     "@types/node": "^26.6.6",
-    "husky": "^9.1.7",
-    "lint-staged": "^17.4.1",
+    "lint-staged": "^17.6.0",
+    "simple-git-hooks": "^2.14.0",
     "oxfmt": "^0.74.0",
     "oxlint": "^1.89.0",
     "oxlint-tsgolint": "^7.0.2005",

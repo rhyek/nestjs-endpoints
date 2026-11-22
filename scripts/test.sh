@@ -1,67 +1,116 @@
 #!/bin/bash
+# Runs the test suites, after ./scripts/build.sh. With no arguments it runs every suite; with
+# names, only those. CI runs one suite per job.
+#
+#   unit         the library's unit specs, and its type check
+#   express      test-app-express's end-to-end specs, on @nestjs/platform-express
+#   fastify      the same specs on @nestjs/platform-fastify
+#   node         the same specs on @nestjs/platform-node
+#   react-query  the generated React Query client, against the built test-app-express
+#   example      examples/file-based-routing, a workspace of its own (installed separately)
 set -e
 __dirname=$(realpath "$(dirname "$0")")
+root=$(realpath "$__dirname/..")
 
-pnpm --filter "nestjs-endpoints" test run
+ALL_SUITES=(unit express fastify node react-query example)
 
-pnpm --filter "./packages/test/*" exec rm -rf generated
+# `test-app-express` is the canonical app: it owns every endpoint fixture and spec. The other
+# adapter apps receive them by rsync, keeping only their own adapter-specific `create-app.ts`.
+# `--delete` keeps the mirrors exact. Without it rsync only ever adds, so a file deleted or
+# renamed in the canonical app lingers in the other apps and fails their `tscheck` long after the
+# change that orphaned it.
+mirror_express() {
+  local app="$root/packages/test/test-app-$1"
+  rsync -ar --delete "$root/packages/test/test-app-express/src/" "$app/src/" --exclude=.gitkeep
+  rsync -ar --delete "$root/packages/test/test-app-express/test/" "$app/test/" --exclude=create-app.ts
+}
 
-# `test-app-express` is the canonical app: it owns every endpoint fixture and
-# spec. The other adapter apps receive them by rsync, keeping only their own
-# adapter-specific `create-app.ts`.
-# `--delete` keeps the mirrors exact. Without it rsync only ever adds, so a
-# file deleted or renamed in the canonical app lingers in the other apps and
-# fails their `tscheck` long after the change that orphaned it.
-pnpm --filter "./packages/test/*" --filter "!test-app-express" --filter "!test-react-query-client" exec sh -c "\
-  rsync -ar --delete ../test-app-express/src/ ./src/ --exclude=.gitkeep && \
-  rsync -ar --delete ../test-app-express/test/ ./test/ --exclude=create-app.ts
-"
+# An app's clients, generated from scratch, then its type check, which covers them.
+codegen_and_check() {
+  rm -rf "$root/packages/test/test-app-$1/generated"
+  pnpm --filter "test-app-$1" run codegen
+  pnpm --filter "test-app-$1" run tscheck
+}
 
-pnpm --filter "./packages/test/*" run codegen
-# The benchmark apps are measured by hand (`pnpm bench`), not tested.
-pnpm --filter '!./benchmarks/*' run tscheck
-
-pnpm --filter "test-app-*" run test:e2e --no-cache
-
-# The built app, booted the way a consumer would, for the specs that call it
-# over HTTP. `pnpm start` runs in its own process group (job control), and
-# the EXIT trap kills that group however the script ends: a failing spec
-# exits through `set -e` before any explicit stop, and would leave the
-# server holding its port.
+# The built app, booted the way a consumer would, for the specs that call it over HTTP. `pnpm
+# start` runs in its own process group (job control), and the EXIT trap kills that group however
+# the script ends: a failing spec exits through `set -e` before any explicit stop, and would leave
+# the server holding its port.
 SERVER_PID=
 
 stop_server() {
   [[ -n "$SERVER_PID" ]] || return 0
-  # Get the process group ID and ensure it's a valid number before using it
-  PGID=$(ps -o pgid= -p $SERVER_PID | tr -d ' ')
-  if [[ -n "$PGID" && "$PGID" =~ ^[0-9]+$ ]]; then
-    kill -9 -- -$PGID
+  local pgid
+  pgid=$(ps -o pgid= -p "$SERVER_PID" | tr -d ' ')
+  if [[ "$pgid" =~ ^[0-9]+$ ]]; then
+    kill -9 -- "-$pgid"
   else
-    # Fallback to killing just the server process if we can't get the group
-    kill -9 $SERVER_PID 2>/dev/null || true
+    kill -9 "$SERVER_PID" 2>/dev/null || true
   fi
-  wait $SERVER_PID 2>/dev/null || true
+  wait "$SERVER_PID" 2>/dev/null || true
   SERVER_PID=
 }
 trap stop_server EXIT
 
 start_server() {
-  cd $__dirname/../packages/test/test-app-express
-  # enable job control so we get a new process group for the server
+  cd "$root/packages/test/test-app-express"
+  # Job control, so the server gets a process group of its own.
   set -m
   pnpm start &
   SERVER_PID=$!
   set +m
-
-  wget -qO- https://raw.githubusercontent.com/eficode/wait-for/v2.2.3/wait-for | sh -s -- http://localhost:3000/test/status --timeout=10 -- echo success
+  cd "$root"
+  # `pnpm start` builds the app before it starts it.
+  for _ in $(seq 1 60); do
+    if curl -fsS -o /dev/null http://localhost:3000/test/status; then
+      return 0
+    fi
+    sleep 1
+  done
+  echo "test-app-express did not answer on http://localhost:3000 within 60 seconds" >&2
+  return 1
 }
 
-# Cover the real ESM runtime path rather than the bundler-resolved one the
-# e2e suites exercise.
-start_server
-stop_server
+run_suite() {
+  case "$1" in
+    unit)
+      pnpm --filter nestjs-endpoints run tscheck
+      pnpm --filter nestjs-endpoints test run
+      ;;
+    express)
+      codegen_and_check express
+      pnpm --filter test-app-express run test:e2e --no-cache
+      ;;
+    fastify | node)
+      mirror_express "$1"
+      codegen_and_check "$1"
+      pnpm --filter "test-app-$1" run test:e2e --no-cache
+      ;;
+    react-query)
+      # The React Query client is generated by test-app-express, and its specs call that app as
+      # a consumer runs it: built, on the real ESM runtime.
+      codegen_and_check express
+      pnpm --filter test-react-query-client run tscheck
+      start_server
+      pnpm --filter test-react-query-client test run
+      stop_server
+      ;;
+    example)
+      pnpm --dir "$root/examples/file-based-routing" run tscheck
+      pnpm --dir "$root/examples/file-based-routing" test
+      ;;
+    *)
+      echo "Unknown suite: $1 (one of: ${ALL_SUITES[*]})" >&2
+      exit 1
+      ;;
+  esac
+}
 
-start_server
-cd $__dirname/../packages/test/test-react-query-client
-pnpm test run
-stop_server
+suites=("$@")
+if [[ ${#suites[@]} -eq 0 ]]; then
+  suites=("${ALL_SUITES[@]}")
+fi
+for suite in "${suites[@]}"; do
+  echo "== $suite"
+  run_suite "$suite"
+done

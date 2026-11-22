@@ -1,0 +1,71 @@
+name: docs
+
+# Builds the documentation site (VitePress over docs/) and deploys it to GitHub Pages, which serves
+# it at the custom domain set in the repository's Pages settings. Runs when a push to `main`
+# touches the docs or what builds them; a pull request's docs are built, dead links included, by
+# ci.yaml's `pnpm build`.
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'docs/**'
+      # The site's icons are links into logo/.
+      - 'logo/**'
+      # The site's samples are type-checked against the built library.
+      - 'packages/nestjs-endpoints/**'
+      - 'package.json'
+      - 'pnpm-lock.yaml'
+      - '.github/workflows/docs.yaml'
+  workflow_dispatch:
+
+permissions: {}
+
+# One deployment at a time. A newer push waits for the one under way rather than cancelling it,
+# so a deployment is never left half done.
+concurrency:
+  group: docs
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    env:
+      SKIP_SIMPLE_GIT_HOOKS: 1
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
+        with:
+          version: 12.15.0
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: '.tool-versions'
+
+      - run: pnpm install --frozen-lockfile
+
+      # The library, then the site.
+      - run: pnpm build
+
+      - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
+        with:
+          path: docs/.vitepress/dist
+
+  deploy:
+    needs: build
+    # A manual run from another branch builds, but only `main` is deployed.
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    permissions:
+      pages: write # deploy to GitHub Pages
+      id-token: write # which the deployment verifies came from this workflow
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5.0.1
