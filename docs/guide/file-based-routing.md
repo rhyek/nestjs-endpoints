@@ -93,11 +93,10 @@ Every `:param` in the URL must be a key of `params`, and every key of `params` m
 
 ## Builds
 
-Each URL is derived from its file's own location, so the compiled layout has to match the source
-layout: one output file per source file, as `tsc`, SWC and `nest build` produce. A build that
-bundles the app into a single file (Webpack, `nest build --webpack`) is not supported.
+A URL comes from its file's location, so a build must write one output file per source file, as
+`tsc`, SWC and `nest build` do. Bundling into one file (Webpack, `nest build --webpack`) is not
+supported.
 
-Build into a clean output folder, as `nest build` does in a new Nest project (`deleteOutDir` in
-`nest-cli.json`): a built app serves the compiled endpoint files it finds, and a file left over
-from an endpoint you deleted would be one of them. Under `nest start`, a compiled endpoint whose
-source file is gone is not served; that needs `sourceMap` on, as it is in a new Nest project.
+Build into a clean folder (`deleteOutDir` in `nest-cli.json`, on in a new Nest project): a built
+app serves every compiled endpoint file it finds, one left from a deleted endpoint included.
+`nest start` skips a compiled endpoint whose source is gone, when `sourceMap` is on.

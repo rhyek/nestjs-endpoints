@@ -9,13 +9,9 @@ writing. A few things it does are ones NestJS doesn't do at all.
 
 ## Guards, interceptors and middleware scoped to a router module
 
-In NestJS, a guard or an interceptor is either global (`APP_GUARD`, `APP_INTERCEPTOR`) or
-repeated on every controller it should cover. There is no way to say "everything in this
-module". A new controller that is added without the decorator is unguarded, and nothing tells
-you.
-
-A router module declares them once, for every <Endpoint>endpoint</Endpoint> it owns, nested routers
-included:
+In NestJS, a guard or an interceptor is global or repeated on each controller, so a controller
+added without the decorator is unguarded. A router module declares them once, for every
+<Endpoint>endpoint</Endpoint> it owns, nested routers included:
 
 ```ts
 // src/endpoints/admin/router.module.ts
@@ -29,8 +25,7 @@ export default EndpointRouterModule.create({
 });
 ```
 
-An endpoint file added under `admin/` belongs to that router, so it is guarded without a
-decorator of its own. See
+An endpoint file added under `admin/` is guarded without a decorator of its own. See
 [Middleware, interceptors and guards](./routers.md#middleware-interceptors-and-guards).
 
 ## Each schema parses only its own value

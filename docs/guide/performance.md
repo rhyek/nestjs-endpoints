@@ -49,11 +49,9 @@ One API, written twice:
 | Requests | `params`, `query` and `input` schemas | `@Param({ schema })`, `@Query({ schema })` and `@Body({ schema })`, with the global `StandardSchemaValidationPipe` |
 | Responses | An `output` schema | `StandardSchemaSerializerInterceptor`, with `@SerializeOptions({ schema })` on each handler |
 
-The controllers are set up as the NestJS docs describe. Both apps use the same schemas and
-handler bodies, and every `200` response is the same in both, byte for byte.
-
-The comparison is between two ways to validate in NestJS, not between NestJS and something else:
-an <Endpoint>endpoint</Endpoint> is a NestJS controller too.
+The controllers are set up as the NestJS docs describe, and an <Endpoint>endpoint</Endpoint> is
+a NestJS controller too. Both apps use the same schemas and handler bodies, and every `200`
+response is the same in both, byte for byte.
 
 ## Where the time goes
 
@@ -72,9 +70,7 @@ The rest of the pipeline is the same in both. A pipe or an interceptor your app 
 
 ### What each step costs
 
-The pipe's first job, removing prototype keys, is counted on its own below, so a controller
-runs three steps an endpoint doesn't. Taking each one out of the controller shows what it costs.
-Their shares of what the three cost together, to the nearest 5%:
+Each step's share of what the three cost a controller together, to the nearest 5%:
 
 | | `GET` | `POST` |
 | --- | --- | --- |
@@ -83,32 +79,14 @@ Their shares of what the three cost together, to the nearest 5%:
 | **The pipe on each parameter** | **20%** | **15%** |
 | **Removing prototype keys** | **10%** | **20%** |
 
-- **The interceptor is most of it.** NestJS runs every interceptor through RxJS: with the
-  serializer, 15 subscriptions and 19 promises a request. About half of the whole is what NestJS
-  spends to run any interceptor, even one that only calls `next.handle()`. The serializer also
-  looks up its schema in the handler's metadata each time.
-- **A pipe is a chain of async calls.** A parameter's value passes through five async functions
-  on its way to the handler, and the handler waits for all of them: 26 promises for the `GET`'s
-  two parameters, and 14 for the `POST`'s body.
-- **Removing prototype keys is a safety measure.** Before validating, the schema pipe removes
-  `__proto__`, `prototype` and `constructor` keys from each value. An endpoint hands the value
-  to Zod as it is. A `z.object()` keeps only the keys it declares, so they don't reach the
-  handler. A `z.looseObject()` or a `z.record()` drops `__proto__` and keeps the other two, and
-  `z.any()` keeps all three.
-- **The validation is not what is slow.** With the pipe and the interceptor both taken out, and
-  the same Zod calls written in each handler, the controller is about as fast as the
-  <Endpoint>endpoint</Endpoint>. An endpoint gets you that speed without writing it by hand.
-
-### What a request creates
-
-The steps can be counted too, in what one request creates. A validated request creates in an
-<Endpoint>endpoint</Endpoint> what a request with no schemas does:
-
-| One request creates | Controller | <Endpoint>Endpoint</Endpoint> |
-| --- | --- | --- |
-| `GET` with no schemas | 14 promises | 14 promises |
-| `GET` with path and search parameters | 59 promises, 15 RxJS subscriptions | 14 promises |
-| `POST` with a JSON body | 47 promises, 15 RxJS subscriptions | 14 promises |
+- **The interceptor is most of it.** About half the whole is NestJS running an interceptor
+  through RxJS at all, even one that only calls `next.handle()`.
+- **A pipe is a chain of async calls**, five for each parameter.
+- **Removing prototype keys is a safety step of the schema pipe**, counted on its own. An
+  endpoint leaves those keys to Zod: a `z.object()` drops them, a `z.looseObject()` or a
+  `z.record()` keeps `prototype` and `constructor`, and `z.any()` keeps all three.
+- **The validation is not what is slow.** A controller that calls the same Zod schemas in its
+  handler, with no pipe and no interceptor, is about as fast as an <Endpoint>endpoint</Endpoint>.
 
 ## What it means for your app
 
@@ -124,15 +102,11 @@ above.
 
 - **Where:** {{ measuredOn }}. Each app runs its production build on one CPU core.
 - **Load:** 64 keep-alive connections, each sending as fast as the app answers.
-- **Rounds:** six ten-second rounds for each app, after a warm-up, with a new server process
-  for every round and the apps taking turns.
-- **The steps:** each is the controller app with that step taken out, measured against the
-  app as it is. The pipe's share leaves out the key removal, which is counted on its own.
-  Together they add up to what taking the pipe and the interceptor out saves, to within 4%. The
-  promises are counted with Node's `async_hooks` and the subscriptions at RxJS's `subscribe`,
-  over 500 requests.
+- **Rounds:** six ten-second rounds for each app after a warm-up, each in a new server process,
+  with the apps taking turns.
+- **The steps:** each is the controller app with that step taken out.
 
 The apps and the scripts are in the repository's
-[`benchmarks`](https://github.com/rhyek/nestjs-endpoints/tree/main/benchmarks) folder, to run
-on your own machine: `pnpm bench` for the numbers, and `pnpm bench:breakdown` for what each step
-costs.
+[`benchmarks`](https://github.com/rhyek/nestjs-endpoints/tree/main/benchmarks) folder:
+`pnpm bench` for the numbers, and `pnpm bench:breakdown` for the steps and what a request
+creates.
