@@ -4,13 +4,11 @@ description: Building an OpenAPI document for an app that uses nestjs-endpoints,
 
 # OpenAPI
 
-nestjs-endpoints builds no OpenAPI document, and needs none: the
-[generated clients](./codegen.md) come from the endpoints' schemas directly.
-
-If your app builds one with [`@nestjs/swagger`](https://docs.nestjs.com/openapi/introduction), its
-endpoints are in it. Each endpoint carries the metadata `@nestjs/swagger` reads, so
-`SwaggerModule.createDocument()` describes <Endpoint>endpoints</Endpoint> beside your plain
-`@Controller()` classes, with a component schema for every schema they name.
+nestjs-endpoints needs no OpenAPI document: the [generated clients](./codegen.md) come from the
+schemas directly. If your app builds one with
+[`@nestjs/swagger`](https://docs.nestjs.com/openapi/introduction), its
+<Endpoint>endpoints</Endpoint> are in it beside your `@Controller()` classes, with a component
+schema for every schema they name.
 
 ```ts
 // src/main.ts
@@ -30,15 +28,11 @@ async function bootstrap() {
 void bootstrap();
 ```
 
-Everything about the document is `@nestjs/swagger`'s to do: its title and version, writing it to
-a file, serving a viewer. Two things are worth knowing:
-
-- **Install `@nestjs/swagger` yourself.** It is an optional peer of nestjs-endpoints. Without it,
-  endpoints carry no OpenAPI metadata.
-- **Set the version to 3.1.** The endpoints' schemas are OpenAPI 3.1.
-- **A `standardSchemaConverter` of your own skips what isn't its vendor's.** If you pass one to
-  `createDocument`, have it return `undefined` for a schema whose `~standard.vendor` it doesn't
-  know. The endpoints' schemas reach it with the vendor `nestjs-endpoints`.
+- **Install `@nestjs/swagger` yourself.** It is an optional peer. Without it, endpoints carry
+  no OpenAPI metadata.
+- **Set the version to 3.1**, as the endpoints' schemas are.
+- **A `standardSchemaConverter` of your own** passed to `createDocument` must return `undefined`
+  for a vendor it doesn't know. The endpoints' schemas have the vendor `nestjs-endpoints`.
 
 ## What an endpoint contributes
 

@@ -93,22 +93,15 @@ are in what you leave out, and in what the compiler can check:
 
 ## What you get
 
-- **One file per endpoint**: its schemas, its handler and what it injects. This is the
+- **One file per endpoint**: its schemas, its handler and what it injects, the
   [REPR pattern](https://www.apitemplatepack.com/docs/introduction/repr-pattern/).
-- **[Types from the schemas](./type-safety.md)**, in the handler and in the client.
-- **Validation in both directions**: requests before the handler runs, responses before they
-  are sent.
-- **[File-based routing](./file-based-routing.md)**: a file's path is its URL.
-- **[Routers](./routers.md)** that give a folder its own providers, middleware, interceptors and
-  guards, [which NestJS has no way to do](./improvements.md).
-- **[Faster validation](./performance.md)** than NestJS's own: about 25% more requests per
-  second where a request and its response are both validated.
-- **A [typed client](../clients/codegen.md)** for axios or React Query, generated from the same
-  schemas.
+- **[Types](./type-safety.md) and validation from the schemas**, for requests and responses.
+- **[File-based routing](./file-based-routing.md)**, and [routers](./routers.md) that give a
+  folder its own providers and guards, [which NestJS can't](./improvements.md).
+- **[Faster validation](./performance.md)**, and a [typed client](../clients/codegen.md) for
+  axios or React Query.
 
-It leaves NestJS alone. An <Endpoint>endpoint</Endpoint> is a controller class, so modules,
-providers, guards, interceptors, exception filters and the testing module work as they do in any
-Nest app, and endpoints live beside your existing controllers. See
+It leaves NestJS alone: an <Endpoint>endpoint</Endpoint> is a controller class. See
 [How it fits NestJS](./nestjs.md).
 
 ## What it asks of you

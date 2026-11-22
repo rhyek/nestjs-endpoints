@@ -88,14 +88,10 @@ are [stripped when the response is parsed](./responses.md#one-response).
 
 ### In a block body
 
-TypeScript reports a wrong value where it is written only when the handler returns it directly,
-as `=> ({ … })` does above. In a handler with a block body (`=> { … return … }`), it reports
-the mismatch on the `handler` property, as a long message whose last line names the field. That
-is how TypeScript checks any function it types from its context
-([microsoft/TypeScript#42161](https://github.com/microsoft/TypeScript/issues/42161)).
-
-To have the error on the value itself, name the schema and annotate the handler's return type
-with `z.input` of it:
+In a handler with a block body (`=> { … return … }`), TypeScript reports a wrong value on the
+`handler` property, in a long message whose last line names the field
+([microsoft/TypeScript#42161](https://github.com/microsoft/TypeScript/issues/42161)). To have
+the error on the value, annotate the return type with `z.input` of the schema:
 
 ```ts twoslash
 // @errors: 2322
@@ -116,8 +112,8 @@ export default endpoint.query({
 });
 ```
 
-With the annotation, an object literal that carries a key `output` doesn't declare is an error
-too. A value returned from a variable or a call may still carry more.
+An object literal with a key `output` doesn't declare is then an error too, though a value from
+a variable or a call may still carry more.
 
 ## Status codes
 
