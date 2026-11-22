@@ -1,5 +1,5 @@
 ---
-description: What nestjs-endpoints adds to NestJS itself — guards, interceptors and middleware scoped to a router module, faster schema validation, and responses the compiler checks.
+description: What nestjs-endpoints adds to NestJS itself — guards, interceptors and middleware scoped to a router module, validation that gives each schema only its own value and runs faster, and responses the compiler checks.
 ---
 
 # Improvements on NestJS
@@ -33,11 +33,16 @@ An endpoint file added under `admin/` belongs to that router, so it is guarded w
 decorator of its own. See
 [Middleware, interceptors and guards](./routers.md#middleware-interceptors-and-guards).
 
-## Faster schema validation
+## Each schema parses only its own value
 
-An <Endpoint>endpoint</Endpoint> validates its request and its response in one step, without the
-pipe and the interceptor NestJS's own schema validation runs. The same API serves about 25% more
-requests per second where both are validated. See [Performance](./performance.md).
+In NestJS, every pipe bound to a route, its controller or the app is handed every argument of the
+handler, your parameter decorators' values included, and has to pick which to validate. A Zod pipe
+bound with `@UsePipes()`, as the NestJS docs build one, parses them all with its one schema.
+
+An <Endpoint>endpoint</Endpoint> calls each schema on its own value: `input` on the body, `query`
+and `params` on the parameters, `output` on the return value. With no pipe and no interceptor, it
+is also faster: about 25% more requests per second where both are validated. See
+[Performance](./performance.md).
 
 ## Responses the compiler checks
 

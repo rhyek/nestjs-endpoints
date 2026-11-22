@@ -60,10 +60,10 @@ an <Endpoint>endpoint</Endpoint> is a NestJS controller too.
 Both apps run the same Zod schemas around the same handlers, so the validation itself costs the
 same in each. The difference is what a request passes through to get to them:
 
-- **A controller validates through NestJS's request pipeline**: a pipe on each parameter, and
-  an interceptor around the handler.
-- **An <Endpoint>endpoint</Endpoint> calls its schemas itself.** It is a controller whose
-  handler parses the request and the return value with `safeParse`, so it needs neither.
+- **A controller validates through NestJS's request pipeline.** Every pipe gets every argument
+  and picks which to validate, and an interceptor wraps the handler.
+- **An <Endpoint>endpoint</Endpoint> calls each schema on its own value**, with `safeParse` in
+  its handler, so it needs neither.
 
 <RequestPipeline />
 
