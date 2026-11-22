@@ -6,6 +6,8 @@ input and output with the same Zod schemas.
 ```sh
 pnpm bench            # the full run, about 35 minutes
 pnpm bench --quick    # a smoke run, about 2 minutes; not for publishing
+
+pnpm bench:breakdown  # what each part of Nest's validation costs, about 30 minutes
 ```
 
 The run writes `results/<timestamp>.md`, the tables, and `results/<timestamp>.json`, every
@@ -76,3 +78,44 @@ Run `node benchmarks/scripts/parity.ts` alone to check the apps after changing e
 `--skip-build`, and `--scenario <id>` (repeatable).
 
 The apps listen on 22500 (`nestjs-endpoints-app`) and 22501 (`nestjs-app`), set in `ports.ts`.
+
+## The breakdown
+
+`pnpm bench:breakdown` (`scripts/breakdown.ts`) measures where the vanilla app's extra time goes,
+by running it without one part of its validation at a time. It writes
+`results/<timestamp>-breakdown.md` and `.json`, and takes `--quick`, `--rounds`, `--duration`,
+`--warmup`, `--connections`, `--skip-build` and `--scenario <id>`.
+
+Each part is the vanilla app started from a second entry, `nestjs-app/src/breakdown/main.ts`,
+with `PART` naming what to leave out. The controllers it uses are in `controllers.ts` beside it:
+`UsersController` with the pipe's work, the interceptor's, or both moved into the handlers, as
+`parse()` calls on the same schemas. The app `pnpm bench` measures is not touched.
+
+| `PART` | The vanilla app, with |
+| --- | --- |
+| `no-key-removal` | the schema pipe, without removing the prototype keys |
+| `pass-through-pipe` | a pipe that returns its value; the handlers parse their input |
+| `no-pipe` | no pipe; the handlers parse their input |
+| `pass-through-interceptor` | an interceptor that only calls `next.handle()`; the handlers parse their output |
+| `no-interceptor` | no interceptor; the handlers parse their output |
+| `neither` | no pipe and no interceptor; the handlers parse both |
+
+1. **Parity.** Every part, and nestjs-endpoints, must answer as the vanilla app does, byte for
+   byte.
+2. **What a request creates.** Each app answers 500 of each request, and of the one with no
+   schemas (`baseline`), one at a time, in a process that counts the promises (Node's
+   `async_hooks`) and the RxJS subscriptions it creates (`scripts/count-hook.ts`). That process
+   is never timed.
+3. **Throughput.** As in the main run: the vanilla app, its control, the six parts and
+   nestjs-endpoints take turns over 6 rounds. The report gives each as microseconds per request,
+   1,000,000 / the median requests per second.
+4. **The parts.** What a part costs is what the app gains without it. Running any interceptor
+   is the pass-through one against none; the serializer's own work is the rest. The same goes
+   for the pipes, which are also given apart from the key removal: the three steps the
+   Performance page names are the interceptor, that, and the key removal. The report adds the
+   interceptor and the pipes up beside what taking both out gains, and beside the noise: a part
+   smaller than the noise is not measured.
+
+It measures the two requests validated on the way in and out, `params-query` and `valid-body`.
+A handler that parses for itself answers an invalid request with a `500`, so `invalid-body` is
+not one of them.

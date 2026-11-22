@@ -1,6 +1,8 @@
 import { execFileSync, spawn, type ChildProcess } from 'node:child_process';
 import net from 'node:net';
+import os from 'node:os';
 import path from 'node:path';
+import type { Readable } from 'node:stream';
 import { fileURLToPath } from 'node:url';
 import { ports } from '../ports.ts';
 import type { Scenario } from './scenarios.ts';
@@ -11,13 +13,26 @@ export const repoDir = path.resolve(benchmarksDir, '..');
 export type AppName = keyof typeof ports;
 export const appNames = Object.keys(ports) as AppName[];
 
-export type ReadyInfo = { node: string; versions: Record<string, string> };
+export type ReadyInfo = {
+  node: string;
+  versions: Record<string, string>;
+  /** The part of its validation `nestjs-app`'s breakdown entry runs without. */
+  part?: string;
+};
+
+export type StartOptions = {
+  /** The built entry to run, in the app's folder. */
+  entry?: string;
+  env?: Record<string, string>;
+  nodeArgs?: string[];
+};
 
 export type Server = {
   app: AppName;
   pid: number;
   url: string;
   ready: ReadyInfo;
+  stderr: Readable;
   /** Cumulative CPU seconds the server process has used. */
   cpuSeconds(): number;
   stop(): Promise<void>;
@@ -68,7 +83,7 @@ export function processCpuSeconds(pid: number): number {
 }
 
 /** Starts a fresh process of `app` in production mode and waits for its ready line. */
-export async function startServer(app: AppName): Promise<Server> {
+export async function startServer(app: AppName, options: StartOptions = {}): Promise<Server> {
   const port = ports[app];
   if (await portInUse(port)) {
     throw new Error(
@@ -76,9 +91,10 @@ export async function startServer(app: AppName): Promise<Server> {
         `Find it with \`lsof -nP -iTCP:${port} -sTCP:LISTEN\` and stop it yourself.`,
     );
   }
-  const child = spawn(process.execPath, ['dist/main.js'], {
+  const { entry = 'dist/main.js', env = {}, nodeArgs = [] } = options;
+  const child = spawn(process.execPath, [...nodeArgs, entry], {
     cwd: path.join(benchmarksDir, app),
-    env: { ...process.env, NODE_ENV: 'production', PORT: String(port) },
+    env: { ...process.env, ...env, NODE_ENV: 'production', PORT: String(port) },
     stdio: ['ignore', 'pipe', 'pipe'],
   });
   live.add(child);
@@ -110,6 +126,7 @@ export async function startServer(app: AppName): Promise<Server> {
     pid: child.pid!,
     url: `http://127.0.0.1:${port}`,
     ready,
+    stderr: child.stderr!,
     cpuSeconds: () => processCpuSeconds(child.pid!),
     async stop() {
       child.kill('SIGTERM');
@@ -195,6 +212,51 @@ export function assertClean(result: OhaResult, scenario: Scenario, label: string
   }
 }
 
+export type Sample = {
+  requestsPerSec: number;
+  latencyMs: Record<string, number>;
+  /** CPU cores the server used while measured: 1.0 is one core saturated. */
+  serverCores: number;
+  ohaCores: number;
+};
+
+/**
+ * One measurement: a fresh server from `start`, a warm-up, then the measured load. Throws unless
+ * every request of both got the scenario's status.
+ */
+export async function measure(
+  start: () => Promise<Server>,
+  scenario: Scenario,
+  label: string,
+  load: LoadOptions & { warmup: string },
+): Promise<Sample> {
+  const server = await start();
+  try {
+    const warm = await runOha(ohaArgs(server, scenario, { ...load, duration: load.warmup }));
+    assertClean(warm, scenario, `${label} (warmup)`);
+    const cpuBefore = server.cpuSeconds();
+    const result = await runOha(ohaArgs(server, scenario, load));
+    const cpuAfter = server.cpuSeconds();
+    assertClean(result, scenario, label);
+    const sample: Sample = {
+      requestsPerSec: result.summary.requestsPerSec,
+      latencyMs: Object.fromEntries(
+        Object.entries(result.latencyPercentiles).map(([p, seconds]) => [p, seconds * 1000]),
+      ),
+      serverCores: (cpuAfter - cpuBefore) / result.summary.total,
+      ohaCores: result.ohaCpuSeconds / result.summary.total,
+    };
+    log(
+      `${label}: ${Math.round(sample.requestsPerSec)} req/s, p50 ${sample.latencyMs.p50.toFixed(2)} ms, ` +
+        `p99 ${sample.latencyMs.p99.toFixed(2)} ms, server ${sample.serverCores.toFixed(2)} cores, ` +
+        `oha ${sample.ohaCores.toFixed(2)} cores`,
+    );
+    return sample;
+  } finally {
+    await server.stop();
+  }
+}
+
 export function median(values: number[]): number {
   const sorted = [...values].sort((a, b) => a - b);
   const mid = Math.floor(sorted.length / 2);
@@ -203,4 +265,70 @@ export function median(values: number[]): number {
 
 export function sh(command: string, args: string[], cwd = repoDir): string {
   return execFileSync(command, args, { cwd, encoding: 'utf8' }).trim();
+}
+
+export function log(message: string) {
+  process.stdout.write(`[${new Date().toISOString().slice(11, 19)}] ${message}\n`);
+}
+
+/** The Node.js major every published result is measured on. */
+const NODE_MAJOR = 26;
+
+/** The machine and the checkout a run measures, after warning about what makes it noisy. */
+export function environment() {
+  if (Number(process.versions.node.split('.')[0]) !== NODE_MAJOR) {
+    throw new Error(`benchmarks run on Node.js ${NODE_MAJOR}; this is ${process.version}`);
+  }
+  let power = 'unknown';
+  try {
+    power = /'(.+?)'/.exec(sh('pmset', ['-g', 'batt']))?.[1] ?? power;
+  } catch {
+    // Not a laptop, or no pmset: the power source stays unknown.
+  }
+  const env = {
+    date: new Date().toISOString(),
+    os: `${os.type()} ${os.release()} (${os.arch()})`,
+    cpu: os.cpus()[0]?.model,
+    cores: os.cpus().length,
+    memoryGb: Math.round(os.totalmem() / 2 ** 30),
+    power,
+    loadAverage: os.loadavg().map((l) => Number(l.toFixed(2))),
+    oha: sh('oha', ['--version']),
+    commit: sh('git', ['rev-parse', '--short', 'HEAD']),
+    dirty: sh('git', ['status', '--porcelain']).length > 0,
+  };
+  if (env.power !== 'AC Power') {
+    log(`warning: running on ${env.power}; publish only numbers measured on AC power`);
+  }
+  if (env.loadAverage[0] > 1.5) {
+    log(
+      `warning: load average is ${env.loadAverage[0]}; other processes are competing for the CPU`,
+    );
+  }
+  return env;
+}
+
+export type Environment = ReturnType<typeof environment>;
+
+/** A report's first lines: the machine, then the versions the apps reported. */
+export function environmentLines(env: Environment, versions: Record<string, string>): string[] {
+  return [
+    `${env.date} · ${env.cpu}, ${env.cores} cores, ${env.memoryGb} GB · ${env.os} · power: ${env.power} · ` +
+      `load average at start ${env.loadAverage.join(' / ')}`,
+    '',
+    `Node ${process.version} · ${Object.entries(versions)
+      .map(([n, v]) => `${n} ${v}`)
+      .join(
+        ' · ',
+      )} · ${env.oha} · commit ${env.commit}${env.dirty ? ' (uncommitted changes)' : ''}`,
+    '',
+  ];
+}
+
+export function build() {
+  log('building the library and both apps');
+  sh(path.join(repoDir, 'scripts/build.sh'), []);
+  for (const app of appNames) {
+    sh('pnpm', ['run', 'build'], path.join(benchmarksDir, app));
+  }
 }
