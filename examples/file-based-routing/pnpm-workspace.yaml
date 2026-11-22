@@ -7,6 +7,10 @@ allowBuilds:
   '@scarf/scarf': false
   es5-ext: false
   vue-demi: false
+  # Its postinstall writes the coding-agent files into the repository that installs it. This
+  # example sits in the library's own repository, so it is declined here; an app of yours sets
+  # `nestjs-endpoints: true`. Named by its full spec because it is a `file:` dependency.
+  nestjs-endpoints@file:../../packages/nestjs-endpoints: false
 
 # Kubb 5 ships several releases a day, so a current set of its packages rarely
 # clears pnpm's one-day release-age gate. Excluded by exact version: bumping
