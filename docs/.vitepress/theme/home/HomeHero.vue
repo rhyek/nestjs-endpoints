@@ -2,6 +2,8 @@
 import { VPButton } from 'vitepress/theme';
 import CodeWindow from './CodeWindow.vue';
 import HeroEndpoint from './HeroEndpoint.md';
+// The icon at its full size (logo/logo.svg). The build inlines it into the page.
+import logo from '../../../../logo/logo.svg';
 
 // The top of the home page: what the library is, beside one whole endpoint file, and under them
 // what that one file gives an app. `intro` is the home page's frontmatter of that name.
@@ -15,7 +17,10 @@ defineProps({
     <div class="top">
       <div class="pitch">
         <h1>
-          <span class="name">{{ intro.name }}</span>
+          <span class="brand">
+            <img class="icon" :src="logo" alt="" width="48" height="48" />
+            <span class="name">{{ intro.name }}</span>
+          </span>
           <span class="text">{{ intro.text }}</span>
         </h1>
         <p class="tagline">{{ intro.tagline }}</p>
@@ -63,6 +68,23 @@ h1 {
   gap: 4px;
   letter-spacing: -0.02em;
   font-weight: 700;
+}
+
+/* The icon and the name, on one line. */
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+/* The tile is nearly the dark page's own color, so a short, even shadow keeps its shape there. Its
+   radius is the tile's own, 15 of 64. */
+.icon {
+  flex: none;
+  width: 34px;
+  height: 34px;
+  border-radius: 23.4%;
+  box-shadow: 0 0 5px rgb(0 0 0 / 0.4);
 }
 
 .name {
@@ -144,6 +166,15 @@ h1 {
     padding-block: 56px 64px;
   }
 
+  .brand {
+    gap: 12px;
+  }
+
+  .icon {
+    width: 44px;
+    height: 44px;
+  }
+
   .name,
   .text {
     font-size: 44px;
@@ -176,6 +207,11 @@ h1 {
 }
 
 @media (min-width: 1152px) {
+  .icon {
+    width: 48px;
+    height: 48px;
+  }
+
   .name,
   .text {
     font-size: 48px;

@@ -1,3 +1,5 @@
+import { createHash } from 'node:crypto';
+import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { rendererFloatingVue, transformerTwoslash } from '@shikijs/vitepress-twoslash';
@@ -7,6 +9,21 @@ import llmstxt from 'vitepress-plugin-llms';
 
 const repo = 'https://github.com/rhyek/nestjs-endpoints';
 const site = 'https://nestjs-endpoints.dev';
+
+/**
+ * A file in docs/public/ by its URL, with a hash of its content as the query (`/logo-small.svg?v=…`).
+ * VitePress serves public files under their own names, so without it a changed icon would keep
+ * its URL, and browsers and the CDN would keep the old file.
+ */
+function versioned(url: string): string {
+  // The dev server can hand the same frontmatter in again: hash the path, not a hashed URL.
+  const file = url.split('?')[0]!;
+  const hash = createHash('sha256')
+    .update(readFileSync(new URL(`../public${file}`, import.meta.url)))
+    .digest('hex')
+    .slice(0, 8);
+  return `${file}?v=${hash}`;
+}
 
 // The app the site's code samples are type-checked against (docs/snippets/): its endpoints, and
 // the clients generated from them by `pnpm snippets`. A sample marked `twoslash` is compiled as a
@@ -86,6 +103,21 @@ export default defineConfig({
   srcExclude: ['snippets/**'],
 
   head: [
+    // The icon (logo/, linked into docs/public/): its small-size file in the browser tab, as an
+    // SVG and as a PNG for browsers that take no SVG there; a square one for an iPhone's home
+    // screen; and a square one for a link's preview.
+    ['link', { rel: 'icon', href: versioned('/logo-small.svg'), type: 'image/svg+xml' }],
+    [
+      'link',
+      { rel: 'icon', href: versioned('/favicon-32.png'), type: 'image/png', sizes: '32x32' },
+    ],
+    ['link', { rel: 'apple-touch-icon', href: versioned('/apple-touch-icon.png') }],
+    ['meta', { property: 'og:image', content: `${site}${versioned('/og-image.png')}` }],
+    ['meta', { property: 'og:image:width', content: '512' }],
+    ['meta', { property: 'og:image:height', content: '512' }],
+    ['meta', { property: 'og:image:alt', content: 'nestjs-endpoints' }],
+    // X draws a link as a small square image beside its title and description.
+    ['meta', { name: 'twitter:card', content: 'summary' }],
     // Cookieless page-view counts (Umami), served from the site's own subdomain. `defer` keeps it
     // off the render path, and a failed report is dropped silently, so the site never waits on
     // it. `data-host-url` is required: without it the tracker posts relative to the script's
@@ -115,6 +147,7 @@ export default defineConfig({
   },
 
   themeConfig: {
+    logo: { src: versioned('/logo-small.svg'), alt: '' },
     nav: [
       { text: 'Guide', link: '/guide/getting-started', activeMatch: '^/guide/' },
       { text: 'Clients', link: '/clients/codegen', activeMatch: '^/clients/' },
