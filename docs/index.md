@@ -59,7 +59,7 @@ types:
 nest:
   eyebrow: NestJS
   title: It's still NestJS.
-  details: Each endpoint is an ordinary controller class. Providers, guards, interceptors, exception filters and the testing module work the way they do in any Nest app, on Express, Fastify or the Node adapter. Add one endpoint beside the controllers you already have, and move the rest when it suits you.
+  details: Each <span class="endpoint-term">endpoint</span> is an ordinary controller class. Providers, guards, interceptors, exception filters and the testing module work the way they do in any Nest app, on Express, Fastify or the Node adapter. Add one endpoint beside the controllers you already have, and move the rest when it suits you.
   points:
     - term: inject
       text: Providers, as a constructor takes them.
@@ -77,7 +77,7 @@ nest:
 performance:
   eyebrow: Performance
   title: Faster than a controller that validates.
-  details: Validating a request and its response costs less in an endpoint than in a NestJS controller with NestJS's own schema validation. The same API, with the same Zod schemas, serves about a quarter more requests per second where both are validated, and the same number where nothing is.
+  details: Validating a request and its response costs less in an <span class="endpoint-term">endpoint</span> than in a NestJS controller with NestJS's own schema validation. The same API, with the same Zod schemas, serves about a quarter more requests per second where both are validated, and the same number where nothing is.
   linkText: Performance
   link: /guide/performance
 
@@ -131,7 +131,7 @@ featuresTitle: What else is in the box
 features:
   - icon: 🛡️
     title: Guards scoped to a router module
-    details: Declare middleware, interceptors and guards once on a router module, and they cover every endpoint it owns, nested routers included. Plain NestJS has no such scope.
+    details: Declare middleware, interceptors and guards once on a router module, and they cover every <span class="endpoint-term">endpoint</span> it owns, nested routers included. Plain NestJS has no such scope.
     link: /guide/improvements
   - icon: 🔁
     title: Queries and mutations

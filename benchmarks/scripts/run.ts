@@ -5,22 +5,22 @@
 //
 // See benchmarks/README.md for the method.
 import fs from 'node:fs';
-import os from 'node:os';
 import path from 'node:path';
 import { parseArgs } from 'node:util';
 import {
   appNames,
-  assertClean,
   benchmarksDir,
+  build,
+  environment,
+  environmentLines,
+  log,
+  measure as measureServer,
   median,
-  ohaArgs,
-  repoDir,
-  runOha,
-  sh,
   startServer,
   type AppName,
-  type OhaResult,
+  type Environment,
   type ReadyInfo,
+  type Sample as Measured,
 } from './lib.ts';
 import { checkParity, type ParityReport } from './parity.ts';
 import { scenarios, type Scenario } from './scenarios.ts';
@@ -67,20 +67,9 @@ function order(round: number): Subject[] {
   return subjects.map((_, i) => subjects[(i + round) % subjects.length]);
 }
 
-type Sample = {
-  round: number;
-  requestsPerSec: number;
-  latencyMs: Record<string, number>;
-  /** CPU cores the server used while measured: 1.0 is one core saturated. */
-  serverCores: number;
-  ohaCores: number;
-};
+type Sample = Measured & { round: number };
 
 const versions = {} as Record<AppName, ReadyInfo>;
-
-function log(message: string) {
-  process.stdout.write(`[${new Date().toISOString().slice(11, 19)}] ${message}\n`);
-}
 
 async function measure(
   subject: Subject,
@@ -88,71 +77,17 @@ async function measure(
   round: number,
   rate?: number,
 ): Promise<Sample> {
-  const server = await startServer(subject.app);
-  versions[subject.app] = server.ready;
-  try {
-    const label = `${scenario.id} / ${subject.id} / round ${round}${rate ? ` @ ${rate} req/s` : ''}`;
-    const warm = await runOha(
-      ohaArgs(server, scenario, { duration: config.warmup, connections: config.connections, rate }),
-    );
-    assertClean(warm, scenario, `${label} (warmup)`);
-    const cpuBefore = server.cpuSeconds();
-    const result: OhaResult = await runOha(
-      ohaArgs(server, scenario, {
-        duration: config.duration,
-        connections: config.connections,
-        rate,
-      }),
-    );
-    const cpuAfter = server.cpuSeconds();
-    assertClean(result, scenario, label);
-    const sample: Sample = {
-      round,
-      requestsPerSec: result.summary.requestsPerSec,
-      latencyMs: Object.fromEntries(
-        Object.entries(result.latencyPercentiles).map(([p, seconds]) => [p, seconds * 1000]),
-      ),
-      serverCores: (cpuAfter - cpuBefore) / result.summary.total,
-      ohaCores: result.ohaCpuSeconds / result.summary.total,
-    };
-    log(
-      `${label}: ${Math.round(sample.requestsPerSec)} req/s, p50 ${sample.latencyMs.p50.toFixed(2)} ms, ` +
-        `p99 ${sample.latencyMs.p99.toFixed(2)} ms, server ${sample.serverCores.toFixed(2)} cores, ` +
-        `oha ${sample.ohaCores.toFixed(2)} cores`,
-    );
-    return sample;
-  } finally {
-    await server.stop();
-  }
-}
-
-function environment() {
-  let power = 'unknown';
-  try {
-    power = /'(.+?)'/.exec(sh('pmset', ['-g', 'batt']))?.[1] ?? power;
-  } catch {
-    // Not a laptop, or no pmset: the power source stays unknown.
-  }
-  return {
-    date: new Date().toISOString(),
-    os: `${os.type()} ${os.release()} (${os.arch()})`,
-    cpu: os.cpus()[0]?.model,
-    cores: os.cpus().length,
-    memoryGb: Math.round(os.totalmem() / 2 ** 30),
-    power,
-    loadAverage: os.loadavg().map((l) => Number(l.toFixed(2))),
-    oha: sh('oha', ['--version']),
-    commit: sh('git', ['rev-parse', '--short', 'HEAD']),
-    dirty: sh('git', ['status', '--porcelain']).length > 0,
-  };
-}
-
-function build() {
-  log('building the library and both apps');
-  sh(path.join(repoDir, 'scripts/build.sh'), []);
-  for (const app of appNames) {
-    sh('pnpm', ['run', 'build'], path.join(benchmarksDir, app));
-  }
+  const sample = await measureServer(
+    async () => {
+      const server = await startServer(subject.app);
+      versions[subject.app] = server.ready;
+      return server;
+    },
+    scenario,
+    `${scenario.id} / ${subject.id} / round ${round}${rate ? ` @ ${rate} req/s` : ''}`,
+    { duration: config.duration, warmup: config.warmup, connections: config.connections, rate },
+  );
+  return { round, ...sample };
 }
 
 function spread(values: number[]) {
@@ -169,28 +104,15 @@ type ScenarioResult = {
   latency: Record<string, Sample[]>;
 };
 
-function markdown(
-  env: ReturnType<typeof environment>,
-  results: ScenarioResult[],
-  parity: ParityReport,
-) {
+function markdown(env: Environment, results: ScenarioResult[], parity: ParityReport) {
   const [ours, theirs, control] = subjects.map((s) => s.id);
   const lines: string[] = [];
-  const nest = versions['nestjs-app'];
   lines.push(`# nestjs-endpoints vs NestJS`, '');
   lines.push(
-    `${env.date} · ${env.cpu}, ${env.cores} cores, ${env.memoryGb} GB · ${env.os} · power: ${env.power} · ` +
-      `load average at start ${env.loadAverage.join(' / ')}`,
-    '',
-    `Node ${nest?.node} · ${Object.entries({
-      ...nest?.versions,
+    ...environmentLines(env, {
+      ...versions['nestjs-app']?.versions,
       ...versions['nestjs-endpoints-app']?.versions,
-    })
-      .map(([n, v]) => `${n} ${v}`)
-      .join(
-        ' · ',
-      )} · ${env.oha} · commit ${env.commit}${env.dirty ? ' (uncommitted changes)' : ''}`,
-    '',
+    }),
     `${config.rounds} rounds × ${config.duration} (after ${config.warmup} warmup) at ${config.connections} ` +
       `keep-alive connections, a fresh server process per measurement, contenders interleaved.`,
     '',
@@ -274,22 +196,8 @@ function markdown(
   return lines.join('\n');
 }
 
-/** The Node.js major every published result is measured on. */
-const NODE_MAJOR = 26;
-
 async function main() {
-  if (Number(process.versions.node.split('.')[0]) !== NODE_MAJOR) {
-    throw new Error(`benchmarks run on Node.js ${NODE_MAJOR}; this is ${process.version}`);
-  }
   const env = environment();
-  if (env.power !== 'AC Power') {
-    log(`warning: running on ${env.power}; publish only numbers measured on AC power`);
-  }
-  if (env.loadAverage[0] > 1.5) {
-    log(
-      `warning: load average is ${env.loadAverage[0]}; other processes are competing for the CPU`,
-    );
-  }
   if (!flags['skip-build']) {
     build();
   }

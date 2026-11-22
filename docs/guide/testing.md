@@ -4,8 +4,8 @@ description: Test endpoints over HTTP, through the generated client, one router 
 
 # Testing
 
-Endpoints are NestJS controllers, so they are tested with `@nestjs/testing` like the rest of a
-Nest app. You can test at four levels, from the whole app down to one handler.
+<Endpoint>Endpoints</Endpoint> are NestJS controllers, so they are tested with `@nestjs/testing`
+like the rest of a Nest app. You can test at four levels, from the whole app down to one handler.
 
 ## Vitest
 

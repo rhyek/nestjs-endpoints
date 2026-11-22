@@ -9,9 +9,14 @@ import { undeclaredField } from '../nestjs-endpoints-app/src/shared.ts';
 import { appNames, benchmarksDir, startServer, type AppName } from './lib.ts';
 import { scenarios, type Scenario } from './scenarios.ts';
 
-type Answer = { status: number; contentType: string | null; body: string; headers: string[] };
+export type Answer = {
+  status: number;
+  contentType: string | null;
+  body: string;
+  headers: string[];
+};
 
-async function ask(url: string, scenario: Scenario): Promise<Answer> {
+export async function ask(url: string, scenario: Scenario): Promise<Answer> {
   const response = await fetch(url + scenario.path, {
     method: scenario.method,
     headers: scenario.body === undefined ? {} : { 'content-type': 'application/json' },

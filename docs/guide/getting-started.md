@@ -4,9 +4,9 @@ description: Install nestjs-endpoints in a NestJS app, write a first endpoint an
 
 # Getting started
 
-nestjs-endpoints lets you write each HTTP endpoint of a NestJS app as one file: Zod schemas for
-what comes in and what goes out, and a handler. Each endpoint is a regular NestJS controller
-underneath, so the rest of the app stays as it is.
+nestjs-endpoints lets you write each HTTP endpoint of a NestJS app as one file: Zod schemas for what
+comes in and what goes out, and a handler. Each <Endpoint>endpoint</Endpoint> is a regular NestJS
+controller underneath, so the rest of the app stays as it is.
 
 From those schemas you get validation and, if you want one, a
 [typed client](../clients/codegen.md) for your front end.

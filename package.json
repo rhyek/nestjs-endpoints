@@ -7,6 +7,7 @@
     "test": "./scripts/build.sh && ./scripts/test.sh",
     "dev": "pnpm --filter nestjs-endpoints --filter test-app-express run --parallel dev",
     "bench": "node benchmarks/scripts/run.ts",
+    "bench:breakdown": "node benchmarks/scripts/breakdown.ts",
     "build": "./scripts/build.sh && pnpm --filter nestjs-endpoints-docs build && node scripts/package-docs.ts",
     "lint": "oxlint --disable-nested-config && oxfmt --check --disable-nested-config",
     "format": "oxfmt --disable-nested-config",

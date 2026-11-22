@@ -7,10 +7,10 @@ description: Building an OpenAPI document for an app that uses nestjs-endpoints,
 nestjs-endpoints builds no OpenAPI document, and needs none: the
 [generated clients](./codegen.md) come from the endpoints' schemas directly.
 
-If your app builds one with [`@nestjs/swagger`](https://docs.nestjs.com/openapi/introduction),
-its endpoints are in it. Each endpoint carries the metadata `@nestjs/swagger` reads, so
-`SwaggerModule.createDocument()` describes endpoints beside your plain `@Controller()` classes,
-with a component schema for every schema they name.
+If your app builds one with [`@nestjs/swagger`](https://docs.nestjs.com/openapi/introduction), its
+endpoints are in it. Each endpoint carries the metadata `@nestjs/swagger` reads, so
+`SwaggerModule.createDocument()` describes <Endpoint>endpoints</Endpoint> beside your plain
+`@Controller()` classes, with a component schema for every schema they name.
 
 ```ts
 // src/main.ts

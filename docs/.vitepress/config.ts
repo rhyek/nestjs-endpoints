@@ -253,6 +253,9 @@ export default defineConfig({
   },
 
   markdown: {
+    // `<Endpoint>` is a word in a sentence (theme/Endpoint.vue). A component's tag is otherwise
+    // a block wherever it starts a line, which would end the paragraph the word is in.
+    component: { inlineTags: ['Endpoint'] },
     codeTransformers: [
       transformerTwoslash({
         twoslashOptions: { vfsRoot: snippets, compilerOptions },
