@@ -1,6 +1,5 @@
 import { z } from 'zod';
 import type { InjectOnRequestMap, InjectProvidersMap } from './injections';
-import type { SchemaOf } from './schema-options';
 
 /**
  * What a router gives every endpoint built with its `endpoint`: its own, over
@@ -67,15 +66,14 @@ export function assertOneMapPerKey(level: Injections, at: string): void {
 }
 
 /**
- * The `params` of an endpoint (`Inner`, bare or given through `schema()`)
- * over its router's (`Outer`): one object schema, the endpoint's own with the
- * router's keys it does not declare.
+ * The `params` of an endpoint (`Inner`) over its router's (`Outer`): one object schema, the
+ * endpoint's own with the router's keys it does not declare.
  */
 export type MergedParams<Outer, Inner> =
   Outer extends z.ZodObject<infer OuterShape>
     ? Inner extends undefined
       ? Outer
-      : SchemaOf<Inner> extends z.ZodObject<infer InnerShape, infer InnerConfig>
+      : Inner extends z.ZodObject<infer InnerShape, infer InnerConfig>
         ? z.ZodObject<
             {
               [K in keyof OuterShape | keyof InnerShape]: K extends keyof InnerShape
@@ -90,7 +88,7 @@ export type MergedParams<Outer, Inner> =
 /** A `params` its router's can merge with, or the reason it cannot. */
 export type MergeableParams<Params, RouterParams> = RouterParams extends undefined
   ? unknown
-  : SchemaOf<Params> extends z.ZodObject
+  : NonNullable<Params> extends z.ZodObject
     ? unknown
     : "`params` must be a plain z.object() to merge with its router's params";
 

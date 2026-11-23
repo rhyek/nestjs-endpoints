@@ -11,7 +11,6 @@ import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { z } from 'zod';
 import { collectDescriptors, EndpointDescriptor, filterDescriptors } from './descriptors';
 import { endpoint } from './endpoint-fn';
-import { schema } from './schema-options';
 
 const apps: INestApplicationContext[] = [];
 
@@ -137,18 +136,6 @@ test('a query with a meta id is split into search parameters', async () => {
   });
 });
 
-test('a query given through schema() is split into search parameters', async () => {
-  const search = endpoint.query({
-    path: '/described-search',
-    query: schema(z.object({ q: z.string() })),
-    handler: ({ query: { q } }) => q,
-  });
-  const [d] = await describeApp([search]);
-  expect(d.query!.parameters).toEqual([
-    { name: 'q', required: true, schema: { type: 'string' }, shape: 'value' },
-  ]);
-});
-
 test('input and query together are a body and search parameters', async () => {
   const save = endpoint.mutation({
     path: '/save',
@@ -265,10 +252,10 @@ test('outputs by status', async () => {
   const make = endpoint.mutation({
     path: '/make',
     output: {
-      201: schema(z.object({}), { description: 'Made' }),
+      201: z.object({ id: z.number() }).meta({ description: 'Made' }),
       400: z.string(),
     },
-    handler: ({ response }) => response(201, {}),
+    handler: ({ response }) => response(201, { id: 1 }),
   });
   const [d] = await describeApp([make]);
   expect(d.outputs.map((o) => o.status)).toEqual([201, 400]);
@@ -277,6 +264,51 @@ test('outputs by status', async () => {
     { $ref: '#/components/schemas/Make400Output' },
   ]);
   expect(d.outputs.map((o) => o.description)).toEqual(['Made', undefined]);
+});
+
+test("a schema's description describes the response or the request body it is, per endpoint", async () => {
+  const user = z.object({ id: z.number() });
+  const shown = endpoint.query({
+    path: '/described/shown',
+    output: user.meta({ description: 'The user' }),
+    handler: () => ({ id: 1 }),
+  });
+  const made = endpoint.mutation({
+    path: '/described/made',
+    input: z.object({ name: z.string() }).describe('Who to make'),
+    output: { 201: user.meta({ description: 'Made' }), 409: user },
+    handler: ({ response }) => response(201, { id: 1 }),
+  });
+  const plain = endpoint.mutation({
+    path: '/described/plain',
+    input: z.object({ name: z.string() }),
+    output: user,
+    handler: () => ({ id: 1 }),
+  });
+  const app = await createHttpApp([shown, made, plain]);
+  const { paths } = SwaggerModule.createDocument(app, new DocumentBuilder().build());
+  const operation = (name: string) => Object.values(paths[`/described/${name}`]!)[0];
+  expect(operation('shown').responses).toMatchObject({ 200: { description: 'The user' } });
+  expect(operation('made').responses).toMatchObject({
+    201: { description: 'Made' },
+    409: { description: '' },
+  });
+  expect(operation('made').requestBody).toMatchObject({ description: 'Who to make' });
+  expect(operation('plain').responses).toMatchObject({ 200: { description: '' } });
+  expect(operation('plain').requestBody).not.toHaveProperty('description');
+});
+
+test('an output map has statuses for keys', () => {
+  expect(() =>
+    endpoint.query({
+      path: '/statuses-only',
+      // @ts-expect-error `ok` is not a status
+      output: { 200: z.object({ id: z.number() }), ok: z.object({ id: z.number() }) },
+      handler: () => {
+        throw new Error('never called');
+      },
+    }),
+  ).toThrow('`output` must be a Zod schema, or an object of them by status code: `ok` is not one.');
 });
 
 test('two apps each collect their own endpoints', async () => {

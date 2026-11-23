@@ -43,7 +43,7 @@ one `output` declares, and the body is type-checked against that status's schema
 
 ```ts twoslash
 // @filename: src/endpoints/appointments/create.sample.ts
-import { endpoint, schema, z } from 'nestjs-endpoints';
+import { endpoint, z } from 'nestjs-endpoints';
 declare class AppointmentsService {
   hasConflict(date: Date): Promise<boolean>;
   create(userId: number, date: Date): Promise<{ id: number; address: string }>;
@@ -55,7 +55,7 @@ export default endpoint.mutation({
     date: z.coerce.date(),
   }),
   output: {
-    201: schema(z.object({ id: z.number(), address: z.string() }), {
+    201: z.object({ id: z.number(), address: z.string() }).meta({
       description: 'Appointment created',
     }),
     409: z.object({
@@ -76,8 +76,8 @@ export default endpoint.mutation({
 });
 ```
 
-`schema()` attaches a description to one status, for an
-[OpenAPI document](../clients/openapi.md). In the generated client, a status outside the 2xx range is thrown as a
+A schema's `.meta({ description })` describes its status's response in an
+[OpenAPI document](../clients/openapi.md), and describes the schema too. An `input`'s describes the request body. In the generated client, a status outside the 2xx range is thrown as a
 [`ResponseError`](../clients/axios.md#errors).
 
 For failures that aren't part of an endpoint's documented responses, throw

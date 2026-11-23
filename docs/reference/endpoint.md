@@ -23,10 +23,10 @@ hooks the [React Query client](../clients/react-query.md) generates for the oper
 | Option | Type | |
 | --- | --- | --- |
 | `handler` | function | Required. Receives [one object](#the-handler), and returns the response body or a promise of it. |
-| `input` | Zod schema | The JSON body. Not allowed with `method: 'get'`. |
+| `input` | Zod schema | The JSON body. Not allowed with `method: 'get'`. Its `.meta({ description })` describes the request body in an OpenAPI document. |
 | `query` | Zod object schema | The search parameters, on any method. |
 | `params` | Zod object schema | The path parameters. Its keys must match the `:names` in the URL. |
-| `output` | Zod schema, or an object of them by status code | The response body. With a schema per status, the handler returns [`response(status, body)`](../guide/responses.md#several-statuses). |
+| `output` | Zod schema, or an object of them by status code | The response body. With a schema per status, the handler returns [`response(status, body)`](../guide/responses.md#several-statuses). A schema's `.meta({ description })` describes its response in an [OpenAPI document](../clients/openapi.md). |
 | `method` | `'get' \| 'post' \| 'put' \| 'patch' \| 'delete'` | The HTTP method. Defaults to `'post'`. |
 | `path` | `string` | An explicit URL, in place of the one from the file's location. Required for an endpoint [registered by hand](../guide/explicit-paths.md) outside a router. |
 | `inject` | object of provider classes or `decorated<T>()` | Providers, as a constructor would inject them. See [Dependency injection](../guide/dependency-injection.md). |
@@ -38,10 +38,9 @@ hooks the [React Query client](../clients/react-query.md) generates for the oper
 | `summary` | `string` | The operation's summary in an [OpenAPI document](../clients/openapi.md). |
 | `tags` | `string[]` | OpenAPI tags, added to the one the operation gets [from its router](../clients/openapi.md#what-an-endpoint-contributes). |
 
-`query` and `params` take an object schema: bare, behind a transform or preprocess step, or
-given through `schema()`. Anything else is a type error. The `params` of an endpoint whose
-[router declares some](../guide/router-context.md#path-parameters) is a plain `z.object()`, bare
-or given through `schema()`.
+`query` and `params` take an object schema, bare or behind a transform or preprocess step. Anything
+else is a type error. The `params` of an endpoint whose
+[router declares some](../guide/router-context.md#path-parameters) is a plain `z.object()`.
 
 ## The handler
 
@@ -132,5 +131,4 @@ Every endpoint class has an `invoke()` method, which runs the endpoint without H
 | Export | |
 | --- | --- |
 | `decorated<T>(decorator)` | Pairs a NestJS property or parameter decorator with the type the handler should see. For `inject` and `injectOnRequest`. |
-| `schema(zodSchema, { description })` | Attaches an OpenAPI description to a schema. Accepted wherever a schema is, and shown for `output`. |
 | `z` | Zod, re-exported. |

@@ -1,6 +1,6 @@
 import assert from 'node:assert';
 import { Inject, Req, UseGuards } from '@nestjs/common';
-import { decorated, endpoint, schema, z } from 'nestjs-endpoints';
+import { decorated, endpoint, z } from 'nestjs-endpoints';
 import { AuthGuard } from '../../../../../auth.guard';
 import { CurrentUser } from '../../../../../decorators/current-user.decorator';
 import { UserService } from '../../../user.service';
@@ -38,9 +38,7 @@ export default endpoint.mutation({
   summary: 'Create an appointment',
   input: appointmentInput,
   output: {
-    201: schema(appointmentCreated, {
-      description: 'Appointment created',
-    }),
+    201: appointmentCreated.meta({ description: 'Appointment created' }),
     400: appointmentError,
   },
   decorators: [UseGuards(AuthGuard)],

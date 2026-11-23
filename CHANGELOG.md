@@ -24,6 +24,8 @@
 
 - **A router's `inject` and `injectOnRequest` are top-level options, and `endpointConfig` is removed.** Move the keys of `endpointConfig` up into the router's own options. See [Router context](docs/guide/router-context.md).
 - **`EndpointRouterModule` is renamed `EndpointRouter`**, and the deprecated `EndpointsRouterModule` and `register()` are removed. Rename the import, and call `create()`.
+- **`getHttpPathPascalName`, `getEndpointHttpPath`, `getCallsiteFile` and `moduleAls` are not exported**: they were the library's internals.
+- **`schema()` is removed: a schema's `.meta({ description })` describes its response in the OpenAPI document**, as in `201: created.meta({ description: 'Created' })`, and an `input`'s describes the request body. See [Responses](docs/guide/responses.md#several-statuses).
 - **Routers have no `exports`.** Provide what another module needs in a module, and import it in both.
 - **A router file is one that exports a router.** Import a module that a `router.module.ts` default-exports where the app needs it.
 - **A router's `endpoints` refuses an entry that is not an endpoint.** Remove it, or list a controller in a module's `controllers`.

@@ -6,7 +6,6 @@ import { createRouterEndpoint, endpoint, type EndpointBuilders } from './endpoin
 import { ZodValidationException } from './exceptions';
 import { decorated } from './injections';
 import { loneValuesAsArrays } from './object-parameters';
-import { schema } from './schema-options';
 
 // The reader `loneValuesAsArrays` decides on is wrapped, to count the
 // decisions and the requests the reader reads.
@@ -310,7 +309,7 @@ describe("a router's params", () => {
   test("give way to the endpoint's schema for a key both declare", async () => {
     const cls = router.query({
       path: ':clinicId/legacy',
-      params: schema(z.object({ clinicId: z.coerce.number() })),
+      params: z.object({ clinicId: z.coerce.number() }),
       handler: ({ params }) => {
         expectTypeOf(params).toEqualTypeOf<{ clinicId: number }>();
         return params;
@@ -965,17 +964,6 @@ describe('what invoke() takes', () => {
     await expect(new mixed().invoke({ query: { q: 'a' } })).resolves.toEqual([1, 'a']);
     // @ts-expect-error the search param is required though the path params are not
     void (() => new mixed().invoke());
-  });
-
-  test('params given through schema(), as bare ones', async () => {
-    const described = endpoint.query({
-      path: 'invoke/described/:id',
-      params: schema(z.object({ id: z.coerce.number() }), { description: 'The id' }),
-      handler: ({ params }) => params.id,
-    });
-    await expect(new described().invoke({ params: { id: '5' } })).resolves.toBe(5);
-    // @ts-expect-error still required
-    void (() => new described().invoke());
   });
 
   test('fails a request that fails a schema, as a request over HTTP does', async () => {

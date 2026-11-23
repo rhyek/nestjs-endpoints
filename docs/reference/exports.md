@@ -10,7 +10,6 @@ Everything is exported from the package's root:
 import {
   endpoint,
   decorated,
-  schema,
   z,
   NestjsEndpoints,
   EndpointRouter,
@@ -27,7 +26,6 @@ import {
 | --- | --- |
 | [`endpoint`](./endpoint.md) | `endpoint.query()` and `endpoint.mutation()`. Each returns a NestJS controller class. |
 | [`decorated`](../guide/dependency-injection.md) | Pairs a NestJS decorator with a TypeScript type, for `inject` and `injectOnRequest`. |
-| [`schema`](../guide/responses.md#several-statuses) | Attaches an OpenAPI description to a Zod schema. |
 | `z` | Zod, re-exported. |
 | `EndpointResponse` | What `response(status, body)` returns, and what `invoke()` resolves to for an endpoint with several statuses. |
 

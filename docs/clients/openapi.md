@@ -39,9 +39,9 @@ void bootstrap();
 | In the document | From |
 | --- | --- |
 | The operation's id | Its URL in PascalCase, without `:param` segments: `UserCreate` |
-| Its request body | `input`, as the component `UserCreateInput` |
-| Its query and path parameters | One per property of `query` and `params` |
-| Its responses | `output`, as `UserCreateOutput`, or `UserCreate400Output` for another status |
+| Its request body | `input`, as the component `UserCreateInput`, described by its `.meta({ description })` |
+| Its query and path parameters | One per property of `query` and `params`, each described by its `.meta({ description })` |
+| Its responses | `output`, as `UserCreateOutput`, or `UserCreate400Output` for another status, each described by its schema's `.meta({ description })` |
 | Its summary and tags | `summary`, and `tags` added to one tag from its router |
 
 The router's tag is its [namespace](./namespaces.md), joined with `/`, such as `shop/recipes`.

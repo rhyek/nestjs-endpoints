@@ -7,15 +7,7 @@
 import path from 'node:path';
 import { Controller, Get, Module } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
-import {
-  ApiParams,
-  ApiQueries,
-  endpoint,
-  EndpointRouter,
-  schema,
-  setupCodegen,
-  z,
-} from 'nestjs-endpoints';
+import { ApiParams, ApiQueries, endpoint, EndpointRouter, setupCodegen, z } from 'nestjs-endpoints';
 
 export type Report = {
   create: Reply;
@@ -56,7 +48,7 @@ const book = endpoint.mutation({
   tags: ['calendar'],
   input: z.object({ taken: z.boolean() }),
   output: {
-    201: schema(z.object({ id: z.number() }), { description: 'Booked' }),
+    201: z.object({ id: z.number() }).meta({ description: 'Booked' }),
     409: z.object({ message: z.string() }),
   },
   handler: ({ input, response }) =>

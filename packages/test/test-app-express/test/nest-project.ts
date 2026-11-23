@@ -71,27 +71,20 @@ export default endpoint.query({
 });
 `;
 
-// Endpoints with an output map, `schema()` and a router's `params`, which no route serves: the
-// project's build emits their declarations as it does those of its endpoint files, and fails on
-// a type it cannot name from outside the package.
-const declaredSource = `import { EndpointRouter, endpoint, schema, z } from 'nestjs-endpoints';
+// Endpoints with an output map, one of its statuses described, and a router's `params`, which no
+// route serves: the project's build emits their declarations as it does those of its endpoint
+// files, and fails on a type it cannot name from outside the package.
+const declaredSource = `import { EndpointRouter, endpoint, z } from 'nestjs-endpoints';
 
 export const created = endpoint.mutation({
   path: 'declared/created',
   input: z.object({ name: z.string() }),
   output: {
-    201: schema(z.object({ id: z.number() }), { description: 'Created' }),
+    201: z.object({ id: z.number() }).meta({ description: 'Created' }),
     409: z.object({ message: z.string() }),
   },
   handler: ({ input, response }) =>
     input.name ? response(201, { id: 1 }) : response(409, { message: 'taken' }),
-});
-
-export const described = endpoint.query({
-  path: 'declared/described',
-  input: schema(z.object({ name: z.string() }), { description: 'Who asks' }),
-  output: z.object({ ok: z.boolean() }),
-  handler: ({ input }) => ({ ok: input.name !== '' }),
 });
 
 export const router = EndpointRouter.create({

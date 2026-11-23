@@ -38,9 +38,6 @@ export function getEndpointHttpPath(rootDirectories: string[], basePath: string,
   };
 }
 
-/** The name of the operation a URL serves: `/recipes/edit/:recipeId` → `RecipesEdit`. */
-export const getHttpPathPascalName = operationName;
-
 export const ApiQueries = <T extends ObjectSchemaLike>(zodObject: T) =>
   objectParameters('query', zodObject, 'The schema given to ApiQueries()');
 

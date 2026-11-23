@@ -51,10 +51,7 @@ import {
   type ObjectSchemaUnion,
   outputsOf,
   type OutputSchemaUnion,
-  type SchemaDef,
-  type SchemaOf,
   type SchemaOption,
-  unwrapSchema,
 } from './schema-options';
 import { EndpointSetupFn, settings } from './settings';
 import { ApiBody, ApiExtension, ApiOperation, ApiResponse } from './swagger';
@@ -91,13 +88,20 @@ type Schema = ZodType<any>;
 /** The output schemas by status: a single schema is the 200 one. */
 type OutputMap<OS extends OutputSchemaUnion> = OS extends undefined
   ? never
-  : OS extends Schema | SchemaDef
-    ? { 200: SchemaOf<OS> }
-    : OS extends Record<number, Schema | SchemaDef>
-      ? { [K in keyof OS & number]: SchemaOf<OS[K]> }
+  : OS extends Schema
+    ? { 200: OS }
+    : OS extends Record<number, Schema>
+      ? { [K in keyof OS & number]: OS[K] }
       : never;
 
 type OutputStatus<OS extends OutputSchemaUnion> = keyof OutputMap<OS> & number;
+
+/** An `output` that is a map has statuses for keys. */
+type StatusesOnly<OS> = OS extends Schema | undefined
+  ? unknown
+  : {
+      [K in Exclude<keyof OS, number>]: `\`${K & string}\` is not a status code`;
+    };
 
 /**
  * The body of a status: what a handler may hand *in* (`z.input`, before any
@@ -131,8 +135,8 @@ type ResponseUnion<OS extends OutputSchemaUnion, IO extends 'input' | 'output'> 
  */
 type InvokeReturn<OS extends OutputSchemaUnion> = OS extends undefined
   ? any
-  : OS extends Schema | SchemaDef
-    ? z.output<SchemaOf<OS>>
+  : OS extends Schema
+    ? z.output<OS>
     : ResponseUnion<OS, 'output'>;
 
 // The two maps are not constrained here and in `EndpointControllerClass`:
@@ -147,9 +151,9 @@ type HandlerMethod<
 > = (
   params: Injected<InjectProviders> &
     Injected<InjectOnRequestParameters> &
-    IfDeclared<InputSchema, { input: z.output<SchemaOf<InputSchema>>; rawInput: unknown }> &
-    IfDeclared<ParamsSchema, { params: z.output<SchemaOf<ParamsSchema>> }> &
-    IfDeclared<QuerySchema, { query: z.output<SchemaOf<QuerySchema>> }> & {
+    IfDeclared<InputSchema, { input: z.output<InputSchema>; rawInput: unknown }> &
+    IfDeclared<ParamsSchema, { params: z.output<ParamsSchema> }> &
+    IfDeclared<QuerySchema, { query: z.output<QuerySchema> }> & {
       response: <
         Status extends OutputStatus<OutputSchema>,
         Body extends OutputBody<OutputSchema, Status, 'input'>,
@@ -157,13 +161,13 @@ type HandlerMethod<
         status: Status,
         body: Body,
       ) => EndpointResponse<Status, Body>;
-      schemas: IfDeclared<InputSchema, { input: SchemaOf<InputSchema> }> &
-        IfDeclared<ParamsSchema, { params: SchemaOf<ParamsSchema> }> &
-        IfDeclared<QuerySchema, { query: SchemaOf<QuerySchema> }>;
+      schemas: IfDeclared<InputSchema, { input: InputSchema }> &
+        IfDeclared<ParamsSchema, { params: ParamsSchema }> &
+        IfDeclared<QuerySchema, { query: QuerySchema }>;
     },
 ) => OutputSchema extends undefined
   ? MaybePromise<any>
-  : OutputSchema extends Record<number, Schema | SchemaDef>
+  : OutputSchema extends Record<number, Schema>
     ? MaybePromise<ResponseUnion<OutputSchema, 'input'>>
     : OutputSchema extends Schema
       ? MaybePromise<z.input<OutputSchema> | ResponseUnion<OutputSchema, 'input'>>
@@ -183,9 +187,7 @@ type OnRequestOnly<OnRequest, Inject> = WithoutKeys<
 type RawOption<Key extends string, S extends SchemaOption> = IfDeclared<
   S,
   // eslint-disable-next-line @typescript-eslint/no-empty-object-type
-  {} extends z.input<SchemaOf<S>>
-    ? { [K in Key]?: z.input<SchemaOf<S>> }
-    : { [K in Key]: z.input<SchemaOf<S>> }
+  {} extends z.input<S> ? { [K in Key]?: z.input<S> } : { [K in Key]: z.input<S> }
 >;
 
 type InvokeOptions<ParamsSchema extends SchemaOption, QuerySchema extends SchemaOption> = RawOption<
@@ -204,7 +206,7 @@ type InvokeArgs<
   ParamsSchema extends SchemaOption,
   QuerySchema extends SchemaOption,
 > = [
-  ...(InputSchema extends undefined ? [] : [rawInput: z.input<SchemaOf<InputSchema>>]),
+  ...(InputSchema extends undefined ? [] : [rawInput: z.input<InputSchema>]),
   ...([ParamsSchema, QuerySchema] extends [undefined, undefined]
     ? []
     : // eslint-disable-next-line @typescript-eslint/no-empty-object-type
@@ -350,7 +352,9 @@ type EndpointOptions<
    */
   query?: QuerySchema;
   /**
-   * Output Zod schema. A `null` output is sent as the JSON `null`.
+   * Output Zod schema, or one per status code. In an OpenAPI document, a
+   * schema's `.meta({ description })` describes its response too. A `null`
+   * output is sent as the JSON `null`.
    *
    * ```ts
    * endpoint.query({
@@ -361,7 +365,7 @@ type EndpointOptions<
    * })
    * ```
    */
-  output?: OutputSchema;
+  output?: OutputSchema & StatusesOnly<NoInfer<OutputSchema>>;
   /**
    * Inject controller providers at class instance level.
    *
@@ -608,7 +612,7 @@ function withRouterContext(
   if (!router) {
     return options;
   }
-  const ownParams = options.params && unwrapSchema(options.params);
+  const ownParams = options.params;
   if (router.context.params) {
     assertPlainParams(
       ownParams,
@@ -644,17 +648,15 @@ function defineEndpoint(
     throw fail(`\`method\` must be one of ${methods}; got ${JSON.stringify(httpMethod)}.`);
   }
   // `input` is typed `never` here, where `method` may be any method.
-  const inputOption = params.input as SchemaOption;
-  const inputSchema = inputOption && unwrapSchema(inputOption);
-  const paramsSchema = params.params && unwrapSchema(params.params);
-  const querySchema = params.query && unwrapSchema(params.query);
+  const inputSchema = params.input as SchemaOption;
+  const { params: paramsSchema, query: querySchema } = params;
   if (inputSchema && httpMethod === 'get') {
     throw fail(
       'a GET endpoint cannot declare `input`, since a GET request has no body. ' +
         'Use `query` for search parameters, or another `method`.',
     );
   }
-  const outputs = outputsOf(params.output);
+  const outputs = outputsOf(params.output, fail);
   const outputSchemas = outputs && new Map(outputs.map((o) => [o.status, o.schema]));
   const inject: NonNullable<InjectProvidersMap> = params.inject ?? {};
   const injectKeys = Object.keys(inject);
@@ -857,7 +859,14 @@ function defineEndpoint(
     const endpointLabel = `endpoint "${httpPathPascalName}" (${httpMethod.toUpperCase()} ${url})`;
     const input = inputSchema && toJsonSchema(inputSchema, 'input', httpPathPascalName + 'Input');
     if (input) {
-      methodDecorators.push(ApiBody({ standardSchema: document(() => input.json) }));
+      // As a status's describes its response, the schema's description describes the body.
+      const { description } = inputSchema;
+      methodDecorators.push(
+        ApiBody({
+          ...(description && { description }),
+          standardSchema: document(() => input.json),
+        }),
+      );
     }
     const query = querySchema && convertObject(querySchema, `The query of ${endpointLabel}`);
     if (query) {
