@@ -228,7 +228,7 @@ describe('a project made by `nest new`, with nestjs-endpoints added', { timeout:
     let appModule: string;
 
     const router = (folder: string) =>
-      `EndpointRouterModule.create({ rootDirectory: './${folder}', providers: [Clock, HealthService] })`;
+      `EndpointRouter.create({ rootDirectory: './${folder}', providers: [Clock, HealthService] })`;
 
     /** Replaces the app module's `imports` with `imports`, written as source. */
     async function withImports(imports: string) {
@@ -239,7 +239,7 @@ describe('a project made by `nest new`, with nestjs-endpoints added', { timeout:
         appModule
           .replace(
             "import { NestjsEndpoints } from 'nestjs-endpoints';",
-            "import { EndpointRouterModule, NestjsEndpoints } from 'nestjs-endpoints';",
+            "import { EndpointRouter, NestjsEndpoints } from 'nestjs-endpoints';",
           )
           .replace(appModule.slice(start, end), `imports: [${imports}],\n  `),
       );
@@ -273,7 +273,7 @@ describe('a project made by `nest new`, with nestjs-endpoints added', { timeout:
       expect(failed).toBe(true);
       expect(served).toBeUndefined();
       expect(output).toContain(
-        'nestjs-endpoints: this app has 2 routers and no root. Add NestjsEndpoints.forRoot({ router: { … } }) to its root module; further routers stay as EndpointRouterModule.create().',
+        'nestjs-endpoints: this app has 2 routers and no root. Add NestjsEndpoints.forRoot({ router: { … } }) to its root module; further routers stay as EndpointRouter.create().',
       );
     });
 

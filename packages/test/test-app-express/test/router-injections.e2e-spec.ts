@@ -1,24 +1,19 @@
-import path from 'node:path';
 import { Headers, INestApplication } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
-import { decorated, endpoint, EndpointRouterModule } from 'nestjs-endpoints';
+import { decorated, endpoint, EndpointRouter } from 'nestjs-endpoints';
 import request from 'supertest';
-import { API, type Diagnostic } from 'typescript/unstable/sync';
 import { AppModule } from '../src/app.module';
 import misroutedRouter from '../src/misrouted/router.module';
+import { AuditService } from '../src/workspace/audit.service';
 import workspaceRouter from '../src/workspace/router.module';
 import { WorkspaceService } from '../src/workspace/workspace.service';
-import { createApp } from './create-app';
+import { appWith } from './app-with';
 
-describe('inject and injectOnRequest on a router module', () => {
+describe('inject and injectOnRequest on a router', () => {
   let app: INestApplication;
   let req: ReturnType<typeof request>;
   beforeAll(async () => {
-    const moduleFixture = await Test.createTestingModule({
-      imports: [AppModule],
-    }).compile();
-    ({ app } = await createApp(moduleFixture));
-    app.useLogger(false);
+    ({ app } = await appWith([AppModule]));
     req = request(app.getHttpServer());
   });
   afterAll(async () => {
@@ -83,36 +78,17 @@ describe('inject and injectOnRequest on a router module', () => {
     );
   });
 
-  test('a key the router already injects is an error', () => {
-    expect(() =>
-      workspaceRouter.endpoint.query({
-        // @ts-expect-error `workspace` is injected by the router
-        inject: { workspace: WorkspaceService },
-        handler: () => null,
-      }),
-    ).toThrow(/router-injections\.e2e-spec[\s\S]*`workspace`/);
-  });
-
-  test('a key the router injects on request is an error in inject too', () => {
-    expect(() =>
-      workspaceRouter.endpoint.mutation({
-        // @ts-expect-error `tenant` is injected on request by the router
-        inject: { tenant: WorkspaceService },
-        handler: () => null,
-      }),
-    ).toThrow(/`tenant`/);
-  });
-
-  test('a key the router injects is an error in injectOnRequest too', () => {
-    expect(() =>
-      workspaceRouter.endpoint.query({
-        injectOnRequest: {
-          // @ts-expect-error `workspace` is injected by the router
-          workspace: decorated<string>(Headers('x-workspace')),
-        },
-        handler: () => null,
-      }),
-    ).toThrow(/`workspace`/);
+  test('an endpoint may declare a key its router injects, and its own wins', () => {
+    workspaceRouter.endpoint.query({
+      path: 'types-only',
+      inject: { tenant: AuditService },
+      injectOnRequest: { workspace: decorated<number>(Headers('x-workspace')) },
+      handler: (params) => {
+        expectTypeOf(params.tenant).toEqualTypeOf<AuditService>();
+        expectTypeOf(params.workspace).toEqualTypeOf<number>();
+        return null;
+      },
+    });
   });
 
   test('the handler sees the router keys, with its own or none', () => {
@@ -137,13 +113,9 @@ describe('inject and injectOnRequest on a router module', () => {
   });
 
   test("a router with only injectOnRequest adds it to the handler's own inject", () => {
-    EndpointRouterModule.create({
+    EndpointRouter.create({
       endpoints: [],
-      endpointConfig: {
-        injectOnRequest: {
-          tenant: decorated<string>(Headers('x-tenant')),
-        },
-      },
+      injectOnRequest: { tenant: decorated<string>(Headers('x-tenant')) },
     }).endpoint.query({
       path: 'types-only',
       inject: { workspace: WorkspaceService },
@@ -156,7 +128,7 @@ describe('inject and injectOnRequest on a router module', () => {
   });
 
   test("a router without injections hands out the package's endpoint", () => {
-    const plain = EndpointRouterModule.create({ endpoints: [] }).endpoint;
+    const plain = EndpointRouter.create({ endpoints: [] }).endpoint;
     expect(plain).toBe(endpoint);
     plain.query({
       path: 'types-only',
@@ -181,75 +153,9 @@ describe("an endpoint built with another router's endpoint", () => {
 
   test('fails startup in a router that lists it in endpoints', async () => {
     const { default: whoami } = await import('../src/workspace/endpoints/whoami.endpoint');
-    const listed = EndpointRouterModule.create({ endpoints: [whoami] });
+    const listed = EndpointRouter.create({ endpoints: [whoami] });
     await expect(Test.createTestingModule({ imports: [listed] }).compile()).rejects.toThrow(
       /whoami\.endpoint[\s\S]*workspace[/\\]router\.module[\s\S]*router-injections\.e2e-spec/,
     );
   });
 });
-
-describe('the type error for a key the router already injects', () => {
-  test('names the key', { timeout: 60_000 }, () => {
-    const errors = typeErrors(`
-      import { Headers } from '@nestjs/common';
-      import { decorated } from 'nestjs-endpoints';
-      import router from '../src/workspace/router.module';
-      import { WorkspaceService } from '../src/workspace/workspace.service';
-      import { AuditService } from '../src/workspace/audit.service';
-
-      router.endpoint.query({
-        inject: { audit: AuditService, workspace: WorkspaceService },
-        handler: () => null,
-      });
-      router.endpoint.query({
-        inject: { tenant: WorkspaceService },
-        handler: () => null,
-      });
-      router.endpoint.query({
-        injectOnRequest: {
-          workspace: decorated<string>(Headers('x-workspace')),
-        },
-        handler: () => null,
-      });
-    `);
-    expect(errors).toHaveLength(3);
-    expect(errors[0]).toContain('`workspace` is already injected by its router');
-    expect(errors[1]).toContain('`tenant` is already injected by its router');
-    expect(errors[2]).toContain('`workspace` is already injected by its router');
-  });
-});
-
-/**
- * The type errors of `source`, compiled as a file in this folder with the
- * app's tsconfig. Not on disk, so `tscheck` never sees the errors.
- */
-function typeErrors(source: string): string[] {
-  const app = path.resolve(import.meta.dirname, '..');
-  const file = path.join(import.meta.dirname, 'collision.virtual.ts');
-  // A project of just that file, on the app's own config.
-  const config = path.join(app, 'tsconfig.virtual.json');
-  const overlay = new Map([
-    [config, JSON.stringify({ extends: './tsconfig.json', files: [path.relative(app, file)] })],
-    [file, source],
-  ]);
-  const api = new API({
-    cwd: app,
-    // Anything not in the overlay is read from disk.
-    fs: {
-      readFile: (name) => overlay.get(name),
-      fileExists: (name) => overlay.has(name) || undefined,
-    },
-  });
-  try {
-    const { program } = api.updateSnapshot({ openProjects: [config] }).getProject(config)!;
-    return [...program.getSyntacticDiagnostics(file), ...program.getSemanticDiagnostics(file)].map(
-      messageText,
-    );
-  } finally {
-    api.close();
-  }
-}
-
-/** A diagnostic's message followed by the messages chained under it. */
-const messageText = (d: Diagnostic): string =>
-  [d.text, ...(d.messageChain ?? []).map(messageText)].join('\n');

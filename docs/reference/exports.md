@@ -13,7 +13,7 @@ import {
   schema,
   z,
   NestjsEndpoints,
-  EndpointRouterModule,
+  EndpointRouter,
   setupCodegen,
   EndpointResponse,
   ZodValidationException,
@@ -36,7 +36,7 @@ import {
 | Export | |
 | --- | --- |
 | [`NestjsEndpoints`](./router.md#nestjsendpoints-forroot) | `NestjsEndpoints.forRoot()` sets the library up in the app's root module, and makes its root router. |
-| [`EndpointRouterModule`](./router.md#endpointroutermodule-create) | `EndpointRouterModule.create()` makes any other router. |
+| [`EndpointRouter`](./router.md#endpointrouter-create) | `EndpointRouter.create()` makes any other router. |
 
 ## Clients
 
@@ -58,7 +58,8 @@ Both have a `getZodError()` method, which returns the `ZodError`.
 | Export | |
 | --- | --- |
 | `NestjsEndpointsOptions` | The options of `NestjsEndpoints.forRoot()`. |
-| `EndpointRouter` | What `NestjsEndpoints.forRoot()` and `EndpointRouterModule.create()` return. |
+| `EndpointRouterOptions` | The [options](./router.md#options) of a router: what `EndpointRouter.create()`, `child()` and the `router` of `forRoot()` take. |
+| `EndpointRouter` | A router: what `NestjsEndpoints.forRoot()`, `EndpointRouter.create()` and a router's `child()` return. |
 | `EndpointBuilder`, `EndpointBuilders` | The types of `endpoint.query` and of `endpoint` itself. |
 
 ## OpenAPI helpers
@@ -73,6 +74,4 @@ These still work. Use the current name in new code:
 
 | Deprecated | Use |
 | --- | --- |
-| `EndpointsRouterModule` | `EndpointRouterModule` |
-| `EndpointsRouterModule.register()` | `EndpointRouterModule.create()` |
 | `injectMethod`, `injectAtRequest` | `injectOnRequest` |

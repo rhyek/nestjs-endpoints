@@ -1,5 +1,5 @@
 ---
-description: Every option of NestjsEndpoints.forRoot() and EndpointRouterModule.create(), and what they return.
+description: Every option of NestjsEndpoints.forRoot() and EndpointRouter.create(), and what they return.
 ---
 
 # Router options
@@ -30,24 +30,26 @@ module: a second call fails the start.
 
 `forRoot()` returns what `create()` returns.
 
-## `EndpointRouterModule.create()` {#endpointroutermodule-create}
+## `EndpointRouter.create()` {#endpointrouter-create}
 
 ```ts
-import { EndpointRouterModule } from 'nestjs-endpoints';
+import { EndpointRouter } from 'nestjs-endpoints';
 
-export default EndpointRouterModule.create({ /* options */ });
+export default EndpointRouter.create({ /* options */ });
 ```
 
 Creates every router but the root one: a [nested router](../guide/routers.md#nested-routers), or
 one a module imports [beside the root router](../guide/routers.md#inside-a-regular-module).
 
 `create()` returns a promise of a NestJS dynamic module. Pass it to a module's `imports`, or
-default-export it from a `router.module.ts` for a parent router to find.
+default-export it from a `router.ts` for a parent router to find.
 
-The returned promise also has an `endpoint` property: the router's own `endpoint.query()` and
-`endpoint.mutation()` builders, which add the router's
-[`endpointConfig`](../guide/routers.md#shared-injections) to the endpoints built
-with them.
+The returned promise also has:
+
+| Property | |
+| --- | --- |
+| `endpoint` | The router's own `endpoint.query()` and `endpoint.mutation()` builders, which give the endpoints built with them the router's [context](../guide/router-context.md). |
+| `child()` | Creates a [child router](../guide/router-context.md#child-routers): a nested router that inherits this one's context, and its `providers` and `imports`. It takes the same [options](#options) and returns what `create()` returns. |
 
 ## Options
 
@@ -56,13 +58,17 @@ with them.
 | `rootDirectory` | `string \| string[]` | The folder to look for endpoint files in, relative to the calling file, or several, all under the same `basePath`. Defaults to the calling file's own folder. |
 | `basePath` | `string` | The URL prefix of everything the router owns. [Inferred](../guide/routers.md#base-path) when left out. `''` or `'/'` mounts the router at the root. |
 | `namespace` | `boolean \| string` | The router's [namespace](../clients/namespaces.md) in the generated clients. It does not affect URLs. |
-| `description` | `string` | Documents the router's namespace: a comment on it in the generated clients. |
+| `description` | `string` | Documents the router's namespace: a comment on it in the generated clients. Only beside `namespace`. |
 | `endpoints` | array of endpoints, or a function returning endpoints and `import()`s | Endpoints [registered by hand](../guide/explicit-paths.md#on-a-router). They get the router's `basePath`. |
 | `middleware` | array of `NestMiddleware` classes and functions | Middleware for every endpoint under the router. Its last entry may be `{ exclude: string[] }`, with paths relative to `basePath`. |
 | `interceptors` | array of interceptor classes or instances | Interceptors for every endpoint under the router. |
 | `guards` | array of guard classes or instances | Guards for every endpoint under the router. |
-| `endpointConfig` | `{ inject?, injectOnRequest? }` | Injections for every endpoint built with the router's `endpoint`. Shaped as the [endpoint options](./endpoint.md#options) of the same names. |
-| `imports`, `providers`, `exports` | as in `@Module()` | The module's own. |
+| `inject` | object of provider classes or `decorated<T>()` | Providers for every endpoint built with the router's `endpoint`, as the [endpoint option](./endpoint.md#options) of the same name. See [Router context](../guide/router-context.md). |
+| `injectOnRequest` | object of `decorated<T>()` | Per-request values for those endpoints, as the endpoint option of the same name. |
+| `params` | a plain `z.object()` | [Path parameters](../guide/router-context.md#path-parameters) of those endpoints. Each key is a `:param` in every one of their URLs. |
+| `imports`, `providers` | as in `@Module()` | The router's own, which every router made with its [`child()`](../guide/router-context.md#providers) has too. |
+| `properties`, `methods` | as the [endpoint options](./endpoint.md#options) of the same names | Properties and methods of the router's instance, read from `this`. They are the router's own: its endpoints and the routers under it do not have them. |
+| `onModuleInit`, `onApplicationBootstrap`, `onModuleDestroy`, `beforeApplicationShutdown`, `onApplicationShutdown` | function | [Lifecycle hooks](https://docs.nestjs.com/fundamentals/lifecycle-events), called as a module's are. A router starts after the routers above it and before its own endpoints, and stops in the reverse order. Written as a method, a hook has on [`this`](./endpoint.md#this) what the router's `inject` gives, its parent's included, with the router's `properties` and `methods`. A router whose `inject` has a request-scoped provider cannot declare one: the app fails as it starts. |
 
 How a router finds endpoint files and builds their URLs is in
 [File-based routing](../guide/file-based-routing.md), and how it finds nested routers in

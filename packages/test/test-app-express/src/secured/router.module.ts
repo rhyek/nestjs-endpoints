@@ -1,7 +1,7 @@
-import { EndpointsRouterModule } from 'nestjs-endpoints';
+import { EndpointRouter } from 'nestjs-endpoints';
 import { SecretHeaderGuard } from './secret-header.guard';
 
-export default EndpointsRouterModule.register({
+export default EndpointRouter.create({
   rootDirectory: 'endpoints',
   providers: [SecretHeaderGuard],
   guards: [SecretHeaderGuard],

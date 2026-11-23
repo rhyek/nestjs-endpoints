@@ -1,27 +1,11 @@
 import { AsyncLocalStorage } from 'node:async_hooks';
 import path from 'node:path';
+import type { DynamicModule } from '@nestjs/common';
 import callsites from 'callsites';
 import { callsiteFileToPath } from './callsite';
 import { objectParameters, type ObjectSchemaLike } from './object-parameters';
-
-/**
- * Expand one filename-derived path segment into one or more URL segments.
- *
- * - Splits on `.` so `$id.view` → `[$id, view]` and `$id.delete` →
- *   `[$id, delete]`. This is what lets a single folder or file express a
- *   URL with a path parameter inline (e.g., `recipes/$id.delete.endpoint.ts`
- *   → `recipes/:id/delete`).
- * - Subsegments starting with `$` become `:` parameters: `$id` → `:id`.
- *
- * Empty pieces are dropped, which gracefully handles oddities like a
- * leading or trailing `.`.
- */
-function expandUrlSegment(segment: string): string[] {
-  return segment
-    .split('.')
-    .filter(Boolean)
-    .map((sub) => (sub.startsWith('$') ? ':' + sub.slice(1) : sub));
-}
+import { operationName } from './url-params';
+import { expandUrlSegment } from './url-segments';
 
 /**
  * An endpoint file's URL: the router's base path, the folders between the
@@ -49,23 +33,13 @@ export function getEndpointHttpPath(rootDirectories: string[], basePath: string,
   const httpPath = path.posix.join(...pathSegments);
   return {
     httpPath,
-    httpPathPascalName: getHttpPathPascalName(httpPath),
+    httpPathPascalName: operationName(httpPath),
     httpPathSegments: pathSegments,
   };
 }
 
-export function getHttpPathPascalName(httpPath: string) {
-  // Drop entire `:param` segments from the name so the SDK method for
-  // `/recipes/edit/:recipeId` reads as `recipesEdit({ path, body })`
-  // instead of `recipesEditRecipeId({ path, body })`. The path param is
-  // already conveyed by the typed `path` group; repeating its name in the
-  // method is just noise.
-  return httpPath
-    .replace(/\/:[^/]+/g, '')
-    .replace(/^:[^/]+\/?/g, '')
-    .replace(/^[a-z]/, (letter) => letter.toUpperCase())
-    .replace(/[/-]([a-z0-9])/g, (_, char: string) => char.toUpperCase());
-}
+/** The name of the operation a URL serves: `/recipes/edit/:recipeId` → `RecipesEdit`. */
+export const getHttpPathPascalName = operationName;
 
 export const ApiQueries = <T extends ObjectSchemaLike>(zodObject: T) =>
   objectParameters('query', zodObject, 'The schema given to ApiQueries()');
@@ -86,6 +60,8 @@ export function getCallsiteFile() {
 }
 
 export const moduleAls = new AsyncLocalStorage<{
+  /** The file that created the parent router. */
+  parentRouterFile: string;
   /**
    * The parent router's effective basePath (without leading slash, joined
    * with '/'). Used by nested child routers to prefix their own inferred
@@ -94,7 +70,7 @@ export const moduleAls = new AsyncLocalStorage<{
   parentBasePath: string;
   /**
    * The directory containing the parent router module file (i.e., the
-   * directory in which the parent's `router.module.ts` lives). Child
+   * directory in which the parent's `router.ts` lives). Child
    * routers infer their basePath suffix from their own module directory
    * relative to this when they don't sit inside one of the parent's
    * `rootDirectories`.
@@ -113,4 +89,9 @@ export const moduleAls = new AsyncLocalStorage<{
    * namespace inherit the parent's chain unchanged.
    */
   parentNamespaceChain: string[];
+  /**
+   * A module that exports nothing, and imports the one with the parent router's lifecycle
+   * hooks: what a router under it imports, so that NestJS starts the parent first.
+   */
+  order?: DynamicModule;
 }>();

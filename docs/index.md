@@ -83,7 +83,7 @@ performance:
 
 routes:
   title: Your folders are your API.
-  details: A router finds the endpoint files in a folder and derives each URL from the file's path. A router.module.ts gives a folder its own providers, guards and interceptors, and its own namespace in the generated client. Services, guards and tests sit beside the endpoints they belong to.
+  details: A router finds the endpoint files in a folder and derives each URL from the file's path. A router.ts gives a folder its own providers, guards and interceptors, and its own namespace in the generated client. Services, guards and tests sit beside the endpoints they belong to.
   columns:
     file: src/endpoints/
     route: Route
@@ -97,7 +97,7 @@ routes:
     - file: orders/
       depth: 0
       note: A folder is a path segment.
-    - file: router.module.ts
+    - file: router.ts
       depth: 1
       note: 'The folder''s providers and guards, and the client''s "orders" namespace.'
     - file: orders.service.ts
@@ -126,12 +126,23 @@ routes:
   linkText: File-based routing
   link: /guide/file-based-routing
 
+context:
+  row:
+    eyebrow: Router context
+    title: Declare it once, on the router.
+    details: A router declares the path parameters and injections of its folder, and every <span class="endpoint-term">endpoint</span> under it receives them in its handler, typed. A child router inherits its parent's and adds its own, so a parameter is written where its folder is, not in each file under it.
+    linkText: Router context
+    link: /guide/router-context
+  files:
+    router: src/endpoints/projects/$projectId/router.ts
+    endpoint: src/endpoints/projects/$projectId/view.endpoint.ts
+
 featuresTitle: What else is in the box
 
 features:
   - icon: 🛡️
-    title: Guards scoped to a router module
-    details: Declare middleware, interceptors and guards once on a router module, and they cover every <span class="endpoint-term">endpoint</span> it owns, nested routers included. Plain NestJS has no such scope.
+    title: Guards scoped to a router
+    details: Declare middleware, interceptors and guards once on a router, and they cover every <span class="endpoint-term">endpoint</span> it owns, nested routers included. Plain NestJS has no such scope.
     link: /guide/improvements
   - icon: 🔁
     title: Queries and mutations

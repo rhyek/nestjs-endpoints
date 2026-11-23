@@ -180,6 +180,7 @@ export default defineConfig({
         items: [
           { text: 'File-based routing', link: '/guide/file-based-routing' },
           { text: 'Routers', link: '/guide/routers' },
+          { text: 'Router context', link: '/guide/router-context' },
           { text: 'Explicit paths', link: '/guide/explicit-paths' },
         ],
       },

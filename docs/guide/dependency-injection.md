@@ -52,7 +52,8 @@ export default endpoint.query({
 
 A provider must be resolvable in the module the endpoint lands in. Add it to the `providers` of
 the [router](./routers.md) that owns the endpoint, or export it from a module in that router's
-`imports`.
+`imports`. A router made with another's `child()` has
+[its parent's](./router-context.md#providers) too.
 
 ## `injectOnRequest`: per-request values
 
@@ -87,5 +88,5 @@ For anything a whole folder needs, declare it once on the
 
 ## Router injections
 
-What every endpoint of a router needs can be declared once, on the router, in `endpointConfig`.
-See [Shared injections](./routers.md#shared-injections).
+What every endpoint of a router needs can be declared once, on the router, with its own `inject`
+and `injectOnRequest`. See [Router context](./router-context.md).

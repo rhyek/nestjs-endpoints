@@ -6,7 +6,7 @@ description: What an endpoint is to the rest of a NestJS app, and how modules, p
 
 nestjs-endpoints is a thin layer over NestJS, not a framework beside it. `endpoint.query()` and
 `endpoint.mutation()` return a NestJS controller class, and `NestjsEndpoints.forRoot()` and
-`EndpointRouterModule.create()` return a NestJS dynamic module. Everything downstream of those
+`EndpointRouter.create()` return a NestJS dynamic module. Everything downstream of those
 two facts is NestJS as you know it.
 
 ## An endpoint is a controller
@@ -41,9 +41,11 @@ the [endpoint options](../reference/endpoint.md#options).
 ## A router is a module
 
 `NestjsEndpoints.forRoot()`, in the app module, returns the app's root router, and
-`EndpointRouterModule.create()` any other one. Each is a dynamic module: import it where you
-would import any module, and give the router `providers`, `imports` and `exports` as you would
-`@Module()`. An endpoint's providers resolve in the module of the router that owns it. See
+`EndpointRouter.create()` any other one. Each is a dynamic module: import it where you
+would import any module, and give the router `providers` and `imports` as you would
+`@Module()`. A router has no `exports`: what it provides is for its own endpoints and the routers
+under it. To share a provider with another module, provide it in a module and import that in
+both. An endpoint's providers resolve in the module of the router that owns it. See
 [Routers](./routers.md).
 
 ## Guards, interceptors, filters and pipes

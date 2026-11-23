@@ -1,8 +1,11 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
-  <!-- nestjs-endpoints at small sizes (the browser tab, the nav bar): logo.svg with a thicker arrow. -->
+  <!-- nestjs-endpoints at small sizes (the browser tab, the nav bar): logo.svg with a thicker arrow and the mark drawn smaller, for more room to the tile's edge. -->
   <rect width="64" height="64" rx="15" fill="#18181b"/>
-  <rect x="11.23" y="10.07" width="27.7" height="8.08" rx="4.04" fill="#e4e4e7"/>
-  <rect x="20.46" y="25.08" width="27.7" height="8.08" rx="4.04" fill="#e4e4e7"/>
-  <rect x="30.75" y="40.08" width="26.63" height="8.08" rx="4.04" fill="#f0456c"/>
-  <path d="M10.07 44.12 H22.77 M17 37.77 L23.34 44.12 L17 50.46" fill="none" stroke="#94a3b8" stroke-width="6.92" stroke-linecap="round" stroke-linejoin="round"/>
+  <g transform="translate(32 32) scale(0.88) translate(-32 -32)">
+    <rect x="11.23" y="10.07" width="27.7" height="8.08" rx="4.04" fill="#e4e4e7"/>
+    <rect x="20.46" y="25.08" width="27.7" height="8.08" rx="4.04" fill="#e4e4e7"/>
+    <rect x="30.75" y="40.08" width="26.63" height="8.08" rx="4.04" fill="#f0456c"/>
+    <path d="M10.07 44.12 H22.77" fill="none" stroke="#94a3b8" stroke-width="6.92" stroke-linecap="round"/>
+    <path d="M17 37.77 L23.34 44.12 L17 50.46" fill="none" stroke="#94a3b8" stroke-width="5.2" stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
 </svg>

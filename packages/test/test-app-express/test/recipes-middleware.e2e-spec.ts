@@ -1,7 +1,6 @@
-import { Test, TestingModule } from '@nestjs/testing';
 import request from 'supertest';
 import { AppModule } from '../src/app.module';
-import { createApp } from './create-app';
+import { appWith } from './app-with';
 
 describe('recipes middleware + interceptor', () => {
   let logs: string[] = [];
@@ -19,11 +18,7 @@ describe('recipes middleware + interceptor', () => {
   });
 
   async function bootstrap() {
-    const moduleFixture: TestingModule = await Test.createTestingModule({
-      imports: [AppModule],
-    }).compile();
-    const { app } = await createApp(moduleFixture);
-    app.useLogger(false);
+    const { app } = await appWith([AppModule]);
     return { app, req: request(app.getHttpServer()) };
   }
 

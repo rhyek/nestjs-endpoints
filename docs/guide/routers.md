@@ -8,7 +8,8 @@ A router is a NestJS module that owns a folder of endpoints. It finds the endpoi
 its folder, registers them, and gives each one its URL.
 
 A router also carries what its endpoints share: a URL prefix, providers, middleware,
-interceptors, guards, and a [namespace](../clients/namespaces.md) in the generated client.
+interceptors, guards, a [context](./router-context.md) of path parameters and injections, and a
+[namespace](../clients/namespaces.md) in the generated client.
 
 ## The root router
 
@@ -33,14 +34,18 @@ export class AppModule {}
 it, the router looks in the calling file's own folder.
 
 `forRoot` is called once per app. Every other router is made with
-`EndpointRouterModule.create()`, which takes the same [options](../reference/router.md#options):
+`EndpointRouter.create()`, which takes the same [options](../reference/router.md#options):
 a [nested router](#nested-routers), or one created
-[inside a regular module](#inside-a-regular-module).
+[inside a regular module](#inside-a-regular-module). A nested router that inherits its parent's
+[context](./router-context.md#child-routers) is made with the parent's `child()`.
 
 ## Nested routers
 
-A folder becomes a router of its own when it has a `router.module.ts` that default-exports one.
+A folder becomes a router of its own when it has a `router.ts` that default-exports one.
 The parent router finds it and imports it. Nothing is registered by hand.
+
+A `router.ts` that exports no router is not a router file: the app loads it, and its folder
+stays with the router above.
 
 ```
 src/
@@ -49,28 +54,31 @@ src/
     └── shop/
         ├── homepage.endpoint.ts          → /shop/homepage
         └── recipes/
-            ├── router.module.ts          ← owns this folder
+            ├── router.ts          ← owns this folder
             ├── recipes.repository.ts
             ├── list.endpoint.ts          → /shop/recipes/list
             └── create.endpoint.ts        → /shop/recipes/create
 ```
 
 ```ts
-// src/endpoints/shop/recipes/router.module.ts
-import { EndpointRouterModule } from 'nestjs-endpoints';
+// src/endpoints/shop/recipes/router.ts
+import { EndpointRouter } from 'nestjs-endpoints';
 import { RecipesRepository } from './recipes.repository.js';
 
-export default EndpointRouterModule.create({
+export default EndpointRouter.create({
   providers: [RecipesRepository],
+  namespace: true,
   description: 'Recipe catalog and authoring.',
 });
 ```
 
 A nested router owns its folder: the parent doesn't look inside it. Its endpoints resolve their
-providers in the nested router's module, so a feature's services stay with the feature.
+providers in the nested router's module, so a feature's services stay with the feature. One made
+with its parent's [`child()`](./router-context.md#providers) has the parent's providers too.
 
-`description` documents the group: it becomes a comment on the router's
-[namespace](../clients/namespaces.md) in the generated client.
+`namespace` groups the router's operations in the generated client, and `description` documents
+that group: it becomes a comment on the router's [namespace](../clients/namespaces.md). A router
+takes a `description` only beside `namespace`.
 
 ## Base path
 
@@ -79,15 +87,15 @@ router is created:
 
 | Where the router is created | Inferred `basePath` |
 | --- | --- |
-| A `router.module.ts`, at the top level | `/` and the file's folder name |
-| A `router.module.ts`, under a parent router | The parent's `basePath`, then the folder's path under the parent |
+| A `router.ts`, at the top level | `/` and the file's folder name |
+| A `router.ts`, under a parent router | The parent's `basePath`, then the folder's path under the parent. A `$param` folder is a [path parameter](./file-based-routing.md#path-parameters), as in an endpoint's path |
 | Anywhere else (`app.module.ts`, a feature module) | `/` |
 
 Pass `basePath` to set it yourself, or `''` to mount the router at the root:
 
 ```ts
-// src/blog/router.module.ts: the folder is `blog`, the routes are under /articles
-export default EndpointRouterModule.create({
+// src/blog/router.ts: the folder is `blog`, the routes are under /articles
+export default EndpointRouter.create({
   rootDirectory: 'endpoints',
   basePath: 'articles',
 });
@@ -96,18 +104,20 @@ export default EndpointRouterModule.create({
 ## Middleware, interceptors and guards
 
 A router's `middleware`, `interceptors` and `guards` apply to every endpoint in its folder,
-nested routers included.
+nested routers included. They run from the outermost router in: a router's before those of the
+routers nested under it. The middleware of a router in a `$param` folder doesn't run for the URLs of
+the [names beside that folder](./file-based-routing.md#a-name-beside-a-parameter).
 
 Plain NestJS has no such scope: a guard or an interceptor is either global (`APP_GUARD`,
 `APP_INTERCEPTOR`) or repeated on each controller. On a router you declare it once, for the
 whole folder.
 
 ```ts
-// src/endpoints/admin/router.module.ts
+// src/endpoints/admin/router.ts
 import type { IncomingMessage, ServerResponse } from 'node:http';
-import { EndpointRouterModule } from 'nestjs-endpoints';
+import { EndpointRouter } from 'nestjs-endpoints';
 
-export default EndpointRouterModule.create({
+export default EndpointRouter.create({
   providers: [AdminGuard],
   guards: [AdminGuard],
   interceptors: [AuditInterceptor],
@@ -126,56 +136,11 @@ the router's `providers`, or export it from a module the router imports.
 
 For a single endpoint, use its own [`decorators`](./dependency-injection.md#per-endpoint-decorators).
 
-## Shared injections
+## Router context
 
-What every endpoint of a router needs, `inject` and `injectOnRequest` alike, can be declared once,
-on the router, in `endpointConfig`. `create()` returns the router with an `endpoint` builder of
-its own, as `NestjsEndpoints.forRoot()` does for the root router, and each endpoint built with it
-receives the router's injections along with its own:
-
-```ts
-// src/workspace/router.module.ts
-import { decorated, EndpointRouterModule } from 'nestjs-endpoints';
-
-export default EndpointRouterModule.create({
-  providers: [WorkspaceService, AuditService],
-  endpointConfig: {
-    inject: { workspace: WorkspaceService },
-    injectOnRequest: { user: decorated<User>(CurrentUser()) },
-  },
-});
-```
-
-```ts
-// src/workspace/rename.endpoint.ts
-import { z } from 'nestjs-endpoints';
-import router from './router.module.js';
-
-export default router.endpoint.mutation({
-  input: z.object({ name: z.string() }),
-  inject: { audit: AuditService },
-  handler: ({ input, workspace, user, audit }) => {
-    // …
-  },
-});
-```
-
-A router module can also re-export the builder, with `export const { endpoint } = router;`, so
-its endpoints import `endpoint` from `./router.module.js`.
-
-- **The injections reach the endpoints built with the router's `endpoint`.** A
-  [nested router](#nested-routers) declares its own.
-- **A key is declared once.** An endpoint that declares a key its router already injects is a
-  type error.
-
-### Import cycles
-
-An endpoint file imports its router module to get `endpoint`, so the router module must not
-import the endpoint file back: not directly, and not through a provider or a guard. That cycle
-fails when the app loads, with `Cannot access 'router' before initialization`.
-
-A router that lists such endpoints by hand lists them with a
-[callback of `import()`s](./explicit-paths.md#on-a-router).
+A router can also declare what every handler under it receives: path parameters (`params`),
+providers (`inject`) and per-request values (`injectOnRequest`). A nested router made with
+`router.child()` inherits them from its parent. See [Router context](./router-context.md).
 
 ## Inside a regular module
 
@@ -187,7 +152,7 @@ you want ordinary NestJS wiring around it:
   providers: [AuthService],
   exports: [AuthService],
   imports: [
-    EndpointRouterModule.create({ basePath: 'auth', providers: [AuthService] }),
+    EndpointRouter.create({ basePath: 'auth', providers: [AuthService] }),
   ],
 })
 export class AuthModule {}

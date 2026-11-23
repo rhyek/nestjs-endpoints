@@ -4,14 +4,12 @@ import { DynamicModule, Module } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import blogRouter from '../test/fixtures/routing/siblings/blog/router.module';
 import teamRouter from '../test/fixtures/routing/siblings/team/router.module';
-import { EndpointRouterModule } from './endpoint-router.module';
+import { fixtures, pathsOf } from '../test/routing';
+import { EndpointRouter } from './endpoint-router';
 import { NestjsEndpoints } from './nestjs-endpoints';
 import { closeRoutingFileWatchers } from './watch';
 
-const fixtures = path.resolve(import.meta.dirname, '../test/fixtures/routing');
 const basic = { rootDirectory: path.join(fixtures, 'basic') };
-const pathsOf = (module: DynamicModule) =>
-  (module.controllers ?? []).map((c) => Reflect.getMetadata('endpoints:path', c) as string).sort();
 
 /** Starts an app made of `imports`, short of listening. */
 async function start(...imports: Promise<DynamicModule>[]) {
@@ -113,18 +111,18 @@ describe('an app with no NestjsEndpoints.forRoot', () => {
 
   test('starts with one router that has nested routers: only the top one counts', async () => {
     // `basic/shop` has a router module of its own.
-    await expect(start(EndpointRouterModule.create(basic))).resolves.toBeDefined();
+    await expect(start(EndpointRouter.create(basic))).resolves.toBeDefined();
   });
 
   test('fails the start with two routers, asking for forRoot', async () => {
     await expect(start(blogRouter, teamRouter)).rejects.toThrow(
-      'nestjs-endpoints: this app has 2 routers and no root. Add NestjsEndpoints.forRoot({ router: { … } }) to its root module; further routers stay as EndpointRouterModule.create().',
+      'nestjs-endpoints: this app has 2 routers and no root. Add NestjsEndpoints.forRoot({ router: { … } }) to its root module; further routers stay as EndpointRouter.create().',
     );
   });
 
   test('counts a router that only lists its endpoints', async () => {
     await expect(
-      start(blogRouter, EndpointRouterModule.create({ ...basic, endpoints: [] })),
+      start(blogRouter, EndpointRouter.create({ ...basic, endpoints: [] })),
     ).rejects.toThrow(/this app has 2 routers and no root/);
   });
 });

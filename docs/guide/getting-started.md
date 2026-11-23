@@ -88,8 +88,8 @@ import { OrdersService } from './endpoints/orders/orders.service.js';
 export class AppModule {}
 ```
 
-`rootDirectory` is relative to the file that calls `forRoot()`. The router takes `providers`,
-`imports` and `exports` as any Nest module does.
+`rootDirectory` is relative to the file that calls `forRoot()`. The router takes `providers`
+and `imports` as any Nest module does.
 
 ## Set up Vitest
 

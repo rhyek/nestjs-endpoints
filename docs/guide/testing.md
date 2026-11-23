@@ -91,10 +91,10 @@ test('creates an order', async () => {
 
 ## Testing one router
 
-Import a router module without the rest of the app, and only that router's folder is loaded:
+Import a router without the rest of the app, and only that router's folder is loaded:
 
 ```ts
-import OrdersRouterModule from '../src/endpoints/orders/router.module.js';
+import OrdersRouterModule from '../src/endpoints/orders/router.js';
 
 test('orders router', async () => {
   const moduleRef = await Test.createTestingModule({
@@ -104,8 +104,13 @@ test('orders router', async () => {
 });
 ```
 
-A test that imports more than one router module imports `NestjsEndpoints.forRoot()` beside them,
+A test that imports more than one router imports `NestjsEndpoints.forRoot()` beside them,
 as the app's root module does.
+
+A router made with another's [`child()`](./router-context.md#child-routers) loads by itself too,
+under the base path its parents give it. It brings what they give it: their `providers` and
+`imports`, their `guards`, `interceptors` and `middleware`, and their lifecycle hooks. It does
+not bring their endpoints.
 
 ## Integration tests
 
@@ -142,5 +147,6 @@ with [several statuses](./responses.md#several-statuses) it resolves to an `Endp
 `{ status, body }`.
 
 An endpoint built with a router's `endpoint` builder carries the
-[router's injections](./routers.md#shared-injections) into such a test. List the
-providers the router's `inject` names in the testing module.
+[router's context](./router-context.md) into such a test, its parent routers' included. List the
+providers their `inject` names in the testing module, and pass their path parameters to
+`invoke()` with the endpoint's own.

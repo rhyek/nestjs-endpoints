@@ -54,12 +54,12 @@ export const createRecipe = endpoint.mutation({
 ```
 
 ```ts
-// src/recipes/router.module.ts
-import { EndpointRouterModule } from 'nestjs-endpoints';
+// src/recipes/router.ts
+import { EndpointRouter } from 'nestjs-endpoints';
 import { createRecipe } from './create-recipe.js';
 import { listRecipes } from './list-recipes.js';
 
-export default EndpointRouterModule.create({
+export default EndpointRouter.create({
   basePath: 'recipes',
   providers: [RecipesRepository],
   endpoints: [createRecipe, listRecipes],
@@ -67,14 +67,14 @@ export default EndpointRouterModule.create({
 ```
 
 Endpoints built with the router's own `endpoint` builder, to receive its
-[router injections](./routers.md#shared-injections), are listed with a callback of
-`import()`s. A static import of them from the router module would be an import cycle.
+[context](./router-context.md), are listed with a callback of
+`import()`s. A static import of them from the router file would be an import cycle.
 
 ```ts
-export default EndpointRouterModule.create({
+export default EndpointRouter.create({
   basePath: 'recipes',
   providers: [RecipesRepository],
-  endpointConfig: { inject: { recipes: RecipesRepository } },
+  inject: { recipes: RecipesRepository },
   endpoints: () => [import('./create-recipe.js'), import('./list-recipes.js')],
 });
 ```

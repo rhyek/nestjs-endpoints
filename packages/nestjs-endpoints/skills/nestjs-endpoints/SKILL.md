@@ -1,6 +1,6 @@
 ---
 name: nestjs-endpoints
-description: nestjs-endpoints builds one or more of this repo's HTTP APIs - each endpoint is one file (`endpoint.query()` or `endpoint.mutation()`) with Zod schemas, served at a URL that comes from where the file sits under a `router.module.ts`, with axios and React Query clients generated from it. Use it before you add, change, move or delete an endpoint or a router, change a URL or a path parameter, a request or response schema, an endpoint's providers, guards, interceptors or middleware, set up `NestjsEndpoints.forRoot`, generate or call a client (`setupCodegen`, namespaces, `queryOptions`), build the OpenAPI document, or test an endpoint (supertest, the generated client, `invoke()`).
+description: nestjs-endpoints builds one or more of this repo's HTTP APIs - each endpoint is one file (`endpoint.query()` or `endpoint.mutation()`) with Zod schemas, served at a URL that comes from where the file sits under a `router.ts`, with axios and React Query clients generated from it. Use it before you add, change, move or delete an endpoint or a router, change a URL or a path parameter, a request or response schema, an endpoint's providers, guards, interceptors or middleware, give a folder's endpoints a path parameter or an injection once on its router (`params`, `inject`, `router.child()`), set up `NestjsEndpoints.forRoot`, generate or call a client (`setupCodegen`, namespaces, `queryOptions`), build the OpenAPI document, or test an endpoint (supertest, the generated client, `invoke()`).
 ---
 
 # nestjs-endpoints

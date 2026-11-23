@@ -2,6 +2,9 @@
 import { useData } from 'vitepress';
 import DefaultTheme from 'vitepress/theme';
 import ClientError from './home/ClientError.md';
+import CodeWindow from './home/CodeWindow.vue';
+import ContextEndpoint from './home/ContextEndpoint.md';
+import ContextRouter from './home/ContextRouter.md';
 import HomeHero from './home/HomeHero.vue';
 import HomeInstall from './home/HomeInstall.vue';
 import HomeRoutes from './home/HomeRoutes.vue';
@@ -49,6 +52,18 @@ const { frontmatter } = useData();
         </template>
       </HomeRow>
       <HomeRoutes v-if="frontmatter.routes" v-bind="frontmatter.routes" />
+      <HomeRow v-if="frontmatter.context" v-bind="frontmatter.context.row" flip>
+        <template #visual>
+          <div class="home-context">
+            <CodeWindow :file="frontmatter.context.files.router">
+              <ContextRouter />
+            </CodeWindow>
+            <CodeWindow :file="frontmatter.context.files.endpoint">
+              <ContextEndpoint />
+            </CodeWindow>
+          </div>
+        </template>
+      </HomeRow>
       <h2 v-if="frontmatter.featuresTitle" class="home-section home-title home-features-title">
         {{ frontmatter.featuresTitle }}
       </h2>
@@ -62,6 +77,12 @@ const { frontmatter } = useData();
 <style scoped>
 .home-features-title {
   padding-bottom: 24px;
+}
+
+/* The router's file over the endpoint's that it types. */
+.home-context {
+  display: grid;
+  gap: 16px;
 }
 
 .home-benchmark {

@@ -11,7 +11,7 @@ import {
   ApiParams,
   ApiQueries,
   endpoint,
-  EndpointRouterModule,
+  EndpointRouter,
   schema,
   setupCodegen,
   z,
@@ -85,7 +85,7 @@ Controller('legacy')(LegacyController);
 class AppModule {}
 Module({
   imports: [
-    EndpointRouterModule.create({
+    EndpointRouter.create({
       basePath: 'orders',
       namespace: 'orders',
       description: 'Orders',

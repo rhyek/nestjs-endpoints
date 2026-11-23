@@ -1,6 +1,6 @@
 import { Injectable, Module, Scope } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
-import { endpoint, EndpointRouterModule, z } from 'nestjs-endpoints';
+import { endpoint, EndpointRouter, z } from 'nestjs-endpoints';
 import { AppModule } from '../src/app.module';
 import { createApp } from './create-app';
 import { openApiDocument, schemaRefs } from './openapi-document';
@@ -35,6 +35,36 @@ describe('the document @nestjs/swagger builds from the endpoints alone', () => {
     const referred = [...schemaRefs(document.paths), ...schemaRefs(schemas)];
     expect(referred.length).toBeGreaterThan(50);
     expect(referred.filter((name) => !(name in schemas))).toEqual([]);
+  });
+
+  test('lists the path parameters an endpoint has from its routers', async () => {
+    const document = await documentOf(AppModule);
+    const operation = (document.paths['/venues/{venueId}/tables/{tableId}/view'] as any).post;
+    expect(operation.parameters).toMatchObject([
+      { name: 'venueId', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
+      { name: 'tableId', in: 'path', required: true, schema: { type: 'number' } },
+    ]);
+    expect(operation['x-namespace']).toEqual(['venues', 'tables']);
+  });
+
+  test('has the path, the name and the path parameters of an endpoint whose URL has text beside a parameter', async () => {
+    const one = (path: string) =>
+      endpoint.query({ path, params: z.object({ name: z.string() }), handler: () => null });
+    const router = EndpointRouter.create({
+      basePath: 'files',
+      endpoints: [one(':name/view'), one('named/:name.json')],
+    });
+    const document = await documentOf(router);
+    // As the endpoints describe themselves to the generated clients.
+    const operations = Object.entries(document.paths).map(([path, { post }]) => ({
+      path,
+      operationId: post!.operationId,
+      params: post!.parameters?.map((parameter) => ('name' in parameter ? parameter.name : '')),
+    }));
+    expect(operations.sort((a, b) => a.path.localeCompare(b.path))).toEqual([
+      { path: '/files/{name}/view', operationId: 'FilesView', params: ['name'] },
+      { path: '/files/named/{name}.json', operationId: 'FilesNamedJson', params: ['name'] },
+    ]);
   });
 
   test('is the same under the OpenAPI version the schemas are written for', async () => {
@@ -117,7 +147,7 @@ describe('the document @nestjs/swagger builds from the endpoints alone', () => {
     const size = z
       .object({ cm: z.number(), unit: z.string().default('cm') })
       .meta({ id: 'CrateSize' });
-    const router = EndpointRouterModule.create({
+    const router = EndpointRouter.create({
       basePath: 'crate',
       providers: [Tenant],
       endpoints: [

@@ -10,7 +10,8 @@ import { AbstractHttpAdapter, NestFactory, RouterModule } from '@nestjs/core';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { z } from 'zod';
 import { collectDescriptors, EndpointDescriptor, filterDescriptors } from './descriptors';
-import { endpoint, schema } from './endpoint-fn';
+import { endpoint } from './endpoint-fn';
+import { schema } from './schema-options';
 
 const apps: INestApplicationContext[] = [];
 
@@ -321,6 +322,17 @@ test('an endpoint served under several versions takes the first path', async () 
   const app = await createHttpApp([both]);
   app.enableVersioning({ type: VersioningType.URI });
   expect(collectDescriptors(app).map((d) => d.path)).toEqual(['/v1/both']);
+});
+
+test('an endpoint served under no version keeps the path it was set up with', async () => {
+  const none = endpoint.query({
+    path: '/r/:id/view',
+    decorators: [Version([])],
+    handler: () => null,
+  });
+  const app = await createHttpApp([none]);
+  app.enableVersioning({ type: VersioningType.URI });
+  expect(collectDescriptors(app).map((d) => d.path)).toEqual(['/r/{id}/view']);
 });
 
 test('paths carry the module path a RouterModule mounts them under', async () => {

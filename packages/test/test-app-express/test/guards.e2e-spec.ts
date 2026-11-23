@@ -1,15 +1,10 @@
-import { Test, TestingModule } from '@nestjs/testing';
 import request from 'supertest';
 import { AppModule } from '../src/app.module';
-import { createApp } from './create-app';
+import { appWith } from './app-with';
 
-describe('guards option on EndpointsRouterModule.register', () => {
+describe('guards option on EndpointRouter.create', () => {
   async function setup() {
-    const moduleFixture: TestingModule = await Test.createTestingModule({
-      imports: [AppModule],
-    }).compile();
-    const { app } = await createApp(moduleFixture);
-    app.useLogger(false);
+    const { app } = await appWith([AppModule]);
     return { app, req: request(app.getHttpServer()) };
   }
 

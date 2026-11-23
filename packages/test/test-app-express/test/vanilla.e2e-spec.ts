@@ -1,7 +1,6 @@
-import { Test, TestingModule } from '@nestjs/testing';
 import request from 'supertest';
 import { AppModule } from '../src/app.module';
-import { createApp } from './create-app';
+import { appWith } from './app-with';
 
 // What a plain Nest controller's `null` comes out as, unlike an endpoint's,
 // which is the JSON `null` on every adapter: Express and the Node adapter end
@@ -11,12 +10,7 @@ function nullResponseBody(httpAdapter: string) {
 }
 
 describe('vanilla controller', { concurrent: true }, () => {
-  async function setup() {
-    const moduleFixture: TestingModule = await Test.createTestingModule({
-      imports: [AppModule],
-    }).compile();
-    return createApp(moduleFixture);
-  }
+  const setup = () => appWith([AppModule]);
   test('get null', async () => {
     const { app, httpAdapter } = await setup();
     const req = request(app.getHttpServer());

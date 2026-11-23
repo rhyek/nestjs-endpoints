@@ -1,6 +1,6 @@
 # file-based-routing example
 
-A self-contained monorepo demonstrating nestjs-endpoints with file-based routing and a nested router module. One NestJS backend, one React front-end consuming the auto-generated type-safe client.
+A self-contained monorepo demonstrating nestjs-endpoints with file-based routing and a nested router. One NestJS backend, one React front-end consuming the auto-generated type-safe client.
 
 ```
 packages/

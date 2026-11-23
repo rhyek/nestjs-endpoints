@@ -3,7 +3,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { AppModule } from '../src/app.module';
 import { createApp } from './create-app';
 
-// `EndpointRouterModule` registers middleware via `forRoutes(...)`. Express 5 /
+// `EndpointRouter` registers middleware via `forRoutes(...)`. Express 5 /
 // path-to-regexp v8 require named wildcards (`{*path}`); a bare `*` still
 // routes, but Nest's `LegacyRouteConverter` emits a deprecation warning per
 // call. This test guards against regressions in the syntax we generate.

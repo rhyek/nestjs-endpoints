@@ -1,15 +1,11 @@
-import { Test, TestingModule } from '@nestjs/testing';
 import Axios from 'axios';
 import { createApiClient, isResponseError, ResponseError } from '../generated/axios-client';
 import { AppModule } from '../src/app.module';
-import { createApp } from './create-app';
+import { appWith } from './app-with';
 
 describe('generated client', () => {
   test.concurrent('create user - axios config', async () => {
-    const moduleFixture: TestingModule = await Test.createTestingModule({
-      imports: [AppModule],
-    }).compile();
-    const { app } = await createApp(moduleFixture);
+    const { app } = await appWith([AppModule]);
     try {
       const client = createApiClient({
         baseURL: await app.getUrl(),
@@ -39,10 +35,7 @@ describe('generated client', () => {
   });
 
   test.concurrent('create user - axios instance', async () => {
-    const moduleFixture: TestingModule = await Test.createTestingModule({
-      imports: [AppModule],
-    }).compile();
-    const { app } = await createApp(moduleFixture);
+    const { app } = await appWith([AppModule]);
     try {
       const axios = Axios.create({
         baseURL: await app.getUrl(),
@@ -73,10 +66,7 @@ describe('generated client', () => {
   });
 
   test.concurrent('a null output reads as null', async () => {
-    const moduleFixture: TestingModule = await Test.createTestingModule({
-      imports: [AppModule],
-    }).compile();
-    const { app } = await createApp(moduleFixture);
+    const { app } = await appWith([AppModule]);
     try {
       const client = createApiClient({ baseURL: await app.getUrl() });
       const { data } = await client.userFind({ body: { id: 1 } });
@@ -87,10 +77,7 @@ describe('generated client', () => {
   });
 
   test.concurrent('greet endpoint via axios client', async () => {
-    const moduleFixture: TestingModule = await Test.createTestingModule({
-      imports: [AppModule],
-    }).compile();
-    const { app } = await createApp(moduleFixture);
+    const { app } = await appWith([AppModule]);
     try {
       const client = createApiClient({
         baseURL: await app.getUrl(),
@@ -103,10 +90,7 @@ describe('generated client', () => {
   });
 
   test.concurrent('namespaced axios api — reaches un-namespaced + nested operations', async () => {
-    const moduleFixture: TestingModule = await Test.createTestingModule({
-      imports: [AppModule],
-    }).compile();
-    const { app } = await createApp(moduleFixture);
+    const { app } = await appWith([AppModule]);
     try {
       const client = createApiClient({
         baseURL: await app.getUrl(),
@@ -130,10 +114,7 @@ describe('generated client', () => {
   });
 
   test.concurrent('path params: typed signatures + multi-param via $-segment routing', async () => {
-    const moduleFixture: TestingModule = await Test.createTestingModule({
-      imports: [AppModule],
-    }).compile();
-    const { app } = await createApp(moduleFixture);
+    const { app } = await appWith([AppModule]);
     try {
       const client = createApiClient({
         baseURL: await app.getUrl(),
@@ -174,11 +155,46 @@ describe('generated client', () => {
     }
   });
 
+  test.concurrent("path params a router declares are in an operation's `path` group", async () => {
+    const { app } = await appWith([AppModule]);
+    try {
+      const client = createApiClient({ baseURL: await app.getUrl() });
+      const venueId = '3f2b8c1e-4d5a-4b6c-8d7e-9f0a1b2c3d4e';
+      // POST /venues/:venueId/view — the endpoint declares no params.
+      const { data: venue } = await client.venues.view({ path: { venueId } });
+      expect(venue).toEqual({ venueId, venue: 'venue 3f2b8c1e' });
+      // POST /venues/:venueId/tables/:tableId/view — one param from each of two routers.
+      const { data: table } = await client.venues.tables.view({ path: { venueId, tableId: 7 } });
+      expect(table).toEqual({ venueId, tableId: 7, venue: 'venue 3f2b8c1e' });
+      await expect(client.venues.view({ path: { venueId: 'not-a-uuid' } })).rejects.toMatchObject({
+        status: 400,
+      });
+    } finally {
+      await app.close();
+    }
+  });
+
+  test.concurrent('an endpoint that keeps properties is called as any other', async () => {
+    const { app } = await appWith([AppModule]);
+    try {
+      const client = createApiClient({ baseURL: await app.getUrl() });
+      await client.venues.visit({ body: { name: 'hall' } });
+      const { data } = await client.venues.visit({ body: { name: 'hall' } });
+      // Counted on the endpoint's instance, by a method of it.
+      expect(data).toEqual({
+        name: 'hall',
+        visits: 2,
+        known: true,
+        ready: true,
+        opened: ['venues', 'tables'],
+      });
+    } finally {
+      await app.close();
+    }
+  });
+
   test.concurrent('axios wrapper exposes .axios — interceptors observe requests to namespaced methods', async () => {
-    const moduleFixture: TestingModule = await Test.createTestingModule({
-      imports: [AppModule],
-    }).compile();
-    const { app } = await createApp(moduleFixture);
+    const { app } = await appWith([AppModule]);
     try {
       const underlying = Axios.create({
         baseURL: await app.getUrl(),
@@ -208,10 +224,7 @@ describe('generated client', () => {
   });
 
   test.concurrent("a call's axios config under `options` reaches the axios instance", async () => {
-    const moduleFixture: TestingModule = await Test.createTestingModule({
-      imports: [AppModule],
-    }).compile();
-    const { app } = await createApp(moduleFixture);
+    const { app } = await appWith([AppModule]);
     try {
       const client = createApiClient({ baseURL: await app.getUrl() });
       const timeouts: (number | undefined)[] = [];
@@ -228,10 +241,7 @@ describe('generated client', () => {
   });
 
   test.concurrent('throwOnError: false resolves with the error response', async () => {
-    const moduleFixture: TestingModule = await Test.createTestingModule({
-      imports: [AppModule],
-    }).compile();
-    const { app } = await createApp(moduleFixture);
+    const { app } = await appWith([AppModule]);
     try {
       const client = createApiClient({ baseURL: await app.getUrl() });
       await expect(client.userGet({ body: { id: 1 }, throwOnError: false })).resolves.toMatchObject(
@@ -247,10 +257,7 @@ describe('generated client', () => {
   });
 
   test.concurrent('a failed call throws the ResponseError the client exports', async () => {
-    const moduleFixture: TestingModule = await Test.createTestingModule({
-      imports: [AppModule],
-    }).compile();
-    const { app } = await createApp(moduleFixture);
+    const { app } = await appWith([AppModule]);
     try {
       const client = createApiClient({ baseURL: await app.getUrl() });
       const error = await client.userGet({ body: { id: 1 } }).catch((e: unknown) => e);
@@ -267,10 +274,7 @@ describe('generated client', () => {
   });
 
   test.concurrent('nested-object and array search params reach the endpoint', async () => {
-    const moduleFixture: TestingModule = await Test.createTestingModule({
-      imports: [AppModule],
-    }).compile();
-    const { app } = await createApp(moduleFixture);
+    const { app } = await appWith([AppModule]);
     try {
       const client = createApiClient({ baseURL: await app.getUrl() });
       const { data: one } = await client.complexGet({
@@ -287,10 +291,7 @@ describe('generated client', () => {
   });
 
   test.concurrent('method with all-optional params is callable with no arguments', async () => {
-    const moduleFixture: TestingModule = await Test.createTestingModule({
-      imports: [AppModule],
-    }).compile();
-    const { app } = await createApp(moduleFixture);
+    const { app } = await appWith([AppModule]);
     try {
       const client = createApiClient({ baseURL: await app.getUrl() });
       // Called with NO arguments — the bound client must still be injected
@@ -308,10 +309,7 @@ describe('generated client', () => {
   });
 
   test.concurrent('search params travel in `query` on a GET, beside `body` on a POST', async () => {
-    const moduleFixture: TestingModule = await Test.createTestingModule({
-      imports: [AppModule],
-    }).compile();
-    const { app } = await createApp(moduleFixture);
+    const { app } = await appWith([AppModule]);
     try {
       const client = createApiClient({ baseURL: await app.getUrl() });
       // GET /oauth/callback?code=...&state=...&expiresIn=...

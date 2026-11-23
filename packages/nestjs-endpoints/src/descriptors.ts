@@ -8,6 +8,7 @@ import { ApplicationConfig, ModulesContainer } from '@nestjs/core';
 import { RoutePathFactory } from '@nestjs/core/router/route-path-factory.js';
 import type { EndpointKind } from './endpoint-fn';
 import type { ObjectConversion } from './object-parameters';
+import { toOpenApiPath } from './url-params';
 import type { ConvertedSchema, JsonSchema } from './zod-to-openapi';
 
 /** What an endpoint's setup knows about it, for codegen to read. */
@@ -44,14 +45,6 @@ export type EndpointDescriptor = {
 };
 
 export const DESCRIPTOR_METADATA_KEY = 'endpoints:descriptor';
-
-/** `/recipes/:recipeId/view` → `/recipes/{recipeId}/view`. */
-export function toOpenApiPath(httpPath: string): string {
-  return httpPath
-    .split('/')
-    .map((segment) => (segment.startsWith(':') ? `{${segment.slice(1)}}` : segment))
-    .join('/');
-}
 
 const requestMethods = {
   get: RequestMethod.GET,
@@ -98,7 +91,9 @@ export function collectDescriptors(app: INestApplicationContext): EndpointDescri
       },
       requestMethods[descriptor.method],
     );
-    descriptors.push({ ...descriptor, path: toOpenApiPath(routePath ?? descriptor.path) });
+    // The descriptor's own path is in OpenAPI's form already.
+    const path = routePath === undefined ? descriptor.path : toOpenApiPath(routePath);
+    descriptors.push({ ...descriptor, path });
   }
   return descriptors.sort((a, b) => compare(a.path, b.path) || compare(a.method, b.method));
 }

@@ -5,7 +5,9 @@ import { setupCodegen } from 'nestjs-endpoints';
 import { AppModule } from './app.module';
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
+  // `venues/$venueId` is beside routes with a name there: Express answers a URL with the
+  // first route registered that matches it, and NestJS registers names first with this.
+  const app = await NestFactory.create(AppModule, { routeResolutionStrategy: 'specificity' });
   app.enableCors({
     origin: '*',
   });

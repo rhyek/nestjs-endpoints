@@ -3,7 +3,7 @@ import { useApiClient } from '../generated/react-query-client';
 
 export function Recipes() {
   // Namespaced hooks come from the nested bucket that mirrors the
-  // router hierarchy: shop/router.module.ts + shop/recipes/router.module.ts.
+  // router hierarchy: shop/router.ts + shop/recipes/router.ts.
   const client = useApiClient();
   const list = client.shop.recipes.useList();
   const create = client.shop.recipes.useCreate();

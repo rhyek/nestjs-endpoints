@@ -12,7 +12,7 @@ the page with the details. The pages sit beside this one, as Markdown.
 Check, in order:
 
 1. `nestjs-endpoints` in the `dependencies` of a `package.json`.
-2. Files named `*.endpoint.ts` or `endpoint.ts`, or `router.module.ts`.
+2. Files named `*.endpoint.ts` or `endpoint.ts`, or `router.ts`.
 3. A call to `setupCodegen(` in a `main.ts` or another bootstrap file.
 
 If none of those appear, the library is not in play, and these pages don't apply.
@@ -21,12 +21,12 @@ If none of those appear, the library is not in play, and these pages don't apply
 
 - **One file, one endpoint.** An endpoint file default-exports one `endpoint.query({...})` (a
   read) or `endpoint.mutation({...})` (a write). Its URL comes from where the file sits, under
-  the folder of the nearest `router.module.ts`. See [File-based routing](../guide/file-based-routing.md).
+  the folder of the nearest `router.ts`. See [File-based routing](../guide/file-based-routing.md).
 - **Nothing registers an endpoint file by hand.** A router serves every endpoint file in its
   folder. Don't add one to a module's `controllers` or a router's `endpoints`, unless it is
   [registered by hand on purpose](../guide/explicit-paths.md), with a `path`.
 - **The app's root module calls `NestjsEndpoints.forRoot({ router })`, once.** Every other
-  router is `EndpointRouterModule.create()`. See [Routers](../guide/routers.md#the-root-router).
+  router is `EndpointRouter.create()`. See [Routers](../guide/routers.md#the-root-router).
 - **ESM only.** The project has `"type": "module"`, and its relative imports end in `.js`.
 - **No bundling.** File-based routing reads each endpoint file on disk, so the app is built
   with `tsc` or `nest build`, never Webpack or a bundler.
@@ -39,13 +39,7 @@ If none of those appear, the library is not in play, and these pages don't apply
   [Testing](../guide/testing.md#vitest).
 - **Don't edit a generated client.** It is rewritten from the endpoints. Change the endpoint,
   and regenerate.
-- **Use the current names.** These still work, but new code uses the name beside them:
-
-| Deprecated                         | Use                             |
-| ---------------------------------- | ------------------------------- |
-| `EndpointsRouterModule`            | `EndpointRouterModule`          |
-| `EndpointsRouterModule.register()` | `EndpointRouterModule.create()` |
-| `injectMethod`, `injectAtRequest`  | `injectOnRequest`               |
+- **Use `injectOnRequest`.** `injectMethod` and `injectAtRequest` are deprecated names for it.
 
 ## Add an endpoint
 
@@ -63,7 +57,9 @@ An endpoint is a `POST` unless it sets `method`. A `GET` takes no `input`: its r
 ## Change an endpoint's URL
 
 - **A path parameter:** name the file or folder `$name` (`orders/$orderId.endpoint.ts`), and
-  add `params: z.object({ orderId: z.coerce.number() })`. See
+  add `params: z.object({ orderId: z.coerce.number() })`. A parameter doesn't take the name
+  of a route beside it as a value; on Express, create the app with
+  `routeResolutionStrategy: 'specificity'`. See
   [Path parameters](../guide/file-based-routing.md#path-parameters).
 - **A folder that groups files without adding to the URL:** start its name with `_`.
 - **A different URL, without moving the file:** set `path` on the endpoint, or `basePath` on
@@ -71,14 +67,17 @@ An endpoint is a `POST` unless it sets `method`. A `GET` takes no `input`: its r
 
 ## Give a folder its own providers or guards
 
-Put a `router.module.ts` in the folder, with
-`export default EndpointRouterModule.create({ providers, guards })`. The parent router imports
+Put a `router.ts` in the folder, with
+`export default EndpointRouter.create({ providers, guards })`. The parent router imports
 it by itself, and its base path is the folder's name. Its `middleware`, `interceptors` and
 `guards` apply to every endpoint under it. See [Nested routers](../guide/routers.md#nested-routers)
 and [Middleware, interceptors and guards](../guide/routers.md#middleware-interceptors-and-guards).
 
-A value every endpoint of a router needs, such as the current user, goes in the router's
-`endpointConfig`. See [Shared injections](../guide/routers.md#shared-injections).
+A value every endpoint of a router needs goes on the router: a provider in `inject`, the current
+user in `injectOnRequest`, and the path parameter of a `$param` folder in `params`. A nested
+router made with the parent's `child()` inherits them, with the parent's `providers` and
+`imports`: it lists only its own. See
+[Router context](../guide/router-context.md).
 
 ## Regenerate and call the client
 

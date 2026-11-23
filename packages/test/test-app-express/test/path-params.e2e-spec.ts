@@ -1,8 +1,7 @@
-import { Test, TestingModule } from '@nestjs/testing';
 import request from 'supertest';
 import { AppModule } from '../src/app.module';
 import { RecipesRepository } from '../src/endpoints/recipes/repository.service';
-import { createApp } from './create-app';
+import { appWith } from './app-with';
 
 // Covers the file-based routing convention `$param` → `:param` (TanStack-style)
 // and the `params` Zod-schema option.
@@ -16,11 +15,7 @@ import { createApp } from './create-app';
 
 describe('path params via $-segment file-based routing', () => {
   async function setup() {
-    const moduleFixture: TestingModule = await Test.createTestingModule({
-      imports: [AppModule],
-    }).compile();
-    const { app } = await createApp(moduleFixture);
-    app.useLogger(false);
+    const { app } = await appWith([AppModule]);
     const repo = app.get(RecipesRepository);
     return { app, req: request(app.getHttpServer()), repo };
   }

@@ -1,15 +1,10 @@
-import { Test, TestingModule } from '@nestjs/testing';
 import request from 'supertest';
 // Only the router imported below loads, with its own subtree.
 import ShopRouterModule from '../src/shop/router.module';
-import { createApp } from './create-app';
+import { appWith } from './app-with';
 
-test('a single router module can be tested without the rest of the app', async () => {
-  const moduleFixture: TestingModule = await Test.createTestingModule({
-    imports: [ShopRouterModule],
-  }).compile();
-  const { app } = await createApp(moduleFixture);
-  app.useLogger(false);
+test('a single router can be tested without the rest of the app', async () => {
+  const { app } = await appWith([ShopRouterModule]);
   const req = request(app.getHttpServer());
   try {
     await req.post('/shop/stats').expect(200, { visitors: 42 });

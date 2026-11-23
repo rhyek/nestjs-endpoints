@@ -1,6 +1,6 @@
-import { EndpointsRouterModule } from 'nestjs-endpoints';
+import { EndpointRouter } from 'nestjs-endpoints';
 
-export default EndpointsRouterModule.register({
+export default EndpointRouter.create({
   rootDirectory: 'endpoints',
   // Explicit basePath overrides folder-name inference. Folder name is 'blog'
   // but we mount at '/articles' instead.

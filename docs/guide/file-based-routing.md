@@ -13,7 +13,7 @@ src/
 └── endpoints/
     ├── health.endpoint.ts               GET  /health
     └── orders/
-        ├── router.module.ts
+        ├── router.ts
         ├── orders.service.ts
         ├── create.endpoint.ts           POST /orders/create
         ├── list.endpoint.ts             POST /orders/list
@@ -83,6 +83,27 @@ export default endpoint.mutation({
 
 Every `:param` in the URL must be a key of `params`, and every key of `params` must be a
 `:param` in the URL.
+
+A parameter that a whole folder shares, such as the `$recipeId` of everything under
+`recipes/$recipeId/`, can be declared once, on a router. See
+[Router context](./router-context.md#path-parameters).
+
+### A name beside a parameter
+
+A file or folder with a name, beside a `$param` one, has every URL under that name. With
+`recipes/featured.endpoint.ts` beside `recipes/$recipeId/view.endpoint.ts`, `/recipes/featured`
+is the featured endpoint's, and `/recipes/featured/view` is a 404, as a URL no route answers:
+a path parameter doesn't take a name beside it as its value. The paths of the app's own
+controllers count as names too.
+
+On Express, which answers a URL with the first route registered that matches it, create the
+app with `routeResolutionStrategy: 'specificity'`, so that NestJS registers names before
+parameters. The app warns as it starts where it needs this. Fastify and the Node adapter always
+match a name first.
+
+```ts
+const app = await NestFactory.create(AppModule, { routeResolutionStrategy: 'specificity' });
+```
 
 ## Changing a route without moving the file
 

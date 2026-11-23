@@ -9,11 +9,11 @@ one puts its endpoints in a nested object named after it, so the client's shape 
 routers:
 
 ```ts
-// src/endpoints/shop/router.module.ts
-export default EndpointRouterModule.create({ namespace: true });
+// src/endpoints/shop/router.ts
+export default EndpointRouter.create({ namespace: true });
 
-// src/endpoints/shop/recipes/router.module.ts
-export default EndpointRouterModule.create({ namespace: true });
+// src/endpoints/shop/recipes/router.ts
+export default EndpointRouter.create({ namespace: true });
 ```
 
 ```ts
@@ -30,15 +30,18 @@ its full name: `client.shopRecipesCreate()`.
 | Value | Meaning |
 | --- | --- |
 | Left out, or `false` | The router adds nothing. Its endpoints sit in its parent's namespace. |
-| `true` | The router's `basePath` if it sets one, otherwise its folder's name, in a `router.module.ts`. A router created elsewhere, such as in `app.module.ts`, needs a `basePath` or a string. |
+| `true` | The router's `basePath` if it sets one, otherwise its folder's name, in a `router.ts`. A router with neither stops the app from starting: one created elsewhere, such as in `app.module.ts`, or in a folder that names a path parameter, such as `$projectId`. Give it a string. |
 | A string | That exact name. |
 
-A folder with no `router.module.ts` is part of the URL but not of the namespace. Under a `shop`
+A namespace is a name: letters, digits, `-` and `_`, starting with a letter. A base path of
+several segments, such as `api/shop`, is not one, so a router with it takes a string.
+
+A folder with no `router.ts` is part of the URL but not of the namespace. Under a `shop`
 router with a namespace, `shop/catering/book.endpoint.ts` serves `/shop/catering/book` and is
 called as `client.shop.cateringBook()`.
 
-A router's `description` becomes a comment on its object in the client, which your editor shows
-on hover.
+The `description` of a router that sets `namespace` becomes a comment on its object in the
+client, which your editor shows on hover.
 
 ## How names are derived
 

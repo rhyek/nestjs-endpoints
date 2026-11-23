@@ -1,7 +1,7 @@
 # nestjs-endpoints
 
 One or more of this repo's HTTP APIs are built with nestjs-endpoints: their endpoints
-(`endpoint.query()`, `endpoint.mutation()`), routers (`router.module.ts`), Zod schemas, and the
+(`endpoint.query()`, `endpoint.mutation()`), routers (`router.ts`), Zod schemas, and the
 axios and React Query clients generated from them.
 
 Before you add, change, move or test an endpoint or a router, or generate or call a client, read
