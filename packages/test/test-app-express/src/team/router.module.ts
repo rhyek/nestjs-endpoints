@@ -7,7 +7,9 @@ import { TeamService } from './team.service';
 export default EndpointRouter.create({
   rootDirectory: 'endpoints',
   providers: [TeamService],
-  inject: { team: TeamService },
+  context: {
+    inject: { team: TeamService },
+  },
   endpoints: () => [
     import('./endpoints/roster.endpoint.js'),
     import('./endpoints/lead.endpoint.js'),

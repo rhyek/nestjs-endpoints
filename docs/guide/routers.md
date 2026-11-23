@@ -138,9 +138,9 @@ For a single endpoint, use its own [`decorators`](./dependency-injection.md#per-
 
 ## Router context
 
-A router can also declare what every handler under it receives: path parameters (`params`),
-providers (`inject`) and per-request values (`injectOnRequest`). A nested router made with
-`router.child()` inherits them from its parent. See [Router context](./router-context.md).
+A router can also declare, in its `context`, what every handler under it receives: path
+parameters (`params`), providers (`inject`) and per-request values (`injectOnRequest`). A nested
+router made with `router.child()` inherits them from its parent. See [Router context](./router-context.md).
 
 ## Inside a regular module
 

@@ -235,12 +235,14 @@ describe("a router's injections", () => {
     expect(() =>
       EndpointRouter.create({
         endpoints: [],
-        inject: { user: Service },
-        // @ts-expect-error `user` is in both inject and injectOnRequest
-        injectOnRequest: { user: decorated<string>(Req()) },
+        context: {
+          inject: { user: Service },
+          // @ts-expect-error `user` is in both inject and injectOnRequest
+          injectOnRequest: { user: decorated<string>(Req()) },
+        },
       }),
     ).toThrow(
-      /EndpointRouter\.create\(\) in [\s\S]*endpoint-router\.spec[\s\S]*`user` is in both `inject` and `injectOnRequest`/,
+      /EndpointRouter\.create\(\) in [\s\S]*endpoint-router\.spec[\s\S]*`user` is in both `context\.inject` and `context\.injectOnRequest`/,
     );
   });
 
@@ -249,19 +251,25 @@ describe("a router's injections", () => {
     expectTypeOf(
       EndpointRouter.create({
         endpoints: [],
-        inject: { service: Service },
+        context: {
+          inject: { service: Service },
+        },
       }),
     ).toEqualTypeOf<EndpointRouter<{ service: typeof Service }>>();
     expectTypeOf(
       EndpointRouter.create({
         endpoints: [],
-        injectOnRequest: { user: decorated<string>(Req()) },
+        context: {
+          injectOnRequest: { user: decorated<string>(Req()) },
+        },
       }),
     ).toEqualTypeOf<EndpointRouter<undefined, { user: ReturnType<typeof decorated<string>> }>>();
     EndpointRouter.create({
       endpoints: [],
-      inject: { service: Service },
-      injectOnRequest: { user: decorated<string>(Req()) },
+      context: {
+        inject: { service: Service },
+        injectOnRequest: { user: decorated<string>(Req()) },
+      },
     }).endpoint.query({
       path: 'types-only',
       handler: (params) => {
@@ -278,27 +286,46 @@ describe("a router's params", () => {
     expect(() =>
       EndpointRouter.create({
         endpoints: [],
-        // @ts-expect-error a transformed object is not a plain one
-        params: z.object({ id: z.string() }).transform((x) => x),
+        context: {
+          // @ts-expect-error a transformed object is not a plain one
+          params: z.object({ id: z.string() }).transform((x) => x),
+        },
       }),
     ).toThrow(
-      /EndpointRouter\.create\(\) in [\s\S]*endpoint-router\.spec[\s\S]*`params` must be a plain z\.object\(\)/,
+      /EndpointRouter\.create\(\) in [\s\S]*endpoint-router\.spec[\s\S]*`context\.params` must be a plain z\.object\(\)/,
     );
   });
 
   test('are refused in the name of the call that made the router', () => {
     const transformed = z.object({ id: z.string() }).transform((x) => x) as never;
     expect(() =>
-      EndpointRouter.create({ endpoints: [] }).child({ endpoints: [], params: transformed }),
+      EndpointRouter.create({ endpoints: [] }).child({
+        endpoints: [],
+        context: {
+          params: transformed,
+        },
+      }),
     ).toThrow(/^child\(\) in /);
     expect(() =>
-      NestjsEndpoints.forRoot({ router: { endpoints: [], params: transformed } }),
+      NestjsEndpoints.forRoot({
+        router: {
+          endpoints: [],
+          context: {
+            params: transformed,
+          },
+        },
+      }),
     ).toThrow(/^NestjsEndpoints\.forRoot\(\) in /);
   });
 
   test('type the router, and the handlers of its endpoints', () => {
     const params = z.object({ id: z.coerce.number() });
-    const router = EndpointRouter.create({ endpoints: [], params });
+    const router = EndpointRouter.create({
+      endpoints: [],
+      context: {
+        params,
+      },
+    });
     expectTypeOf(router).toEqualTypeOf<EndpointRouter<undefined, undefined, typeof params>>();
     router.endpoint.query({
       path: ':id/types-only',
@@ -373,13 +400,17 @@ describe('a child router', () => {
   test("gives its endpoints its parent's context under its own", async () => {
     const parent = EndpointRouter.create({
       endpoints: [],
-      inject: { a: A, b: B },
-      params: z.object({ x: z.string() }),
+      context: {
+        inject: { a: A, b: B },
+        params: z.object({ x: z.string() }),
+      },
     });
     const child = parent.child({
       endpoints: [],
-      injectOnRequest: { a: decorated<string>(Req()) },
-      params: z.object({ y: z.coerce.number() }),
+      context: {
+        injectOnRequest: { a: decorated<string>(Req()) },
+        params: z.object({ y: z.coerce.number() }),
+      },
     });
     const cls = child.endpoint.query({
       path: ':x/:y/child',
@@ -400,11 +431,25 @@ describe('a child router', () => {
   test('accrues through every level, the nearest declaration winning', async () => {
     const grandchild = EndpointRouter.create({
       endpoints: [],
-      inject: { a: A },
-      params: z.object({ x: z.string(), y: z.string() }),
+      context: {
+        inject: { a: A },
+        params: z.object({ x: z.string(), y: z.string() }),
+      },
     })
-      .child({ endpoints: [], inject: { b: B }, params: z.object({ y: z.coerce.number() }) })
-      .child({ endpoints: [], inject: { a: B }, params: z.object({ z: z.coerce.boolean() }) });
+      .child({
+        endpoints: [],
+        context: {
+          inject: { b: B },
+          params: z.object({ y: z.coerce.number() }),
+        },
+      })
+      .child({
+        endpoints: [],
+        context: {
+          inject: { a: B },
+          params: z.object({ z: z.coerce.boolean() }),
+        },
+      });
     const cls = grandchild.endpoint.query({
       path: ':x/:y/:z/grandchild',
       handler: ({ params, a, b }) => {
@@ -422,7 +467,12 @@ describe('a child router', () => {
   });
 
   test("with nothing of its own has its parent's context", () => {
-    const parent = EndpointRouter.create({ endpoints: [], inject: { a: A } });
+    const parent = EndpointRouter.create({
+      endpoints: [],
+      context: {
+        inject: { a: A },
+      },
+    });
     expectTypeOf(parent.child()).toEqualTypeOf(parent);
     expectTypeOf(EndpointRouter.create().child()).toEqualTypeOf<EndpointRouter>();
   });
@@ -675,7 +725,13 @@ describe('a router with child routers', () => {
   test('is not one because of a child() call that fails', async () => {
     const router = EndpointRouter.create({ rootDirectory: empty, providers: [Access] });
     const transformed = z.object({ id: z.string() }).transform((x) => x) as never;
-    expect(() => router.child({ params: transformed })).toThrow(/`params` must be a plain/);
+    expect(() =>
+      router.child({
+        context: {
+          params: transformed,
+        },
+      }),
+    ).toThrow(/`context\.params` must be a plain/);
     expect((await router).providers).toContain(Access);
   });
 
@@ -759,13 +815,15 @@ describe("a router's lifecycle hooks", () => {
     'onApplicationShutdown',
   ] as const;
 
-  test("are called by NestJS as a module's are, with what the router injects on `this`", async () => {
+  test("are called by NestJS as a module's are, with what the router injects into itself on `this`", async () => {
     const calls: string[] = [];
     const router = EndpointRouter.create({
       endpoints: [],
       providers: [Clock, Stamp],
       inject: { clock: Clock, stamp: Stamp },
-      injectOnRequest: { req: decorated<{ url: string }>(Req()) },
+      context: {
+        injectOnRequest: { req: decorated<{ url: string }>(Req()) },
+      },
       lifecycle: {
         onModuleInit() {
           expectTypeOf(this.clock).toEqualTypeOf<Clock>();
@@ -801,31 +859,81 @@ describe("a router's lifecycle hooks", () => {
     ]);
   });
 
-  test("have what the router's parent injects, under the router's own", async () => {
+  test("have what the router's own `inject` gives, and not what its `context` gives its endpoints", async () => {
+    const seen: unknown[] = [];
+    const router = EndpointRouter.create({
+      endpoints: (): Type[] => [Read],
+      providers: [Clock, Access],
+      inject: { clock: Clock },
+      context: { inject: { access: Access } },
+      lifecycle: {
+        onModuleInit() {
+          expectTypeOf(this.clock).toEqualTypeOf<Clock>();
+          // @ts-expect-error its endpoints', not the router's
+          void this.access;
+          seen.push(this.clock instanceof Clock, 'access' in this);
+        },
+      },
+    });
+    const Read = router.endpoint.query({
+      path: 'own-and-context',
+      handler({ access }) {
+        // @ts-expect-error the router's own
+        void this.clock;
+        return [access instanceof Access, 'clock' in this];
+      },
+    });
+    const app = await start(router);
+    expect(seen).toEqual([true, false]);
+    await expect(app.get(Read, { strict: false }).invoke()).resolves.toEqual([true, false]);
+    await app.close();
+  });
+
+  test("of a child have its own `inject` alone: not its parent's, nor a `context`", async () => {
     const seen: unknown[] = [];
     const parent = EndpointRouter.create({
       endpoints: [],
-      providers: [Clock, Access, { provide: Stamp, useValue: new Stamp(1) }],
-      inject: { clock: Clock, mine: Access, stamp: Stamp },
+      providers: [Clock, Access],
+      inject: { clock: Clock },
+      context: { inject: { access: Access } },
     });
     const child = parent.child({
       endpoints: [],
       inject: { mine: Clock },
-      // On request, so on no `this`.
-      injectOnRequest: { stamp: decorated<string>(Req()) },
       lifecycle: {
         onModuleInit() {
-          expectTypeOf(this.clock).toEqualTypeOf<Clock>();
           expectTypeOf(this.mine).toEqualTypeOf<Clock>();
-          // @ts-expect-error the child takes it per request
-          void this.stamp;
-          seen.push(this.clock instanceof Clock, this.mine instanceof Clock, 'stamp' in this);
+          // @ts-expect-error the parent's own
+          void this.clock;
+          // @ts-expect-error what the routers give their endpoints
+          void this.access;
+          seen.push(this.mine instanceof Clock, 'clock' in this, 'access' in this);
         },
       },
     });
     const app = await start(child);
-    expect(seen).toEqual([true, true, false]);
+    expect(seen).toEqual([true, false, false]);
     await app.close();
+  });
+
+  test.each([[null], [1], [[]], ['x']])('refuses a context given as %j', (context) => {
+    expect(() => EndpointRouter.create({ endpoints: [], context } as any)).toThrow(
+      /EndpointRouter\.create\(\) in .*: `context` must be an object of `params`, `inject`, and `injectOnRequest`\./,
+    );
+  });
+
+  test('refuses a name in its context that a context does not have, in its types too', () => {
+    expect(() =>
+      EndpointRouter.create({
+        endpoints: [],
+        context: {
+          // @ts-expect-error not a context's
+          providers: [],
+        },
+      }),
+    ).toThrow(
+      '`context.providers` is not a key of a context: it takes `params`, `inject`, and `injectOnRequest`.',
+    );
   });
 
   test('of a router with child routers have its providers', async () => {
@@ -842,6 +950,7 @@ describe("a router's lifecycle hooks", () => {
     });
     const child = parent.child({
       endpoints: [],
+      inject: { clock: Clock },
       lifecycle: {
         onModuleInit() {
           seen.push(this.clock);
@@ -888,7 +997,14 @@ describe("a router's lifecycle hooks", () => {
 
   test('a router with none has nothing injected into it', async () => {
     // Nothing provides `Stamp`: only an endpoint or a hook would ask for it.
-    const app = await start(EndpointRouter.create({ endpoints: [], inject: { stamp: Stamp } }));
+    const app = await start(
+      EndpointRouter.create({
+        endpoints: [],
+        context: {
+          inject: { stamp: Stamp },
+        },
+      }),
+    );
     await app.close();
     await expect(
       start(
@@ -1126,56 +1242,82 @@ describe("a router's lifecycle hooks", () => {
       );
     });
 
-    test('refuses what it injects named as a member of `this`, in its types too', () => {
+    test('refuses what it injects into itself named as its own, or as a lifecycle hook, in its types too', () => {
+      expect(() =>
+        EndpointRouter.create({
+          endpoints: [],
+          inject: {
+            // @ts-expect-error the router's own
+            configure: Clock,
+            // @ts-expect-error a lifecycle hook
+            onApplicationShutdown: Clock,
+            clock: Clock,
+          },
+        }),
+      ).toThrow('`inject` declares `configure`, a name the router has');
+    });
+
+    test("refuses what its context injects named as a member of each endpoint's `this`, in its types too", () => {
       const create = (inject: object) => () =>
-        EndpointRouter.create({ endpoints: [], inject } as any);
-      // As each of its endpoints has a `handler` and an `invoke()`.
+        EndpointRouter.create({ endpoints: [], context: { inject } } as any);
       expect(create({ handler: Clock })).toThrow(
-        /`inject` declares `handler`, a name each endpoint has: `this` has one member of each name/,
+        /`context\.inject` declares `handler`, a name each endpoint has: `this` has one member of each name/,
       );
       expect(create({ invoke: Clock })).toThrow(
-        '`inject` declares `invoke`, a name each endpoint has',
+        '`context.inject` declares `invoke`, a name each endpoint has',
       );
-      expect(
-        () =>
-          EndpointRouter.create({
-            endpoints: [],
+      expect(create({ onModuleInit: Clock })).toThrow(
+        '`context.inject` declares `onModuleInit`, a lifecycle hook',
+      );
+      expect(() =>
+        EndpointRouter.create({
+          endpoints: [],
+          context: {
             inject: {
-              // @ts-expect-error the router's own
-              configure: Clock,
               // @ts-expect-error a lifecycle hook
               onApplicationShutdown: Clock,
               // @ts-expect-error each endpoint's own
               handler: Clock,
               clock: Clock,
             },
-          }),
-        // Each endpoint's names are checked first.
-      ).toThrow('`inject` declares `handler`');
-      expect(create({ configure: Clock })).toThrow('`inject` declares `configure`');
+          },
+        }),
+      ).toThrow('`context.inject` declares `onApplicationShutdown`');
       const parent = EndpointRouter.create({ endpoints: [] });
       expect(() =>
         parent.child({
           endpoints: [],
-          // @ts-expect-error each endpoint's own
-          inject: { invoke: Clock },
+          context: {
+            // @ts-expect-error each endpoint's own
+            inject: { invoke: Clock },
+          },
         }),
-      ).toThrow('`inject` declares `invoke`');
+      ).toThrow('`context.inject` declares `invoke`');
     });
 
-    test("refuses a child's method named as what its parent injects, in its types too", () => {
-      const parent = EndpointRouter.create({ endpoints: [], inject: { clock: Clock } });
+    test("takes in its context a name of the router's own: the router's `this` does not have it", () => {
+      const router = EndpointRouter.create({
+        endpoints: [],
+        context: { inject: { configure: Clock, note: Clock } },
+        methods: { note() {} },
+      });
+      expect(router).toBeInstanceOf(Promise);
+    });
+
+    test("lets a child's members take the names its parent injects: the child's `this` has none of them", () => {
+      const parent = EndpointRouter.create({
+        endpoints: [],
+        inject: { clock: Clock },
+        context: { inject: { access: Clock } },
+      });
       expect(() =>
         parent.child({
           endpoints: [],
           // @ts-expect-error a lifecycle hook
           properties: () => ({ onModuleInit: 1 }),
-          methods: {
-            // @ts-expect-error injected by the parent
-            clock() {},
-          },
+          methods: { clock() {}, access() {} },
         }),
-      ).toThrow(/child\(\) in .*: `methods` declares `clock`, which is injected/);
+      ).not.toThrow();
     });
   });
 
@@ -1183,7 +1325,12 @@ describe("a router's lifecycle hooks", () => {
     const ofRouter: EndpointRouterOptions<undefined, undefined, undefined> = { endpoints: [] };
     const ofRoot: NestjsEndpointsOptions = { watch: false };
     const ofInjectingRoot: NestjsEndpointsOptions<{ clock: typeof Clock }> = {
-      router: { rootDirectory: path.join(fixtures, 'empty'), inject: { clock: Clock } },
+      router: {
+        rootDirectory: path.join(fixtures, 'empty'),
+        context: {
+          inject: { clock: Clock },
+        },
+      },
     };
     expect(EndpointRouter.create(ofRouter)).toBeInstanceOf(Promise);
     expect(NestjsEndpoints.forRoot(ofRoot)).toBeInstanceOf(Promise);
@@ -1388,7 +1535,9 @@ describe('a lifecycle hook on what NestJS makes for each request', () => {
     const router = EndpointRouter.create({
       endpoints: [],
       providers: [PerRequest],
-      inject: { perRequest: PerRequest },
+      context: {
+        inject: { perRequest: PerRequest },
+      },
       properties: () => ({ starts: 0 }),
       methods: { started() {} },
     });
@@ -1477,7 +1626,9 @@ describe("what a child router's endpoints get from the routers above it", () => 
       const top = EndpointRouter.create({
         endpoints: (): Type[] => [atTop],
         providers: [PerRequest],
-        inject: { perRequest: PerRequest },
+        context: {
+          inject: { perRequest: PerRequest },
+        },
       });
       const one = top.child({ endpoints: [] });
       const two = one.child({ endpoints: (): Type[] => [atTwo] });
@@ -1514,15 +1665,22 @@ describe("what a child router's endpoints get from the routers above it", () => 
       await app.close();
     });
 
-    test('a router under it that declares a lifecycle hook fails the app as it starts', async () => {
-      const { routers } = lineage({
+    test("a router under it that declares a lifecycle hook starts, and calls it: the provider is its endpoints', not its own", async () => {
+      const calls: string[] = [];
+      const { routers, endpoints } = lineage({
         lifecycle: {
-          onModuleInit() {},
+          onModuleInit: () => void calls.push('init'),
         },
       });
-      await expect(start(NestjsEndpoints.forRoot(), ...routers)).rejects.toThrow(
-        /the router of .*endpoint-router\.spec\.ts declares onModuleInit, but NestJS makes it for each request/,
+      const app = await start(NestjsEndpoints.forRoot(), ...routers);
+      expect(calls).toEqual(['init']);
+      const atThree = await app.resolve<{ invoke: () => Promise<number> }>(
+        endpoints[2]!,
+        ContextIdFactory.create(),
+        { strict: false },
       );
+      await expect(atThree.invoke()).resolves.toBeTypeOf('number');
+      await app.close();
     });
   });
 
@@ -1532,7 +1690,13 @@ describe("what a child router's endpoints get from the routers above it", () => 
       static made = 0;
       readonly id = ++Each.made;
     }
-    const top = EndpointRouter.create({ endpoints: [], providers: [Each], inject: { each: Each } });
+    const top = EndpointRouter.create({
+      endpoints: [],
+      providers: [Each],
+      context: {
+        inject: { each: Each },
+      },
+    });
     const middle = top.child({ endpoints: (): Type[] => [atMiddle] });
     const bottom = middle.child({ endpoints: (): Type[] => [atBottom] });
     const handler = function (this: { each: Each }) {

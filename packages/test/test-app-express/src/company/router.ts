@@ -5,6 +5,8 @@ import { OrderLog, OrderModule, recording } from './order';
 // under them: each records what it does, to show the order it does it in.
 export default EndpointRouter.create({
   imports: [OrderModule],
-  inject: { log: OrderLog },
+  context: {
+    inject: { log: OrderLog },
+  },
   ...recording('company'),
 });

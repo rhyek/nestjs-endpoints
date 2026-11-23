@@ -10,8 +10,10 @@ const router = EndpointRouter.create({
   rootDirectory: ['endpoints', 'billing'],
   namespace: true,
   providers: [WorkspaceService, AuditService],
-  inject: { workspace: WorkspaceService },
-  injectOnRequest: { tenant: decorated<string>(Headers('x-tenant')) },
+  context: {
+    inject: { workspace: WorkspaceService },
+    injectOnRequest: { tenant: decorated<string>(Headers('x-tenant')) },
+  },
 });
 export const { endpoint } = router;
 export default router;

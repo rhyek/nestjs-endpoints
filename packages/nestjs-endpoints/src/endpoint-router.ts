@@ -18,6 +18,8 @@ import type { Injected, InjectOnRequestMap, InjectProvidersMap } from './injecti
 import {
   declaredMembers,
   ENDPOINT_OWN_MEMBERS,
+  type InjectNaming,
+  LIFECYCLE_HOOKS,
   type InstanceMembers,
   type InstanceOptions,
   type MethodsMap,
@@ -56,7 +58,7 @@ import {
   sharedProviders,
   type SharedProviders,
 } from './router-modules';
-import type { DescribesNamespace, RouterOptions } from './router-options';
+import { CONTEXT_KEYS, type DescribesNamespace, type RouterOptions } from './router-options';
 import { findRouterFiles, isSameModule, shown, stripExtension } from './routing-files';
 import { EndpointSetupFn, settings } from './settings';
 
@@ -81,33 +83,34 @@ type AllEndpointsCarrier = {
 };
 
 /**
- * What `create()`, `child()` and `forRoot()` take. `ParentInject` is the `inject` of the
- * router a child is made from.
+ * What `create()`, `child()` and `forRoot()` take. `RouterInject`, `RouterInjectOnRequest` and
+ * `RouterParams` are its `context`; `Inject` is its own `inject`.
  *
  * A router's lifecycle hooks and methods, written as methods and not as arrow functions,
- * have on `this` what its `inject` gives, over what its parent's does, with its
- * `properties` and `methods`. Those two are the router's own: its endpoints and the
- * routers under it have none of them.
+ * have on `this` what its own `inject` gives, with its `properties` and `methods`. The three
+ * are the router's own: its endpoints and the routers under it have none of them.
  */
 export type EndpointRouterOptions<
   RouterInject extends InjectProvidersMap,
   RouterInjectOnRequest extends InjectOnRequestMap,
   RouterParams extends z.ZodObject | undefined,
-  ParentInject extends InjectProvidersMap = undefined,
+  Inject extends InjectProvidersMap = undefined,
   Properties = object,
   // As `create()` has them when the router declares none.
   // eslint-disable-next-line @typescript-eslint/no-empty-object-type
   Methods = {},
 > = RouterOptions<RouterInject, RouterInjectOnRequest, RouterParams> &
-  DescribesNamespace &
-  InstanceOptions<
-    Injected<Overriding<ParentInject, RouterInject, RouterInjectOnRequest>>,
-    Properties,
-    Methods,
-    'configure'
-  >;
+  DescribesNamespace & {
+    /**
+     * Providers to inject into the router's own instance: on `this` in
+     * its lifecycle hooks, methods and the getters of its `properties`.
+     * Its endpoints and the routers under it do not have them: give
+     * those theirs in `context`.
+     */
+    inject?: InjectNaming<Inject, 'configure'>;
+  } & InstanceOptions<Injected<Inject>, Properties, Methods, 'configure'>;
 
-type AnyRouterOptions = EndpointRouterOptions<any, any, any>;
+type AnyRouterOptions = EndpointRouterOptions<any, any, any, any, any, any>;
 
 /**
  * What `create()` returns: the module a router module exports by default,
@@ -122,16 +125,16 @@ export type EndpointRouter<
   /**
    * Creates a router nested under this one, in a `router.ts` of a
    * folder under this router's. It takes the options `create()` takes, and
-   * its endpoints receive this router's `inject`, `injectOnRequest` and
-   * `params` under its own: a key both declare is the child's. It has this
-   * router's `providers` and `imports` too, as the same instances.
+   * its endpoints receive this router's `context` under its own: a key
+   * both declare is the child's. It has this router's `providers` and
+   * `imports` too, as the same instances.
    *
    * ```ts
    * // src/endpoints/clinics/$clinicId/router.ts
    * import clinics from '../router.js';
    *
    * export default clinics.child({
-   *   params: z.object({ clinicId: z.uuid() }),
+   *   context: { params: z.object({ clinicId: z.uuid() }) },
    * });
    * ```
    */
@@ -139,6 +142,7 @@ export type EndpointRouter<
     ChildInject extends InjectProvidersMap = undefined,
     ChildInjectOnRequest extends InjectOnRequestMap = undefined,
     ChildParams extends z.ZodObject | undefined = undefined,
+    Inject extends InjectProvidersMap = undefined,
     Properties extends object = object,
     // eslint-disable-next-line @typescript-eslint/no-empty-object-type
     Methods extends MethodsMap = {},
@@ -147,7 +151,7 @@ export type EndpointRouter<
       ChildInject,
       ChildInjectOnRequest,
       ChildParams,
-      RouterInject,
+      Inject,
       Properties,
       Methods
     >,
@@ -204,9 +208,8 @@ type MadeWith = {
 
 /**
  * What a router declares for the instance of its module, and what the routers under it read
- * of where it is: its lifecycle hooks, properties and methods, and what is injected into it
- * for them, the router's `inject` over its parent's; its place in NestJS's order; its layout
- * and its middleware.
+ * of where it is: its lifecycle hooks, properties and methods, and what its own `inject` gives
+ * them; its place in NestJS's order; its layout and its middleware.
  */
 type RouterInstance = {
   members: InstanceMembers;
@@ -243,11 +246,24 @@ type RouterInstance = {
  * router, for the errors.
  */
 function ownContext(at: string, options: AnyRouterOptions | undefined): RouterContext {
-  const context = {
-    inject: options?.inject,
-    injectOnRequest: options?.injectOnRequest,
-    params: options?.params,
-  };
+  const given: unknown = options?.context;
+  const keys = new Intl.ListFormat('en').format(CONTEXT_KEYS.map((key) => `\`${key}\``));
+  if (
+    given !== undefined &&
+    (typeof given !== 'object' || given === null || Array.isArray(given))
+  ) {
+    throw new Error(`${at}: \`context\` must be an object of ${keys}.`);
+  }
+  const notContext = Object.keys(given ?? {}).find(
+    (key) => !(CONTEXT_KEYS as readonly string[]).includes(key),
+  );
+  if (notContext !== undefined) {
+    throw new Error(
+      `${at}: \`context.${notContext}\` is not a key of a context: it takes ${keys}.`,
+    );
+  }
+  const { inject, injectOnRequest, params } = (given ?? {}) as RouterContext;
+  const context = { inject, injectOnRequest, params };
   if ((options as { exports?: unknown } | undefined)?.exports !== undefined) {
     throw new Error(
       `${at}: \`exports\` is not a router option. What a router provides is for it and the ` +
@@ -265,18 +281,22 @@ function ownContext(at: string, options: AnyRouterOptions | undefined): RouterCo
         '`namespace` on it, or remove `description`.',
     );
   }
-  // The router's own names are checked with its members; these are each endpoint's.
-  const endpointsOwn = Object.keys(options?.inject ?? {}).find((key) =>
-    (ENDPOINT_OWN_MEMBERS as readonly string[]).includes(key),
-  );
-  if (endpointsOwn) {
-    throw new Error(
-      `${at}: \`inject\` declares \`${endpointsOwn}\`, a name each endpoint has: \`this\` ` +
-        'has one member of each name.',
-    );
+  // On each endpoint's `this`; what the router injects into its own is checked with its members.
+  for (const key of Object.keys(inject ?? {})) {
+    const reason = [...ENDPOINT_OWN_MEMBERS, 'constructor'].includes(key)
+      ? 'a name each endpoint has'
+      : (LIFECYCLE_HOOKS as readonly string[]).includes(key)
+        ? 'a lifecycle hook'
+        : undefined;
+    if (reason) {
+      throw new Error(
+        `${at}: \`context.inject\` declares \`${key}\`, ${reason}: \`this\` has one member of ` +
+          'each name.',
+      );
+    }
   }
-  assertOneMapPerKey(context, at);
-  assertPlainParams(context.params, at);
+  assertOneMapPerKey(context, at, 'context.');
+  assertPlainParams(params, at, '', 'context.params');
   return context;
 }
 
@@ -351,22 +371,18 @@ export function createLazily(
     context,
     providers,
     lineage: lineageOf(parent?.lineage ?? NO_LINEAGE, params),
-    instance: routerInstance(made, context, providers),
+    instance: routerInstance(made, providers),
   };
   return Object.assign(new LazyPromise(() => registerRouter(made, router)), routerMembers(router));
 }
 
 /** A router's instance, for the router `made` describes. */
-function routerInstance(
-  made: MadeWith,
-  context: RouterContext,
-  providers: SharedProviders,
-): RouterInstance {
+function routerInstance(made: MadeWith, providers: SharedProviders): RouterInstance {
   const { file, at, params, parent, capturedStore } = made;
   const members = declaredMembers(params ?? {}, {
     at,
     owner: 'router',
-    injected: Object.keys(context.inject ?? {}),
+    injected: Object.keys(params?.inject ?? {}),
     own: ['configure'],
   });
   const order = orderModule(parent?.instance ? [parent.instance.order] : []);
@@ -376,7 +392,7 @@ function routerInstance(
   // What a router under it was given before this one registered.
   let assumed: ParentStore | undefined;
   const instance: RouterInstance = {
-    inject: context.inject,
+    inject: params?.inject,
     members,
     order,
     middleware: () => {
@@ -464,6 +480,7 @@ export const EndpointRouter = {
     RouterInject extends InjectProvidersMap = undefined,
     RouterInjectOnRequest extends InjectOnRequestMap = undefined,
     RouterParams extends z.ZodObject | undefined = undefined,
+    Inject extends InjectProvidersMap = undefined,
     Properties extends object = object,
     // eslint-disable-next-line @typescript-eslint/no-empty-object-type
     Methods extends MethodsMap = {},
@@ -472,7 +489,7 @@ export const EndpointRouter = {
       RouterInject,
       RouterInjectOnRequest,
       RouterParams,
-      undefined,
+      Inject,
       Properties,
       Methods
     >,

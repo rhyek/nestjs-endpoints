@@ -5,6 +5,8 @@ import { ProjectsService } from './projects.service.js';
 export default EndpointRouter.create({
   namespace: true,
   providers: [ProjectsService],
-  inject: { projects: ProjectsService },
-  injectOnRequest: { user: decorated<User>(CurrentUser()) },
+  context: {
+    inject: { projects: ProjectsService },
+    injectOnRequest: { user: decorated<User>(CurrentUser()) },
+  },
 });

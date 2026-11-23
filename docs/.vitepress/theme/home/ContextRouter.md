@@ -6,6 +6,6 @@ import projects from '../router.js';
 // Inherits the `projects` service and the current `user`
 // from the router of the folder above.
 export default projects.child({
-  params: z.object({ projectId: z.uuid() }),
+  context: { params: z.object({ projectId: z.uuid() }) },
 });
 ```

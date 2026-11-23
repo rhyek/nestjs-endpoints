@@ -89,7 +89,7 @@ export const created = endpoint.mutation({
 
 export const router = EndpointRouter.create({
   basePath: 'declared',
-  params: z.object({ id: z.coerce.number() }),
+  context: { params: z.object({ id: z.coerce.number() }) },
 });
 
 export const viewed = router.endpoint.query({

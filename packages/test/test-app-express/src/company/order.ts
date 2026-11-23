@@ -22,7 +22,7 @@ export class OrderModule {}
 
 /**
  * A guard, an interceptor, a middleware and the five lifecycle hooks, for the router `name`:
- * each notes in the log what it did.
+ * each notes in the log what it did. The router injects the log into itself for its hooks.
  */
 export function recording(name: string) {
   const note = (log: OrderLog, what: string) => log.entries.push(`${name} ${what}`);
@@ -60,6 +60,8 @@ export function recording(name: string) {
 
   type This = { log: OrderLog };
   return {
+    // For the hooks below, on the router's own `this`.
+    inject: { log: OrderLog },
     guards: [Guard],
     interceptors: [Interceptor],
     middleware: [Middleware],

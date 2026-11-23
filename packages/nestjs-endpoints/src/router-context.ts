@@ -56,12 +56,14 @@ export function mergeInjections(
 }
 
 /** One level may not declare a key in both maps: the handler has one parameter of that name. */
-export function assertOneMapPerKey(level: Injections, at: string): void {
+export function assertOneMapPerKey(level: Injections, at: string, under = ''): void {
   const inBoth = Object.keys(level.inject ?? {}).find((key) =>
     Object.hasOwn(level.injectOnRequest ?? {}, key),
   );
   if (inBoth) {
-    throw new Error(`${at}: \`${inBoth}\` is in both \`inject\` and \`injectOnRequest\`.`);
+    throw new Error(
+      `${at}: \`${inBoth}\` is in both \`${under}inject\` and \`${under}injectOnRequest\`.`,
+    );
   }
 }
 
@@ -96,9 +98,9 @@ export type MergeableParams<Params, RouterParams> = RouterParams extends undefin
  * `params` that merge with another level's are a plain object schema: only
  * one can take the other's keys. `why` ends the message, for an endpoint.
  */
-export function assertPlainParams(params: unknown, at: string, why = ''): void {
+export function assertPlainParams(params: unknown, at: string, why = '', option = 'params'): void {
   if (params !== undefined && !(params instanceof z.ZodObject)) {
-    throw new Error(`${at}: \`params\` must be a plain z.object()${why}.`);
+    throw new Error(`${at}: \`${option}\` must be a plain z.object()${why}.`);
   }
 }
 

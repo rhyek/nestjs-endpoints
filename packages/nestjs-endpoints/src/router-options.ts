@@ -8,6 +8,47 @@ import type { ListedEndpoint } from './router-loading';
 import type { RouterMiddlewareList } from './router-middleware';
 
 /**
+ * What a router gives every endpoint built with its `endpoint`, and every router made with its
+ * `child()`, under what those declare themselves: a key both declare is theirs. The router's
+ * own instance has none of it.
+ */
+export type RouterContextOptions<
+  RouterInject extends InjectProvidersMap,
+  RouterInjectOnRequest extends InjectOnRequestMap,
+  RouterParams extends z.ZodObject | undefined,
+> = {
+  /**
+   * Providers to inject into each of those endpoints, as the endpoint
+   * option of the same name. A key goes in `inject` or `injectOnRequest`,
+   * not both.
+   */
+  // On each endpoint's `this`, which has its `handler` and `invoke` names to keep.
+  inject?: InjectNaming<RouterInject, EndpointOwnMembers>;
+  /**
+   * Request-time parameters for each of those endpoints, as the endpoint
+   * option of the same name.
+   */
+  injectOnRequest?: WithoutKeys<
+    RouterInjectOnRequest,
+    keyof RouterInject,
+    'is in both inject and injectOnRequest'
+  >;
+  /**
+   * Path parameters of each of those endpoints: a plain `z.object()`
+   * whose keys are `:param`s of each of their URLs, as a `$param` folder
+   * gives them. An endpoint declares only the parameters of its own.
+   *
+   * @example
+   *   // src/endpoints/clinics/$clinicId/router.ts
+   *   context: { params: z.object({ clinicId: z.uuid() }) }
+   */
+  params?: RouterParams;
+};
+
+/** The keys of a router's `context`. */
+export const CONTEXT_KEYS = ['params', 'inject', 'injectOnRequest'] as const;
+
+/**
  * What a router is configured with, of what `create()`, `child()` and `forRoot()` take: the
  * rest is its `this` (`EndpointRouterOptions`).
  */
@@ -121,32 +162,16 @@ export type RouterOptions<
    */
   guards?: RouterGuard[];
   /**
-   * Providers to inject into every endpoint built with this router's
-   * `endpoint` (`router.endpoint.query(...)`), as the endpoint option of
-   * the same name. A key goes in `inject` or `injectOnRequest`, not both.
-   */
-  // Its endpoints have them too: they have its `handler` and `invoke` names to keep.
-  inject?: InjectNaming<RouterInject, 'configure' | EndpointOwnMembers>;
-  /**
-   * Request-time parameters for every endpoint built with this router's
-   * `endpoint`, as the endpoint option of the same name.
-   */
-  injectOnRequest?: WithoutKeys<
-    RouterInjectOnRequest,
-    keyof RouterInject,
-    'is in both inject and injectOnRequest'
-  >;
-  /**
-   * Path parameters of every endpoint built with this router's
-   * `endpoint`: a plain `z.object()` whose keys are `:param`s of each of
-   * their URLs, as a `$param` folder gives them. An endpoint declares
-   * only the parameters of its own.
+   * What the router gives its endpoints and the routers under it:
+   * `params`, `inject` and `injectOnRequest`.
    *
    * @example
-   *   // src/endpoints/clinics/$clinicId/router.ts
-   *   params: z.object({ clinicId: z.uuid() })
+   *   context: {
+   *     params: z.object({ clinicId: z.uuid() }),
+   *     inject: { clinics: ClinicsService },
+   *   }
    */
-  params?: RouterParams;
+  context?: RouterContextOptions<RouterInject, RouterInjectOnRequest, RouterParams>;
 };
 
 /**

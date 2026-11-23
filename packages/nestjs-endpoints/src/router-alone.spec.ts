@@ -38,7 +38,9 @@ describe('a child router an app loads by itself', () => {
         rootDirectory: empty,
         basePath: 'api',
         providers: [Access],
-        inject: { access: Access },
+        context: {
+          inject: { access: Access },
+        },
       },
     });
     const child = root.child({ endpoints: (): Type[] => [Granted] });

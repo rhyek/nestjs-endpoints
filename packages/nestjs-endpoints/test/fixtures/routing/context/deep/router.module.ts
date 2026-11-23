@@ -3,5 +3,7 @@ import { Access } from '../access';
 
 export default EndpointRouter.create({
   providers: [Access],
-  inject: { access: Access },
+  context: {
+    inject: { access: Access },
+  },
 });

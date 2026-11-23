@@ -16,7 +16,9 @@ describe('the root router of an app, above a tree of routers it finds', () => {
       router: {
         rootDirectory: '../src/company',
         imports: [OrderModule],
-        inject: { log: OrderLog },
+        context: {
+          inject: { log: OrderLog },
+        },
         ...recording('root'),
       },
     });

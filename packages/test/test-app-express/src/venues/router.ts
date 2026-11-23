@@ -8,13 +8,17 @@ import { VenuesService } from './venues.service';
 export default EndpointRouter.create({
   namespace: true,
   providers: [VenuesService],
+  // For the router's own method and hook; the endpoints have theirs in `context`.
   inject: { venues: VenuesService },
-  injectOnRequest: { tenant: decorated<string | undefined>(Headers('x-tenant')) },
+  context: {
+    inject: { venues: VenuesService },
+    injectOnRequest: { tenant: decorated<string | undefined>(Headers('x-tenant')) },
+  },
   // For every endpoint under this router, its own and those of the routers under it, but
   // one that a router two levels down serves.
   middleware: [VenuesCountMiddleware, { exclude: [':venueId/tables/:tableId/seat/:seat'] }],
   // A lifecycle hook and a method of the router, written as methods: `this`
-  // has what the router injects.
+  // has what the router injects into itself.
   methods: {
     open(router: string) {
       this.venues.opened.push(router);

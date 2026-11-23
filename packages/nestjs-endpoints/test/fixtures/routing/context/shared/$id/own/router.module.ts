@@ -7,5 +7,7 @@ import item from '../router.module';
 export default item.child({
   imports: [ClockModule],
   providers: [Access],
-  inject: { clock: Clock },
+  context: {
+    inject: { clock: Clock },
+  },
 });

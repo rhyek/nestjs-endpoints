@@ -74,7 +74,7 @@ Endpoints built with the router's own `endpoint` builder, to receive its
 export default EndpointRouter.create({
   basePath: 'recipes',
   providers: [RecipesRepository],
-  inject: { recipes: RecipesRepository },
+  context: { inject: { recipes: RecipesRepository } },
   endpoints: () => [import('./create-recipe.js'), import('./list-recipes.js')],
 });
 ```

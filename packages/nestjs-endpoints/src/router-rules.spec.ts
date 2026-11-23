@@ -32,10 +32,17 @@ describe('what a router gives the endpoints built with its `endpoint`', () => {
   test("a key a child takes from the request replaces its parent's provider, which no one asks for then", async () => {
     // Nothing provides it: the parent's own endpoints would need it, the child's do not.
     class NotProvided {}
-    const parent = EndpointRouter.create({ endpoints: [], inject: { tenant: NotProvided } });
+    const parent = EndpointRouter.create({
+      endpoints: [],
+      context: {
+        inject: { tenant: NotProvided },
+      },
+    });
     const child = parent.child({
       endpoints: (): Type[] => [View],
-      injectOnRequest: { tenant: decorated<{ url: string }>(Req()) },
+      context: {
+        injectOnRequest: { tenant: decorated<{ url: string }>(Req()) },
+      },
     });
     const View = child.endpoint.query({
       path: unique('view'),
@@ -53,7 +60,9 @@ describe('what a router gives the endpoints built with its `endpoint`', () => {
     const top = EndpointRouter.create({
       endpoints: [],
       basePath: 'clinics',
-      params: z.object({ clinicId: z.string() }),
+      context: {
+        params: z.object({ clinicId: z.string() }),
+      },
     });
     const bottom = top
       .child({ endpoints: [], basePath: 'clinics/visits' })
@@ -65,7 +74,12 @@ describe('what a router gives the endpoints built with its `endpoint`', () => {
   });
 
   test('leaves the params of an endpoint as they are when the router has none: a transform too', async () => {
-    const router = EndpointRouter.create({ endpoints: [], inject: { access: Access } });
+    const router = EndpointRouter.create({
+      endpoints: [],
+      context: {
+        inject: { access: Access },
+      },
+    });
     const View = router.endpoint.query({
       path: ':id/view',
       params: z.object({ id: z.string() }).transform(({ id }) => ({ id: Number(id) })),
@@ -80,8 +94,10 @@ describe('what a router gives the endpoints built with its `endpoint`', () => {
         rootDirectory: empty,
         endpoints: (): Type[] => [Granted],
         providers: [Access],
-        inject: { access: Access },
-        params: z.object({ tenant: z.string() }),
+        context: {
+          inject: { access: Access },
+          params: z.object({ tenant: z.string() }),
+        },
       },
     });
     const Granted = root.endpoint.query({
@@ -112,10 +128,10 @@ describe('the errors of a router name the call that made it', () => {
 
   test.each(calls)('%s: a key in both inject and injectOnRequest', (call, make) => {
     expect(() =>
-      make({ inject: { user: Access }, injectOnRequest: { user: decorated(Req()) } }),
+      make({ context: { inject: { user: Access }, injectOnRequest: { user: decorated(Req()) } } }),
     ).toThrow(
       new RegExp(
-        `${call.replace(/[.()]/g, String.raw`\$&`)} in .*${here}: \`user\` is in both \`inject\` and \`injectOnRequest\`\\.`,
+        `${call.replace(/[.()]/g, String.raw`\$&`)} in .*${here}: \`user\` is in both \`context\\.inject\` and \`context\\.injectOnRequest\`\\.`,
       ),
     );
   });
@@ -188,7 +204,12 @@ describe("a router's providers and imports, for the routers under it", () => {
       imports: [DbModule],
       providers: [Repo],
     });
-    const child = parent.child({ endpoints: (): Type[] => [Uses], inject: { repo: Repo } });
+    const child = parent.child({
+      endpoints: (): Type[] => [Uses],
+      context: {
+        inject: { repo: Repo },
+      },
+    });
     const Uses = child.endpoint.query({
       path: unique('uses'),
       handler() {
@@ -224,7 +245,12 @@ describe("a router's providers and imports, for the routers under it", () => {
     }
     const parent = EndpointRouter.create({ endpoints: [], providers: [Counted] });
     const children = [1, 2].map(() => {
-      const child = parent.child({ endpoints: (): Type[] => [Of], inject: { counted: Counted } });
+      const child = parent.child({
+        endpoints: (): Type[] => [Of],
+        context: {
+          inject: { counted: Counted },
+        },
+      });
       const Of = child.endpoint.query({
         path: unique('of'),
         handler() {
@@ -402,7 +428,9 @@ describe('a lifecycle hook, and what NestJS makes for each request', () => {
     const router = EndpointRouter.create({
       endpoints: (): Type[] => [Hooked],
       providers: [PerRequest],
-      inject: { perRequest: PerRequest },
+      context: {
+        inject: { perRequest: PerRequest },
+      },
     });
     const Hooked = router.endpoint.query({
       path: unique('by-router'),
@@ -455,7 +483,9 @@ describe('a lifecycle hook, and what NestJS makes for each request', () => {
     const router = EndpointRouter.create({
       endpoints: (): Type[] => [Hooked],
       providers: [Each],
+      // Into itself, and into its endpoints.
       inject: { each: Each },
+      context: { inject: { each: Each } },
       lifecycle: {
         onModuleInit() {
           calls.push(`router ${this.each instanceof Each}`);
@@ -544,7 +574,7 @@ describe("a router's lifecycle hooks, in an app", () => {
     expect(signals).toEqual(['SIGTERM', 'SIGTERM']);
   });
 
-  test('have what the router injects by a token, through decorated()', async () => {
+  test('have what the router injects into itself by a token, through decorated()', async () => {
     const seen: unknown[] = [];
     const router = EndpointRouter.create({
       endpoints: [],
@@ -629,7 +659,9 @@ describe('routers made with child(), in an app without the routers above them', 
       endpoints: (): Type[] => [Granted],
       basePath: 'kids',
       providers: [Access],
-      inject: { access: Access },
+      context: {
+        inject: { access: Access },
+      },
     });
     const Granted = child.endpoint.query({
       path: 'granted',

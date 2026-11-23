@@ -6,6 +6,8 @@ import { VenueScopeMiddleware } from './venue-scope.middleware';
 // it declares. It lists no provider: `VenuesService`, which its endpoints and
 // its middleware need, is its parent's.
 export default venues.child({
-  params: z.object({ venueId: z.uuid() }),
+  context: {
+    params: z.object({ venueId: z.uuid() }),
+  },
   middleware: [VenueScopeMiddleware],
 });

@@ -5,5 +5,7 @@ import { Clock, ClockModule } from '../clock';
 export default EndpointRouter.create({
   imports: [ClockModule],
   providers: [Access],
-  inject: { access: Access, clock: Clock },
+  context: {
+    inject: { access: Access, clock: Clock },
+  },
 });

@@ -40,7 +40,7 @@ it receives them in its handler, typed. A child router inherits its parent's:
 import projects from '../router.js';
 
 export default projects.child({
-  params: z.object({ projectId: z.uuid() }),
+  context: { params: z.object({ projectId: z.uuid() }) },
 });
 ```
 

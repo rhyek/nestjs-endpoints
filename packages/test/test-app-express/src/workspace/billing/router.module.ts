@@ -6,5 +6,7 @@ export default EndpointRouter.create({
   rootDirectory: 'endpoints',
   namespace: true,
   providers: [BillingService],
-  inject: { billing: BillingService },
+  context: {
+    inject: { billing: BillingService },
+  },
 });

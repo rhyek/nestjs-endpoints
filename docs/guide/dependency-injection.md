@@ -88,5 +88,5 @@ For anything a whole folder needs, declare it once on the
 
 ## Router injections
 
-What every endpoint of a router needs can be declared once, on the router, with its own `inject`
-and `injectOnRequest`. See [Router context](./router-context.md).
+What every endpoint of a router needs can be declared once, in the router's `context`, with its
+`inject` and `injectOnRequest`. See [Router context](./router-context.md).

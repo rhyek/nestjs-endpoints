@@ -73,8 +73,9 @@ it by itself, and its base path is the folder's name. Its `middleware`, `interce
 `guards` apply to every endpoint under it. See [Nested routers](../guide/routers.md#nested-routers)
 and [Middleware, interceptors and guards](../guide/routers.md#middleware-interceptors-and-guards).
 
-A value every endpoint of a router needs goes on the router: a provider in `inject`, the current
-user in `injectOnRequest`, and the path parameter of a `$param` folder in `params`. A nested
+A value every endpoint of a router needs goes in the router's `context`: a provider in `inject`,
+the current user in `injectOnRequest`, and the path parameter of a `$param` folder in `params`.
+A provider the router's own lifecycle hooks or methods use goes in its top-level `inject`. A nested
 router made with the parent's `child()` inherits them, with the parent's `providers` and
 `imports`: it lists only its own. See
 [Router context](../guide/router-context.md).

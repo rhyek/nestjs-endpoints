@@ -4,5 +4,7 @@ import { EndpointRouter, z } from 'nestjs-endpoints';
 // nothing. It declares the parameter of the `$eventId` folder its endpoints
 // are in.
 export default EndpointRouter.create({
-  params: z.object({ eventId: z.coerce.number() }),
+  context: {
+    params: z.object({ eventId: z.coerce.number() }),
+  },
 });

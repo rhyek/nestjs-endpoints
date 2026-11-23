@@ -5,16 +5,16 @@ description: Router context — path parameters and injections a router declares
 # Router context
 
 A router's context is what it gives the handler of every endpoint under it: path parameters,
-providers and per-request values. You declare each once, on the router, with the options an
-endpoint has for them: `params`, `inject` and `injectOnRequest`.
+providers and per-request values. You declare each once, in the router's `context`, with the
+options an endpoint has for them: `params`, `inject` and `injectOnRequest`.
 
 ```
 src/endpoints/projects/
-├── router.ts                      inject, injectOnRequest
+├── router.ts                      context: inject, injectOnRequest
 ├── projects.service.ts
 ├── list.endpoint.ts                      POST /projects/list
 └── $projectId/
-    ├── router.ts                  params: projectId
+    ├── router.ts                  context: params (projectId)
     ├── view.endpoint.ts                  POST /projects/:projectId/view
     └── tasks.$taskId.complete.endpoint.ts  POST /projects/:projectId/tasks/:taskId/complete
 ```
@@ -33,8 +33,10 @@ import { ProjectsService } from './projects.service.js';
 // src/endpoints/projects/router.ts
 export default EndpointRouter.create({
   providers: [ProjectsService],
-  inject: { projects: ProjectsService },
-  injectOnRequest: { user: decorated<User>(CurrentUser()) },
+  context: {
+    inject: { projects: ProjectsService },
+    injectOnRequest: { user: decorated<User>(CurrentUser()) },
+  },
 });
 ```
 
@@ -56,14 +58,15 @@ export default router.endpoint.query({
 ```
 
 The context reaches the endpoints built with the router's `endpoint`. An endpoint built with the
-package's own `endpoint` gets none of it.
+package's own `endpoint` gets none of it, and neither does the router itself: what its own
+lifecycle hooks and methods use, it injects with its own [`inject`](../reference/router.md#options).
 
 A router file can also re-export the builder, with `export const { endpoint } = router;`, so
 its endpoints import `endpoint` from `./router.js`.
 
 ## Path parameters
 
-A router's `params` are the path parameters of a folder: a plain `z.object()` whose keys are
+A router's `context.params` are the path parameters of a folder: a plain `z.object()` whose keys are
 `:param`s in the URL of each of its endpoints. With
 [file-based routing](./file-based-routing.md#path-parameters), put the router in the folder that
 names the parameter:
@@ -76,7 +79,7 @@ import { z } from 'nestjs-endpoints';
 import projects from '../router.js';
 
 export default projects.child({
-  params: z.object({ projectId: z.uuid() }),
+  context: { params: z.object({ projectId: z.uuid() }) },
 });
 ```
 
@@ -123,7 +126,7 @@ parameters an endpoint declares.
 - **Every endpoint built with the router's `endpoint` has the parameter in its URL.** One that
   doesn't stops the app from starting. Endpoints outside the `$param` folder belong to a router
   that doesn't declare it.
-- **A router's `params` is a plain `z.object()`**: not one behind a transform or a preprocess
+- **A router's `context.params` is a plain `z.object()`**: not one behind a transform or a preprocess
   step. An endpoint that adds parameters of its own declares a plain object too.
 - **A rule on the whole object stays with the schema that states it.** A router's
   `z.strictObject()` or `.refine()` applies to the endpoints that add no parameters. An endpoint

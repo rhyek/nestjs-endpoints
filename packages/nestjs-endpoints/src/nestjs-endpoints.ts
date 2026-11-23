@@ -16,6 +16,7 @@ export interface NestjsEndpointsOptions<
   RouterInject extends InjectProvidersMap = undefined,
   RouterInjectOnRequest extends InjectOnRequestMap = undefined,
   RouterParams extends z.ZodObject | undefined = undefined,
+  Inject extends InjectProvidersMap = undefined,
   Properties = object,
   // As `forRoot()` has them when the router declares none.
   // eslint-disable-next-line @typescript-eslint/no-empty-object-type
@@ -29,7 +30,7 @@ export interface NestjsEndpointsOptions<
     RouterInject,
     RouterInjectOnRequest,
     RouterParams,
-    undefined,
+    Inject,
     Properties,
     Methods
   >;
@@ -49,6 +50,7 @@ export class NestjsEndpoints {
     RouterInject extends InjectProvidersMap = undefined,
     RouterInjectOnRequest extends InjectOnRequestMap = undefined,
     RouterParams extends z.ZodObject | undefined = undefined,
+    Inject extends InjectProvidersMap = undefined,
     Properties extends object = object,
     // eslint-disable-next-line @typescript-eslint/no-empty-object-type
     Methods extends MethodsMap = {},
@@ -57,6 +59,7 @@ export class NestjsEndpoints {
       RouterInject,
       RouterInjectOnRequest,
       RouterParams,
+      Inject,
       Properties,
       Methods
     > = {},

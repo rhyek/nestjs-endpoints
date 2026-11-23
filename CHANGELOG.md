@@ -4,13 +4,14 @@
 
 ### Features
 
-- **A router declares the path parameters of its folder with `params`**, and every endpoint built with its `endpoint` receives them, validated and typed. See [Router context](docs/guide/router-context.md#path-parameters).
-- **`router.child()` creates a nested router that inherits its parent's `params`, `inject`, `injectOnRequest`, `providers` and `imports`**, through every level. See [Child routers](docs/guide/router-context.md#child-routers).
+- **A router declares the path parameters of its folder in `context.params`**, and every endpoint built with its `endpoint` receives them, validated and typed. See [Router context](docs/guide/router-context.md#path-parameters).
+- **`router.child()` creates a nested router that inherits its parent's `context`, `providers` and `imports`**, through every level. See [Child routers](docs/guide/router-context.md#child-routers).
 - **An endpoint may declare a key its router injects, and its own wins.**
 - **A router file can be named `router.ts`**, and `router.module.ts` keeps working. See [Routers](docs/guide/routers.md#nested-routers).
 - **Endpoints and routers take NestJS's lifecycle hooks in `lifecycle`**, such as `lifecycle: { onModuleInit() {} }`, and a router starts after the routers above it. See [Endpoint options](docs/reference/endpoint.md#options).
 - **A child router loads by itself in a test with everything the routers above it give**, and none of their endpoints. See [Testing](docs/guide/testing.md).
 - **Endpoints and routers declare `properties` and `methods`, and a handler, method or hook written as a method reads them, and what is injected, from `this`.** See [`this`](docs/reference/endpoint.md#this).
+- **A router's `inject` is for its own lifecycle hooks and methods**, and its endpoints get what its `context` gives. See [Router options](docs/reference/router.md#options).
 
 ### Fixes
 
@@ -22,7 +23,7 @@
 
 ### Breaking changes
 
-- **A router's `inject` and `injectOnRequest` are top-level options, and `endpointConfig` is removed.** Move the keys of `endpointConfig` up into the router's own options. See [Router context](docs/guide/router-context.md).
+- **A router's `endpointConfig` is renamed `context`**, which takes `params` too. Rename the key. See [Router context](docs/guide/router-context.md).
 - **`EndpointRouterModule` is renamed `EndpointRouter`**, and the deprecated `EndpointsRouterModule` and `register()` are removed. Rename the import, and call `create()`.
 - **`getHttpPathPascalName`, `getEndpointHttpPath`, `getCallsiteFile` and `moduleAls` are not exported**: they were the library's internals.
 - **`schema()` is removed: a schema's `.meta({ description })` describes its response in the OpenAPI document**, as in `201: created.meta({ description: 'Created' })`, and an `input`'s describes the request body. See [Responses](docs/guide/responses.md#several-statuses).

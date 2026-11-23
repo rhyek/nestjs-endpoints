@@ -5,6 +5,8 @@ import { OrderLog, OrderModule, recording } from '../../../order';
 // their guards, interceptors and middleware to it, and start before it.
 export default EndpointRouter.create({
   imports: [OrderModule],
-  inject: { log: OrderLog },
+  context: {
+    inject: { log: OrderLog },
+  },
   ...recording('archive'),
 });

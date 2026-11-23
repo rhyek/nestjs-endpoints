@@ -115,7 +115,9 @@ describe('inject and injectOnRequest on a router', () => {
   test("a router with only injectOnRequest adds it to the handler's own inject", () => {
     EndpointRouter.create({
       endpoints: [],
-      injectOnRequest: { tenant: decorated<string>(Headers('x-tenant')) },
+      context: {
+        injectOnRequest: { tenant: decorated<string>(Headers('x-tenant')) },
+      },
     }).endpoint.query({
       path: 'types-only',
       inject: { workspace: WorkspaceService },

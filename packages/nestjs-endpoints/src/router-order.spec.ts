@@ -162,7 +162,9 @@ describe('routers made with child(), each loaded by an app as itself', () => {
     const router = EndpointRouter.create({
       endpoints: [],
       providers: [Connection],
-      inject: { connection: Connection },
+      context: {
+        inject: { connection: Connection },
+      },
       ...noting(calls, 'router'),
     });
     const app = await start(router);

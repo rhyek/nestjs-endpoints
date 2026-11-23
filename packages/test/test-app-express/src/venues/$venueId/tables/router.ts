@@ -1,5 +1,6 @@
 import { Headers } from '@nestjs/common';
 import { decorated, z } from 'nestjs-endpoints';
+import { VenuesService } from '../../venues.service';
 import venue from '../router';
 import { TablesGuard } from './tables.guard';
 
@@ -7,10 +8,13 @@ import { TablesGuard } from './tables.guard';
 // `tenant` replaces the one the venues router injects.
 export default venue.child({
   namespace: true,
-  params: z.object({ tableId: z.coerce.number() }),
-  injectOnRequest: { tenant: decorated<string | undefined>(Headers('x-table-tenant')) },
+  context: {
+    params: z.object({ tableId: z.coerce.number() }),
+    injectOnRequest: { tenant: decorated<string | undefined>(Headers('x-table-tenant')) },
+  },
   guards: [TablesGuard],
-  // `venues` is injected by the router two levels up; `name` is this router's own.
+  // The service the router two levels up provides, injected into this router itself.
+  inject: { venues: VenuesService },
   properties: () => ({ name: 'tables' }),
   lifecycle: {
     onApplicationBootstrap() {
