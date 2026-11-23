@@ -49,12 +49,25 @@ export type MethodsMap = Record<string, (...args: any[]) => any>;
  * declared: `Injections`, what is injected into the instance, with its properties and
  * methods. `Own` names the members the instance has before any it declares.
  */
-export type InstanceOptions<
-  Injections,
-  Properties,
-  Methods,
-  Own extends string,
-> = LifecycleHooks & {
+export type InstanceOptions<Injections, Properties, Methods, Own extends string> = {
+  /**
+   * NestJS's lifecycle hooks, called on the instance as they are on a
+   * controller and on a module. `this` has the properties, the methods and
+   * what is injected, in a hook written as a method.
+   *
+   * ```ts
+   * endpoint.query({
+   *   inject: { cache: CacheService },
+   *   lifecycle: {
+   *     async onModuleInit() {
+   *       await this.cache.warm();
+   *     },
+   *   },
+   *   handler: () => 'ready',
+   * })
+   * ```
+   */
+  lifecycle?: LifecycleHooks;
   /**
    * Properties of the instance, as a class's fields are: of an endpoint's
    * controller, or of a router's module. A function that returns them,
@@ -86,11 +99,6 @@ export type InstanceOptions<
    * Methods of the instance, as a class's are. `this` has them, the
    * `properties` and what is injected.
    *
-   * Declare them above the handler and the hooks: TypeScript reads the
-   * options in order, and a function that returns from a method declared
-   * below it does not have that method on `this`, unless it declares its
-   * return type.
-   *
    * ```ts
    * endpoint.query({
    *   inject: { users: UsersService },
@@ -112,7 +120,7 @@ export type InstanceOptions<
   };
 } & ThisType<Injections & Properties & Methods>;
 
-type Declared = LifecycleHooks & { properties?: unknown; methods?: unknown };
+type Declared = { lifecycle?: unknown; properties?: unknown; methods?: unknown };
 
 export type InstanceMembers = {
   /** Whether anything is declared: whether anything reads `this`. */
@@ -150,10 +158,22 @@ export function declaredMembers(
   const fail = (message: string) => new Error(`${at}: ${message}`);
   const twice = (option: string, name: string, reason: string) =>
     fail(`\`${option}\` declares \`${name}\`, ${reason}: \`this\` has one member of each name.`);
-  const hooks = LIFECYCLE_HOOKS.filter((hook) => declared[hook] !== undefined);
+  const { lifecycle = {} } = declared;
+  if (typeof lifecycle !== 'object' || lifecycle === null || Array.isArray(lifecycle)) {
+    throw fail('`lifecycle` must be an object of lifecycle hooks.');
+  }
+  const notHook = Object.keys(lifecycle).find(
+    (name) => !(LIFECYCLE_HOOKS as readonly string[]).includes(name),
+  );
+  if (notHook !== undefined) {
+    const all = new Intl.ListFormat('en').format(LIFECYCLE_HOOKS);
+    throw fail(`\`lifecycle.${notHook}\` is not a lifecycle hook: they are ${all}.`);
+  }
+  const declaredHooks = lifecycle as LifecycleHooks;
+  const hooks = LIFECYCLE_HOOKS.filter((hook) => declaredHooks[hook] !== undefined);
   for (const hook of hooks) {
-    if (typeof declared[hook] !== 'function') {
-      throw fail(`\`${hook}\` must be a function.`);
+    if (typeof declaredHooks[hook] !== 'function') {
+      throw fail(`\`lifecycle.${hook}\` must be a function.`);
     }
   }
   /** Why the instance has a member of that name before any it declares. */
@@ -195,7 +215,7 @@ export function declaredMembers(
     hooks,
     defineOn: (cls, inject, by) => {
       const prototype = cls.prototype as object;
-      const members = [...methods, ...hooks.map((hook) => [hook, declared[hook]] as const)];
+      const members = [...methods, ...hooks.map((hook) => [hook, declaredHooks[hook]] as const)];
       for (const [name, value] of members) {
         Object.defineProperty(prototype, name, { value, writable: true, configurable: true });
       }

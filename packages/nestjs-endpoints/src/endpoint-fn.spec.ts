@@ -544,8 +544,10 @@ describe("an endpoint's `this`", () => {
         run: () => 1,
         opened: undefined as Date | undefined,
       }),
-      onModuleInit() {
-        this.opened = new Date(5);
+      lifecycle: {
+        onModuleInit() {
+          this.opened = new Date(5);
+        },
       },
       handler() {
         expectTypeOf(this.opened).toEqualTypeOf<Date | undefined>();
@@ -702,22 +704,24 @@ describe("an endpoint's `this`", () => {
           this.calls.push(`${hook} at ${this.clock.now()}, signal ${signal}`);
         },
       },
-      onModuleInit() {
-        this.note('init');
-      },
-      async onApplicationBootstrap() {
-        await Promise.resolve();
-        this.note('bootstrap');
-      },
-      onModuleDestroy() {
-        this.note('destroy');
-      },
-      beforeApplicationShutdown(signal) {
-        expectTypeOf(signal).toEqualTypeOf<string | undefined>();
-        this.note('before shutdown', signal);
-      },
-      onApplicationShutdown(signal) {
-        this.note('shutdown', signal);
+      lifecycle: {
+        onModuleInit() {
+          this.note('init');
+        },
+        async onApplicationBootstrap() {
+          await Promise.resolve();
+          this.note('bootstrap');
+        },
+        onModuleDestroy() {
+          this.note('destroy');
+        },
+        beforeApplicationShutdown(signal) {
+          expectTypeOf(signal).toEqualTypeOf<string | undefined>();
+          this.note('before shutdown', signal);
+        },
+        onApplicationShutdown(signal) {
+          this.note('shutdown', signal);
+        },
       },
       handler() {
         return this.calls;
@@ -735,6 +739,46 @@ describe("an endpoint's `this`", () => {
       'before shutdown at 7, signal undefined',
       'shutdown at 7, signal undefined',
     ]);
+  });
+
+  test('is given to a lifecycle hook, typed, with what the endpoint and its router inject', async () => {
+    const router = createRouterEndpoint(routerFile, {
+      inject: { clock: Clock },
+    }) as EndpointBuilders<{ clock: typeof Clock }>;
+    const seen: unknown[] = [];
+    const Hooked = router.query({
+      path: 'this/hook-types',
+      inject: { users: Users },
+      properties: () => ({ started: 0 }),
+      methods: {
+        nameOf(id: number) {
+          return this.users.find(id).name;
+        },
+      },
+      lifecycle: {
+        onModuleInit() {
+          expectTypeOf(this.users).toEqualTypeOf<Users>();
+          expectTypeOf(this.clock).toEqualTypeOf<Clock>();
+          expectTypeOf(this.started).toEqualTypeOf<number>();
+          expectTypeOf<typeof this.nameOf>().toEqualTypeOf<(id: number) => string>();
+          if (this.started > 0) {
+            // @ts-expect-error not a member
+            void this.missing;
+            // @ts-expect-error a number
+            this.nameOf('1');
+          }
+          this.started = this.clock.now();
+          seen.push(this.nameOf(this.started), this.clock instanceof Clock);
+        },
+      },
+      handler() {
+        return this.started;
+      },
+    });
+    const app = await start(Hooked);
+    expect(seen).toEqual(['user 7', true]);
+    await expect(app.get(Hooked).invoke()).resolves.toBe(7);
+    await app.close();
   });
 
   describe('has one member of each name', () => {
@@ -852,7 +896,15 @@ describe("an endpoint's `this`", () => {
         '`methods.find` must be a function',
       ],
       ['properties given as an object', { properties: {} }, '`properties` must be a function'],
-      ['a hook that is not a function', { onModuleInit: 1 }, '`onModuleInit` must be a function'],
+      [
+        'a hook that is not a function',
+        {
+          lifecycle: {
+            onModuleInit: 1,
+          },
+        },
+        '`lifecycle.onModuleInit` must be a function',
+      ],
     ])('refuses %s', (_, options, message) => {
       expect(declare(options)).toThrow(message);
     });
@@ -862,6 +914,26 @@ describe("an endpoint's `this`", () => {
       expect(() => new None()).toThrow('`properties` must return an object');
     });
   });
+});
+
+test('an option it does not know, and a hook it does not know in `lifecycle`, are type errors', () => {
+  endpoint.query({
+    path: 'keys/unknown-option',
+    // @ts-expect-error not an option
+    unknownOption: 1,
+    handler: () => null,
+  });
+  // A hook is also refused at runtime, as its types cannot catch it in an object made elsewhere.
+  expect(() =>
+    endpoint.mutation({
+      path: 'keys/unknown-hook',
+      lifecycle: {
+        // @ts-expect-error not a lifecycle hook
+        onModuleInt() {},
+      },
+      handler: () => null,
+    }),
+  ).toThrow('`lifecycle.onModuleInt` is not a lifecycle hook');
 });
 
 describe('what invoke() takes', () => {

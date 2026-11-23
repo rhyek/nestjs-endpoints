@@ -8,7 +8,7 @@
 - **`router.child()` creates a nested router that inherits its parent's `params`, `inject`, `injectOnRequest`, `providers` and `imports`**, through every level. See [Child routers](docs/guide/router-context.md#child-routers).
 - **An endpoint may declare a key its router injects, and its own wins.**
 - **A router file can be named `router.ts`**, and `router.module.ts` keeps working. See [Routers](docs/guide/routers.md#nested-routers).
-- **Endpoints and routers take NestJS's lifecycle hooks as options**, such as `onModuleInit` and `onModuleDestroy`, and a router starts after the routers above it. See [Endpoint options](docs/reference/endpoint.md#options).
+- **Endpoints and routers take NestJS's lifecycle hooks in `lifecycle`**, such as `lifecycle: { onModuleInit() {} }`, and a router starts after the routers above it. See [Endpoint options](docs/reference/endpoint.md#options).
 - **A child router loads by itself in a test with everything the routers above it give**, and none of their endpoints. See [Testing](docs/guide/testing.md).
 - **Endpoints and routers declare `properties` and `methods`, and a handler, method or hook written as a method reads them, and what is injected, from `this`.** See [`this`](docs/reference/endpoint.md#this).
 

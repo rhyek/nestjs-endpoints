@@ -34,8 +34,10 @@ export default router.endpoint.mutation({
       return this.venues.names().includes(name);
     },
   },
-  onModuleInit() {
-    this.ready = true;
+  lifecycle: {
+    onModuleInit() {
+      this.ready = true;
+    },
   },
   handler({ input: { name } }) {
     return {

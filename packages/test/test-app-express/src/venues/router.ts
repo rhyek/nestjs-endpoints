@@ -20,7 +20,9 @@ export default EndpointRouter.create({
       this.venues.opened.push(router);
     },
   },
-  onModuleInit() {
-    this.open('venues');
+  lifecycle: {
+    onModuleInit() {
+      this.open('venues');
+    },
   },
 });

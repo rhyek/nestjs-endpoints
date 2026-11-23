@@ -207,8 +207,10 @@ describe("a router's providers and imports, for the routers under it", () => {
       imports: [DbModule],
       providers: [Repo],
       inject: { repo: Repo },
-      onModuleInit() {
-        seen.push(this.repo.db.name);
+      lifecycle: {
+        onModuleInit() {
+          seen.push(this.repo.db.name);
+        },
       },
     });
     await (await start(router)).close();
@@ -337,7 +339,9 @@ describe('a lifecycle hook, and what NestJS makes for each request', () => {
     });
     const Hooked = router.endpoint.query({
       path: unique('hooked'),
-      onModuleInit() {},
+      lifecycle: {
+        onModuleInit() {},
+      },
       handler: () => null,
     });
     return router;
@@ -386,7 +390,9 @@ describe('a lifecycle hook, and what NestJS makes for each request', () => {
     const Hooked = router.endpoint.query({
       path: unique('own-guard'),
       decorators: [UseGuards(PerRequestGuard)],
-      onModuleInit() {},
+      lifecycle: {
+        onModuleInit() {},
+      },
       handler: () => null,
     });
     await expect(start(router)).rejects.toThrow(failure);
@@ -400,7 +406,9 @@ describe('a lifecycle hook, and what NestJS makes for each request', () => {
     });
     const Hooked = router.endpoint.query({
       path: unique('by-router'),
-      onModuleInit() {},
+      lifecycle: {
+        onModuleInit() {},
+      },
       handler: () => null,
     });
     await expect(start(router)).rejects.toThrow(/the endpoint of .* declares onModuleInit/);
@@ -410,7 +418,9 @@ describe('a lifecycle hook, and what NestJS makes for each request', () => {
     const Hooked = endpoint.query({
       path: unique('plain-module'),
       inject: { perRequest: PerRequest },
-      onModuleInit() {},
+      lifecycle: {
+        onModuleInit() {},
+      },
       handler: () => null,
     });
     @Module({ controllers: [Hooked], providers: [PerRequest] })
@@ -428,9 +438,11 @@ describe('a lifecycle hook, and what NestJS makes for each request', () => {
     const Hooked = router.endpoint.query({
       path: unique('three'),
       inject: { perRequest: PerRequest },
-      onModuleInit() {},
-      onApplicationBootstrap() {},
-      onModuleDestroy() {},
+      lifecycle: {
+        onModuleInit() {},
+        onApplicationBootstrap() {},
+        onModuleDestroy() {},
+      },
       handler: () => null,
     });
     await expect(start(router)).rejects.toThrow(
@@ -444,14 +456,18 @@ describe('a lifecycle hook, and what NestJS makes for each request', () => {
       endpoints: (): Type[] => [Hooked],
       providers: [Each],
       inject: { each: Each },
-      onModuleInit() {
-        calls.push(`router ${this.each instanceof Each}`);
+      lifecycle: {
+        onModuleInit() {
+          calls.push(`router ${this.each instanceof Each}`);
+        },
       },
     });
     const Hooked = router.endpoint.query({
       path: unique('transient'),
-      onModuleInit() {
-        calls.push(`endpoint ${this.each instanceof Each}`);
+      lifecycle: {
+        onModuleInit() {
+          calls.push(`endpoint ${this.each instanceof Each}`);
+        },
       },
       handler: () => null,
     });
@@ -473,7 +489,9 @@ describe('a lifecycle hook, and what NestJS makes for each request', () => {
       endpoints: (): Type[] => [Plain],
       providers: [PerRequest],
       guards: [PerRequestGuard],
-      onModuleInit: () => void calls.push('router'),
+      lifecycle: {
+        onModuleInit: () => void calls.push('router'),
+      },
     });
     const Plain = router.endpoint.query({ path: unique('plain'), handler: () => null });
     await (await start(router)).close();
@@ -486,19 +504,25 @@ describe("a router's lifecycle hooks, in an app", () => {
     const calls: string[] = [];
     const parent = EndpointRouter.create({
       endpoints: [],
-      async onModuleInit() {
-        calls.push('parent starts');
-        await new Promise((resolve) => setTimeout(resolve, 20));
-        calls.push('parent started');
+      lifecycle: {
+        async onModuleInit() {
+          calls.push('parent starts');
+          await new Promise((resolve) => setTimeout(resolve, 20));
+          calls.push('parent started');
+        },
       },
     });
     const child = parent.child({
       endpoints: (): Type[] => [Listed],
-      onModuleInit: () => void calls.push('child starts'),
+      lifecycle: {
+        onModuleInit: () => void calls.push('child starts'),
+      },
     });
     const Listed = child.endpoint.query({
       path: unique('listed'),
-      onModuleInit: () => void calls.push('endpoint starts'),
+      lifecycle: {
+        onModuleInit: () => void calls.push('endpoint starts'),
+      },
       handler: () => null,
     });
     await (await start(child)).close();
@@ -509,8 +533,10 @@ describe("a router's lifecycle hooks, in an app", () => {
     const signals: unknown[] = [];
     const router = EndpointRouter.create({
       endpoints: [],
-      beforeApplicationShutdown: (signal) => void signals.push(signal),
-      onApplicationShutdown: (signal) => void signals.push(signal),
+      lifecycle: {
+        beforeApplicationShutdown: (signal) => void signals.push(signal),
+        onApplicationShutdown: (signal) => void signals.push(signal),
+      },
     });
     const app = await start(router);
     // NestJS passes on the signal it shuts down on; its types have `close()` take none.
@@ -524,9 +550,11 @@ describe("a router's lifecycle hooks, in an app", () => {
       endpoints: [],
       providers: [{ provide: 'CONFIG', useValue: { region: 'eu' } }],
       inject: { config: decorated<{ region: string }>(Inject('CONFIG')) },
-      onModuleInit() {
-        expectTypeOf(this.config).toEqualTypeOf<{ region: string }>();
-        seen.push(this.config.region);
+      lifecycle: {
+        onModuleInit() {
+          expectTypeOf(this.config).toEqualTypeOf<{ region: string }>();
+          seen.push(this.config.region);
+        },
       },
     });
     await (await start(router)).close();
@@ -557,10 +585,12 @@ describe("a router's lifecycle hooks, in an app", () => {
           },
         };
       },
-      onModuleInit() {
-        seen.push(this.name);
-        this.name = 'four';
-        seen.push(this.name);
+      lifecycle: {
+        onModuleInit() {
+          seen.push(this.name);
+          this.name = 'four';
+          seen.push(this.name);
+        },
       },
     });
     await (await start(router)).close();

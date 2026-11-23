@@ -33,8 +33,8 @@ hooks the [React Query client](../clients/react-query.md) generates for the oper
 | `injectOnRequest` | object of `decorated<T>()` | Per-request values, as parameter decorators would inject them. |
 | `decorators` | `MethodDecorator[]` | Decorators for the handler method, such as `UseGuards(AuthGuard)`. |
 | `properties` | function that returns an object | Properties of the endpoint's instance, as a controller's fields are, read from [`this`](#this). The function is called for each instance. A getter or a setter among them stays one, with the instance as its `this`. |
-| `methods` | object of functions | Methods of the endpoint's instance, as a controller's are, called on [`this`](#this). Declared above the handler and the hooks. |
-| `onModuleInit`, `onApplicationBootstrap`, `onModuleDestroy`, `beforeApplicationShutdown`, `onApplicationShutdown` | function | [Lifecycle hooks](https://docs.nestjs.com/fundamentals/lifecycle-events), called as a controller's are. An endpoint that NestJS makes for each request cannot declare one, since NestJS calls them only on what it makes once. |
+| `methods` | object of functions | Methods of the endpoint's instance, as a controller's are, called on [`this`](#this). |
+| `lifecycle` | object of functions: `onModuleInit`, `onApplicationBootstrap`, `onModuleDestroy`, `beforeApplicationShutdown`, `onApplicationShutdown` | [Lifecycle hooks](https://docs.nestjs.com/fundamentals/lifecycle-events), called as a controller's are, with the endpoint's instance as [`this`](#this). An endpoint that NestJS makes for each request cannot declare one, since NestJS calls them only on what it makes once. |
 | `summary` | `string` | The operation's summary in an [OpenAPI document](../clients/openapi.md). |
 | `tags` | `string[]` | OpenAPI tags, added to the one the operation gets [from its router](../clients/openapi.md#what-an-endpoint-contributes). |
 
@@ -58,7 +58,7 @@ The handler receives one object:
 
 ## `this`
 
-A handler, a method or a lifecycle hook written as a method, and not as an arrow function, has
+A handler, a method or a hook in `lifecycle` written as a method, and not as an arrow function, has
 the endpoint's instance as `this`:
 
 ```ts
@@ -71,8 +71,10 @@ export default endpoint.query({
       return this.cache.get(id) ?? this.users.find(id);
     },
   },
-  onModuleInit() {
-    this.cache.clear();
+  lifecycle: {
+    onModuleInit() {
+      this.cache.clear();
+    },
   },
   handler({ input }) {
     return this.find(input.id);
@@ -87,9 +89,7 @@ endpoint's `properties` and `methods`. What a request gives (`input`, `params`, 
 in the options has `this`: not the `properties` function itself, and not a router's
 `endpoints()`.
 
-TypeScript types `this` under `strict` or `noImplicitThis`. It reads the options in order:
-`methods` goes above the handler and the hooks, or a function that returns what a method does
-is told `this` has no such method, unless it declares its return type.
+TypeScript types `this` under `strict` or `noImplicitThis`.
 
 An endpoint is made for each request when it, or a guard, interceptor, pipe or filter that
 applies to it, depends on a request-scoped provider. Its `properties` are then made again for

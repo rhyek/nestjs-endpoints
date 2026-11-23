@@ -63,20 +63,22 @@ export function recording(name: string) {
     guards: [Guard],
     interceptors: [Interceptor],
     middleware: [Middleware],
-    onModuleInit(this: This) {
-      note(this.log, 'init');
-    },
-    onApplicationBootstrap(this: This) {
-      note(this.log, 'bootstrap');
-    },
-    onModuleDestroy(this: This) {
-      note(this.log, 'destroy');
-    },
-    beforeApplicationShutdown(this: This) {
-      note(this.log, 'before shutdown');
-    },
-    onApplicationShutdown(this: This) {
-      note(this.log, 'shutdown');
+    lifecycle: {
+      onModuleInit(this: This) {
+        note(this.log, 'init');
+      },
+      onApplicationBootstrap(this: This) {
+        note(this.log, 'bootstrap');
+      },
+      onModuleDestroy(this: This) {
+        note(this.log, 'destroy');
+      },
+      beforeApplicationShutdown(this: This) {
+        note(this.log, 'before shutdown');
+      },
+      onApplicationShutdown(this: This) {
+        note(this.log, 'shutdown');
+      },
     },
   };
 }

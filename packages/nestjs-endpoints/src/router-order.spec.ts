@@ -114,8 +114,10 @@ describe('routers made with child(), each loaded by an app as itself', () => {
 
   /** Notes `name` as it starts and stops, in `calls`. */
   const noting = (calls: string[], name: string) => ({
-    onModuleInit: () => void calls.push(`${name} init`),
-    onModuleDestroy: () => void calls.push(`${name} destroy`),
+    lifecycle: {
+      onModuleInit: () => void calls.push(`${name} init`),
+      onModuleDestroy: () => void calls.push(`${name} destroy`),
+    },
   });
 
   test('a router with no hook between two that have one leaves them in order', async () => {

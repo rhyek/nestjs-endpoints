@@ -5,11 +5,13 @@ export const log: string[] = [];
 
 /** The two lifecycle hooks that tell a start from a stop, noted under `name`. */
 export const hooks = (name: string) => ({
-  onModuleInit() {
-    log.push(`${name} init`);
-  },
-  onModuleDestroy() {
-    log.push(`${name} destroy`);
+  lifecycle: {
+    onModuleInit() {
+      log.push(`${name} init`);
+    },
+    onModuleDestroy() {
+      log.push(`${name} destroy`);
+    },
   },
 });
 

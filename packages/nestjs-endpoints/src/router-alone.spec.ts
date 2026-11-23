@@ -81,7 +81,9 @@ describe('a router that declares a hook, a property or a method', () => {
     const router = EndpointRouter.create({
       endpoints: (): Type[] => [Finds],
       providers: [Access],
-      onModuleInit() {},
+      lifecycle: {
+        onModuleInit() {},
+      },
     });
     const Finds = router.endpoint.query({
       path: `finds-${Math.random()}`,
@@ -111,8 +113,10 @@ describe('a router that declares a hook, a property or a method', () => {
         },
       ],
       properties: () => ({ ready: false }),
-      onModuleInit() {
-        this.ready = true;
+      lifecycle: {
+        onModuleInit() {
+          this.ready = true;
+        },
       },
     });
     await (await start(router)).close();
@@ -123,10 +127,17 @@ describe('a router that declares a hook, a property or a method', () => {
     const calls: string[] = [];
     const parent = EndpointRouter.create({
       endpoints: [],
-      onModuleInit: () => void calls.push('parent'),
+      lifecycle: {
+        onModuleInit: () => void calls.push('parent'),
+      },
     });
     await parent;
-    const child = parent.child({ endpoints: [], onModuleInit: () => void calls.push('child') });
+    const child = parent.child({
+      endpoints: [],
+      lifecycle: {
+        onModuleInit: () => void calls.push('child'),
+      },
+    });
     await (await start(child)).close();
     expect(calls).toEqual(['parent', 'child']);
   });

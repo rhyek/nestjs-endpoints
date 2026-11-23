@@ -31,7 +31,7 @@ describe.each(owners)('what a $owner declares for its instance', ({ owner, own, 
 
   test.each(['hook', 'method', 'properties'] as const)('is something with only a %s', (kind) => {
     const declared = {
-      hook: { onModuleInit() {} },
+      hook: { lifecycle: { onModuleInit() {} } },
       method: { methods: { find() {} } },
       properties: { properties: () => ({}) },
     }[kind];
@@ -41,8 +41,10 @@ describe.each(owners)('what a $owner declares for its instance', ({ owner, own, 
   test.each(LIFECYCLE_HOOKS)('has the hook %s on its class, and names it', (hook) => {
     const called: unknown[] = [];
     const declared = {
-      [hook](this: unknown, signal?: string) {
-        called.push(this, signal);
+      lifecycle: {
+        [hook](this: unknown, signal?: string) {
+          called.push(this, signal);
+        },
       },
     };
     expect(members(declared).hooks).toEqual([hook]);
@@ -53,7 +55,25 @@ describe.each(owners)('what a $owner declares for its instance', ({ owner, own, 
   });
 
   test.each(LIFECYCLE_HOOKS)('refuses a %s that is not a function', (hook) => {
-    expect(() => members({ [hook]: 'no' })).toThrow(`${at}: \`${hook}\` must be a function.`);
+    expect(() => members({ lifecycle: { [hook]: 'no' } })).toThrow(
+      `${at}: \`lifecycle.${hook}\` must be a function.`,
+    );
+  });
+
+  test.each([[null], [1], ['x'], [() => {}], [[]]])(
+    'refuses a lifecycle given as %j',
+    (lifecycle) => {
+      expect(() => members({ lifecycle })).toThrow(
+        `${at}: \`lifecycle\` must be an object of lifecycle hooks.`,
+      );
+    },
+  );
+
+  test('refuses a name in lifecycle that is not a lifecycle hook', () => {
+    expect(() => members({ lifecycle: { onModuleInit() {}, onInit() {} } })).toThrow(
+      `${at}: \`lifecycle.onInit\` is not a lifecycle hook: they are onModuleInit, ` +
+        'onApplicationBootstrap, onModuleDestroy, beforeApplicationShutdown, and onApplicationShutdown.',
+    );
   });
 
   test('has its methods on its class, with the instance as their `this`', () => {

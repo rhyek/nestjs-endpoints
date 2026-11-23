@@ -13,8 +13,10 @@ describe('an endpoint that declares a lifecycle hook and is made for each reques
     const Hooked = endpoint.query({
       path: 'hook-scope/hooked',
       inject: { perRequest: PerRequest },
-      onModuleInit() {
-        started++;
+      lifecycle: {
+        onModuleInit() {
+          started++;
+        },
       },
       handler: () => 'never',
     });

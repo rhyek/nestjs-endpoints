@@ -766,27 +766,29 @@ describe("a router's lifecycle hooks", () => {
       providers: [Clock, Stamp],
       inject: { clock: Clock, stamp: Stamp },
       injectOnRequest: { req: decorated<{ url: string }>(Req()) },
-      onModuleInit() {
-        expectTypeOf(this.clock).toEqualTypeOf<Clock>();
-        // @ts-expect-error not injected
-        void this.access;
-        // @ts-expect-error given to a handler, per request
-        void this.req;
-        calls.push(`init ${this.clock instanceof Clock} ${this.stamp.at}`);
-      },
-      async onApplicationBootstrap() {
-        await Promise.resolve();
-        calls.push(`bootstrap ${this.stamp.at}`);
-      },
-      onModuleDestroy() {
-        calls.push(`destroy ${this.stamp.at}`);
-      },
-      beforeApplicationShutdown(signal) {
-        expectTypeOf(signal).toEqualTypeOf<string | undefined>();
-        calls.push(`before shutdown ${this.stamp.at} ${signal}`);
-      },
-      onApplicationShutdown(signal) {
-        calls.push(`shutdown ${this.stamp.at} ${signal}`);
+      lifecycle: {
+        onModuleInit() {
+          expectTypeOf(this.clock).toEqualTypeOf<Clock>();
+          // @ts-expect-error not injected
+          void this.access;
+          // @ts-expect-error given to a handler, per request
+          void this.req;
+          calls.push(`init ${this.clock instanceof Clock} ${this.stamp.at}`);
+        },
+        async onApplicationBootstrap() {
+          await Promise.resolve();
+          calls.push(`bootstrap ${this.stamp.at}`);
+        },
+        onModuleDestroy() {
+          calls.push(`destroy ${this.stamp.at}`);
+        },
+        beforeApplicationShutdown(signal) {
+          expectTypeOf(signal).toEqualTypeOf<string | undefined>();
+          calls.push(`before shutdown ${this.stamp.at} ${signal}`);
+        },
+        onApplicationShutdown(signal) {
+          calls.push(`shutdown ${this.stamp.at} ${signal}`);
+        },
       },
     });
     const app = await start(router);
@@ -811,12 +813,14 @@ describe("a router's lifecycle hooks", () => {
       inject: { mine: Clock },
       // On request, so on no `this`.
       injectOnRequest: { stamp: decorated<string>(Req()) },
-      onModuleInit() {
-        expectTypeOf(this.clock).toEqualTypeOf<Clock>();
-        expectTypeOf(this.mine).toEqualTypeOf<Clock>();
-        // @ts-expect-error the child takes it per request
-        void this.stamp;
-        seen.push(this.clock instanceof Clock, this.mine instanceof Clock, 'stamp' in this);
+      lifecycle: {
+        onModuleInit() {
+          expectTypeOf(this.clock).toEqualTypeOf<Clock>();
+          expectTypeOf(this.mine).toEqualTypeOf<Clock>();
+          // @ts-expect-error the child takes it per request
+          void this.stamp;
+          seen.push(this.clock instanceof Clock, this.mine instanceof Clock, 'stamp' in this);
+        },
       },
     });
     const app = await start(child);
@@ -830,14 +834,18 @@ describe("a router's lifecycle hooks", () => {
       endpoints: [],
       providers: [Clock],
       inject: { clock: Clock },
-      onModuleInit() {
-        seen.push(this.clock);
+      lifecycle: {
+        onModuleInit() {
+          seen.push(this.clock);
+        },
       },
     });
     const child = parent.child({
       endpoints: [],
-      onModuleInit() {
-        seen.push(this.clock);
+      lifecycle: {
+        onModuleInit() {
+          seen.push(this.clock);
+        },
       },
     });
     const app = await start(NestjsEndpoints.forRoot(), parent, child);
@@ -852,8 +860,10 @@ describe("a router's lifecycle hooks", () => {
         rootDirectory: path.join(fixtures, 'empty'),
         providers: [Clock],
         inject: { clock: Clock },
-        onModuleInit() {
-          calls.push(`init ${this.clock instanceof Clock}`);
+        lifecycle: {
+          onModuleInit() {
+            calls.push(`init ${this.clock instanceof Clock}`);
+          },
         },
       },
     });
@@ -865,7 +875,12 @@ describe("a router's lifecycle hooks", () => {
   test('written as arrow functions are called, with no `this`', async () => {
     const calls: string[] = [];
     const app = await start(
-      EndpointRouter.create({ endpoints: [], onModuleInit: () => void calls.push('init') }),
+      EndpointRouter.create({
+        endpoints: [],
+        lifecycle: {
+          onModuleInit: () => void calls.push('init'),
+        },
+      }),
     );
     await app.close();
     expect(calls).toEqual(['init']);
@@ -876,7 +891,15 @@ describe("a router's lifecycle hooks", () => {
     const app = await start(EndpointRouter.create({ endpoints: [], inject: { stamp: Stamp } }));
     await app.close();
     await expect(
-      start(EndpointRouter.create({ endpoints: [], inject: { stamp: Stamp }, onModuleInit() {} })),
+      start(
+        EndpointRouter.create({
+          endpoints: [],
+          inject: { stamp: Stamp },
+          lifecycle: {
+            onModuleInit() {},
+          },
+        }),
+      ),
     ).rejects.toThrow(/Stamp/);
   });
 
@@ -896,20 +919,22 @@ describe("a router's lifecycle hooks", () => {
           return this.notes.length;
         },
       },
-      onModuleInit() {
-        expectTypeOf<typeof this.note>().toEqualTypeOf<(what: string) => number>();
-        if (this.notes.length > 0) {
-          // @ts-expect-error not a member
-          void this.missing;
-          // @ts-expect-error a string
-          this.note(1);
-        }
-        this.connection = { open: true };
-        this.note('init');
-      },
-      onModuleDestroy() {
-        this.note('destroy');
-        log.push(...this.notes);
+      lifecycle: {
+        onModuleInit() {
+          expectTypeOf<typeof this.note>().toEqualTypeOf<(what: string) => number>();
+          if (this.notes.length > 0) {
+            // @ts-expect-error not a member
+            void this.missing;
+            // @ts-expect-error a string
+            this.note(1);
+          }
+          this.connection = { open: true };
+          this.note('init');
+        },
+        onModuleDestroy() {
+          this.note('destroy');
+          log.push(...this.notes);
+        },
       },
     });
     const app = await start(router);
@@ -929,14 +954,49 @@ describe("a router's lifecycle hooks", () => {
           return this.starts > 0 && this.clock instanceof Clock;
         },
       }),
-      onModuleInit() {
-        seen.push(this.started);
-        this.starts++;
-        seen.push(this.started);
+      lifecycle: {
+        onModuleInit() {
+          seen.push(this.started);
+          this.starts++;
+          seen.push(this.started);
+        },
       },
     });
     await (await start(router)).close();
     expect(seen).toEqual([false, true]);
+  });
+
+  test('keep a getter that calls a method, and a setter, with the instance as their `this`', async () => {
+    const seen: unknown[] = [];
+    const router = EndpointRouter.create({
+      endpoints: [],
+      providers: [Clock],
+      inject: { clock: Clock },
+      properties: () => ({
+        starts: 0,
+        get label(): string {
+          return this.describe(this.starts);
+        },
+        set label(value: string) {
+          this.starts = value.length;
+        },
+      }),
+      methods: {
+        describe(n: number) {
+          return `${n} with a clock: ${this.clock instanceof Clock}`;
+        },
+      },
+      lifecycle: {
+        onModuleInit() {
+          expectTypeOf<typeof this.label>().toEqualTypeOf<string>();
+          seen.push(this.label);
+          this.label = 'three';
+          seen.push(this.starts, this.label);
+        },
+      },
+    });
+    await (await start(router)).close();
+    expect(seen).toEqual(['0 with a clock: true', 5, '5 with a clock: true']);
   });
 
   test('give no `this` to another option written as a method', async () => {
@@ -968,8 +1028,10 @@ describe("a router's lifecycle hooks", () => {
     const router = EndpointRouter.create({
       endpoints: [],
       properties: () => ({ starts: 0 }),
-      onModuleInit() {
-        seen.push(++this.starts);
+      lifecycle: {
+        onModuleInit() {
+          seen.push(++this.starts);
+        },
       },
     });
     await (await start(router)).close();
@@ -994,10 +1056,12 @@ describe("a router's lifecycle hooks", () => {
     });
     const child = parent.child({
       endpoints: [],
-      onModuleInit() {
-        // @ts-expect-error the parent's own
-        void this.mine;
-        seen.push('own' in this, 'mine' in this);
+      lifecycle: {
+        onModuleInit() {
+          // @ts-expect-error the parent's own
+          void this.mine;
+          seen.push('own' in this, 'mine' in this);
+        },
       },
     });
     const app = await start(NestjsEndpoints.forRoot(), parent, child);
@@ -1017,8 +1081,10 @@ describe("a router's lifecycle hooks", () => {
             return `${what} ${this.name}`;
           },
         },
-        onModuleInit() {
-          calls.push(this.named('init'));
+        lifecycle: {
+          onModuleInit() {
+            calls.push(this.named('init'));
+          },
         },
       },
     });
@@ -1124,9 +1190,41 @@ describe("a router's lifecycle hooks", () => {
     expect(NestjsEndpoints.forRoot(ofInjectingRoot)).toBeInstanceOf(Promise);
   });
 
+  test('an option it does not know, and a hook it does not know, are type errors', () => {
+    const router = EndpointRouter.create({
+      endpoints: [],
+      // @ts-expect-error not an option
+      unknownOption: 1,
+    });
+    // @ts-expect-error not an option
+    void router.child({ endpoints: [], unknownOption: 1 });
+    // @ts-expect-error not an option
+    void NestjsEndpoints.forRoot({ router: { unknownOption: 1 } });
+    expect(() =>
+      EndpointRouter.create({
+        endpoints: [],
+        lifecycle: {
+          // @ts-expect-error not a lifecycle hook
+          onInit() {},
+        },
+      }),
+    ).toThrow('`lifecycle.onInit` is not a lifecycle hook');
+    expect(() =>
+      router.child({
+        endpoints: [],
+        lifecycle: {
+          // @ts-expect-error not a lifecycle hook
+          onInit() {},
+        },
+      }),
+    ).toThrow('`lifecycle.onInit` is not a lifecycle hook');
+  });
+
   test.each(HOOKS)('%s must be a function', (hook) => {
-    expect(() => EndpointRouter.create({ endpoints: [], [hook]: 1 } as any)).toThrow(
-      new RegExp(`EndpointRouter\\.create\\(\\) in .*: \`${hook}\` must be a function\\.`),
+    expect(() => EndpointRouter.create({ endpoints: [], lifecycle: { [hook]: 1 } } as any)).toThrow(
+      new RegExp(
+        `EndpointRouter\\.create\\(\\) in .*: \`lifecycle\\.${hook}\` must be a function\\.`,
+      ),
     );
   });
 });
@@ -1144,8 +1242,10 @@ describe('a lifecycle hook on what NestJS makes for each request', () => {
     const Hooked = router.endpoint.query({
       path: 'per-request/hooked',
       inject: { perRequest: PerRequest },
-      onModuleInit() {},
-      onModuleDestroy() {},
+      lifecycle: {
+        onModuleInit() {},
+        onModuleDestroy() {},
+      },
       handler: () => null,
     });
     await expect(start(router)).rejects.toThrow(
@@ -1166,7 +1266,9 @@ describe('a lifecycle hook on what NestJS makes for each request', () => {
     const Hooked = router.endpoint.query({
       path: 'per-request/transitive',
       inject: { uses: UsesPerRequest },
-      onApplicationBootstrap() {},
+      lifecycle: {
+        onApplicationBootstrap() {},
+      },
       handler: () => null,
     });
     await expect(start(router)).rejects.toThrow(
@@ -1179,7 +1281,9 @@ describe('a lifecycle hook on what NestJS makes for each request', () => {
     const Hooked = router.endpoint.query({
       path: 'per-request/request',
       inject: { request: decorated<{ url: string }>(Inject(REQUEST)) },
-      onModuleDestroy() {},
+      lifecycle: {
+        onModuleDestroy() {},
+      },
       handler: () => null,
     });
     await expect(start(router)).rejects.toThrow(
@@ -1196,7 +1300,9 @@ describe('a lifecycle hook on what NestJS makes for each request', () => {
       endpoints: [],
       providers: [PerRequest, UsesPerRequest],
       inject: { uses: UsesPerRequest },
-      onModuleInit() {},
+      lifecycle: {
+        onModuleInit() {},
+      },
     });
     await expect(start(router)).rejects.toThrow(
       /the router of .* declares onModuleInit, but NestJS makes it for each request/,
@@ -1208,7 +1314,9 @@ describe('a lifecycle hook on what NestJS makes for each request', () => {
       endpoints: [],
       providers: [PerRequest],
       inject: { perRequest: PerRequest },
-      onApplicationShutdown() {},
+      lifecycle: {
+        onApplicationShutdown() {},
+      },
     });
     await expect(start(router)).rejects.toThrow(
       /the router of .*endpoint-router\.spec\.ts declares onApplicationShutdown, but NestJS makes it for each request/,
@@ -1219,7 +1327,9 @@ describe('a lifecycle hook on what NestJS makes for each request', () => {
     const Hooked = endpoint.query({
       path: 'per-request/in-a-module',
       inject: { perRequest: PerRequest },
-      onModuleInit() {},
+      lifecycle: {
+        onModuleInit() {},
+      },
       handler: () => null,
     });
     @Module({ controllers: [Hooked], providers: [PerRequest] })
@@ -1234,7 +1344,9 @@ describe('a lifecycle hook on what NestJS makes for each request', () => {
     const Hooked = endpoint.query({
       path: 'per-request/no-root',
       inject: { perRequest: PerRequest },
-      onModuleInit() {},
+      lifecycle: {
+        onModuleInit() {},
+      },
       handler: () => null,
     });
     @Module({ controllers: [Hooked], providers: [PerRequest] })
@@ -1262,7 +1374,9 @@ describe('a lifecycle hook on what NestJS makes for each request', () => {
     });
     const Hooked = router.endpoint.query({
       path: 'per-request/guarded',
-      onModuleInit() {},
+      lifecycle: {
+        onModuleInit() {},
+      },
       handler: () => null,
     });
     await expect(start(router)).rejects.toThrow(
@@ -1359,7 +1473,7 @@ describe("what a child router's endpoints get from the routers above it", () => 
       readonly id = ++PerRequest.made;
     }
     /** Routers, from the top: the top injects `PerRequest`; each has one endpoint. */
-    const lineage = (bottom: { onModuleInit?: () => void } = {}) => {
+    const lineage = (bottom: { lifecycle?: { onModuleInit?: () => void } } = {}) => {
       const top = EndpointRouter.create({
         endpoints: (): Type[] => [atTop],
         providers: [PerRequest],
@@ -1401,7 +1515,11 @@ describe("what a child router's endpoints get from the routers above it", () => 
     });
 
     test('a router under it that declares a lifecycle hook fails the app as it starts', async () => {
-      const { routers } = lineage({ onModuleInit() {} });
+      const { routers } = lineage({
+        lifecycle: {
+          onModuleInit() {},
+        },
+      });
       await expect(start(NestjsEndpoints.forRoot(), ...routers)).rejects.toThrow(
         /the router of .*endpoint-router\.spec\.ts declares onModuleInit, but NestJS makes it for each request/,
       );

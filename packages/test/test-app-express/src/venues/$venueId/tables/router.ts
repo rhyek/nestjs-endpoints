@@ -12,7 +12,9 @@ export default venue.child({
   guards: [TablesGuard],
   // `venues` is injected by the router two levels up; `name` is this router's own.
   properties: () => ({ name: 'tables' }),
-  onApplicationBootstrap() {
-    this.venues.opened.push(this.name);
+  lifecycle: {
+    onApplicationBootstrap() {
+      this.venues.opened.push(this.name);
+    },
   },
 });
