@@ -2,7 +2,8 @@
 // @filename: src/endpoints/orders/create.sample.ts
 // ---cut---
 import { endpoint, z } from 'nestjs-endpoints';
-import { OrdersService } from './orders.service.js';
+import { DbService } from '../../db/db.service.js';
+import { orders } from '../../db/schema.js';
 
 export default endpoint.mutation({
   input: z.object({
@@ -13,7 +14,13 @@ export default endpoint.mutation({
     id: z.number(),
     status: z.enum(['pending', 'paid', 'cancelled']),
   }),
-  inject: { orders: OrdersService },
-  handler: ({ input, orders }) => orders.create(input),
+  inject: { db: DbService },
+  handler: async ({ input, db }) => {
+    const [order] = await db
+      .insert(orders)
+      .values(input)
+      .returning();
+    return order;
+  },
 });
 ```

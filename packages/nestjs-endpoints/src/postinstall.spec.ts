@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { RULES_FILE, SKILL_FILE } from './agent-files';
+import { RULES_FILE, SKILL_FILE, skillFile } from './agent-files';
 import { runPostinstall } from './postinstall';
 
 let base: string;
@@ -39,8 +39,9 @@ test('writes the agent files into the checkout the install ran in, and says so',
   postinstall({ INIT_CWD: checkout });
   expect(has(RULES_FILE)).toBe(true);
   expect(has(SKILL_FILE)).toBe(true);
+  expect(has(skillFile('nestjs-endpoints-refactor'))).toBe(true);
   expect(lines).toEqual([
-    `nestjs-endpoints: updated the coding-agent files: ${RULES_FILE}, ${SKILL_FILE}`,
+    `nestjs-endpoints: updated the coding-agent files: ${RULES_FILE}, ${SKILL_FILE}, ${skillFile('nestjs-endpoints-refactor')}`,
   ]);
 });
 

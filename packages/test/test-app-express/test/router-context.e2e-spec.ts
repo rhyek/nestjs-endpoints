@@ -6,6 +6,7 @@ import { AppModule } from '../src/app.module';
 import misnestedRouter from '../src/misnested/router.module';
 import misplacedRouter from '../src/misplaced/router.module';
 import tablesRouter from '../src/venues/$venueId/tables/router';
+import { SeatingNotifier } from '../src/venues/$venueId/tables/seating';
 import { VenuesService } from '../src/venues/venues.service';
 import { appWith } from './app-with';
 
@@ -171,13 +172,44 @@ describe('what a router gives the endpoints under it', () => {
     }).compile();
     const endpoint = fixture.get(visit);
     expect(endpoint.count('hall')).toBe(1);
-    await expect(endpoint.invoke({ name: 'hall' })).resolves.toMatchObject({
+    await expect(endpoint.invoke({ input: { name: 'hall' } })).resolves.toMatchObject({
       visits: 2,
       known: true,
     });
     expect([...endpoint.visits]).toEqual([['hall', 2]]);
     endpoint.count('arena');
     expect(endpoint.busiest).toBe('hall');
+  });
+
+  test("an endpoint of a grandchild router, alone, has its properties, methods and hooks, with what the test provides in its routers' place", async () => {
+    const { default: reserveEndpoint } =
+      await import('../src/venues/$venueId/tables/$tableId/reserve.endpoint');
+    // What the venues router provides, through a module of the test's.
+    @Module({ providers: [VenuesService], exports: [VenuesService] })
+    class VenuesModule {}
+    // What the tables router's module would give, faked.
+    const seating = { notify: vi.fn() };
+    const moduleRef = await Test.createTestingModule({
+      controllers: [reserveEndpoint],
+      imports: [VenuesModule],
+      providers: [{ provide: SeatingNotifier, useValue: seating }],
+    }).compile();
+    const app = moduleRef.createNestApplication();
+    await app.init();
+    try {
+      const endpoint = app.get(reserveEndpoint);
+      await expect(
+        endpoint.invoke({ params: { venueId, tableId: '7' }, input: { guest: 'ada' } }),
+      ).resolves.toEqual({ venue: 'venue 3f2b8c1e', tableId: 7, guests: ['ada'], ready: true });
+      await expect(
+        endpoint.invoke({ params: { venueId, tableId: '7' }, input: { guest: 'grace' } }),
+      ).resolves.toMatchObject({ guests: ['ada', 'grace'] });
+      expect(seating.notify).toHaveBeenCalledWith(7, 'grace');
+      expect(endpoint.seat(8, 'alan')).toEqual(['alan']);
+      expect([...endpoint.guests.keys()]).toEqual([7, 8]);
+    } finally {
+      await app.close();
+    }
   });
 
   test("an endpoint's own params add to its routers', and win for a key both declare", async () => {

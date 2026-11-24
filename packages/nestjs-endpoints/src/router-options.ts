@@ -3,7 +3,7 @@ import type { z } from 'zod';
 import type { InjectOnRequestMap, InjectProvidersMap } from './injections';
 import type { EndpointOwnMembers, InjectNaming } from './instance-members';
 import type { WithoutKeys } from './router-context';
-import type { RouterGuard, RouterInterceptor } from './router-lineage';
+import type { Guard, Interceptor } from './router-lineage';
 import type { ListedEndpoint } from './router-loading';
 import type { RouterMiddlewareList } from './router-middleware';
 
@@ -155,12 +155,12 @@ export type RouterOptions<
    * Interceptors to apply (controller-scoped) to each endpoint owned by
    * this router, including endpoints from nested router modules.
    */
-  interceptors?: RouterInterceptor[];
+  interceptors?: Interceptor[];
   /**
    * Guards to apply (controller-scoped) to each endpoint owned by this
    * router, including endpoints from nested router modules.
    */
-  guards?: RouterGuard[];
+  guards?: Guard[];
   /**
    * What the router gives its endpoints and the routers under it:
    * `params`, `inject` and `injectOnRequest`.

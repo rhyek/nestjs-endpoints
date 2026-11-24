@@ -13,34 +13,32 @@ export default endpoint.mutation({ /* options */ });
 
 Both builders take the same options and return a NestJS controller class. Use it as a file's
 default export for a [router](./router.md) to find, in a router's `endpoints`, or in a module's
-`controllers`.
-
-`endpoint.query()` is for reads and `endpoint.mutation()` for writes. The builder decides which
-hooks the [React Query client](../clients/react-query.md) generates for the operation.
+`controllers`. `endpoint.query()` is for reads and `endpoint.mutation()` for writes; the choice
+decides the hooks the [React Query client](../clients/react-query.md) generates.
 
 ## Options
 
 | Option | Type | |
 | --- | --- | --- |
 | `handler` | function | Required. Receives [one object](#the-handler), and returns the response body or a promise of it. |
-| `input` | Zod schema | The JSON body. Not allowed with `method: 'get'`. Its `.meta({ description })` describes the request body in an OpenAPI document. |
-| `query` | Zod object schema | The search parameters, on any method. |
 | `params` | Zod object schema | The path parameters. Its keys must match the `:names` in the URL. |
+| `query` | Zod object schema | The search parameters, on any method. |
+| `input` | Zod schema | The JSON body. Its `.meta({ description })` describes the request body in an OpenAPI document. |
 | `output` | Zod schema, or an object of them by status code | The response body. With a schema per status, the handler returns [`response(status, body)`](../guide/responses.md#several-statuses). A schema's `.meta({ description })` describes its response in an [OpenAPI document](../clients/openapi.md). |
 | `method` | `'get' \| 'post' \| 'put' \| 'patch' \| 'delete'` | The HTTP method. Defaults to `'post'`. |
 | `path` | `string` | An explicit URL, in place of the one from the file's location. Required for an endpoint [registered by hand](../guide/explicit-paths.md) outside a router. |
 | `inject` | object of provider classes or `decorated<T>()` | Providers, as a constructor would inject them. See [Dependency injection](../guide/dependency-injection.md). |
 | `injectOnRequest` | object of `decorated<T>()` | Per-request values, as parameter decorators would inject them. |
-| `decorators` | `MethodDecorator[]` | Decorators for the handler method, such as `UseGuards(AuthGuard)`. |
-| `properties` | function that returns an object | Properties of the endpoint's instance, as a controller's fields are, read from [`this`](#this). The function is called for each instance. A getter or a setter among them stays one, with the instance as its `this`. |
+| `guards` | array of guard classes or instances | Guards for the endpoint, run after those of its routers. |
+| `interceptors` | array of interceptor classes or instances | Interceptors for the endpoint, run inside those of its routers. |
+| `decorators` | `MethodDecorator[]` | Decorators for the handler method, such as `SetMetadata('audit', 'refund')`. Guards and interceptors they add run after those in `guards` and `interceptors`. |
+| `properties` | function that returns an object | Properties of the endpoint's instance, as a controller's fields are, read from [`this`](#this). The function is called for each instance. A getter or a setter among them keeps the instance as its `this`. |
 | `methods` | object of functions | Methods of the endpoint's instance, as a controller's are, called on [`this`](#this). |
-| `lifecycle` | object of functions: `onModuleInit`, `onApplicationBootstrap`, `onModuleDestroy`, `beforeApplicationShutdown`, `onApplicationShutdown` | [Lifecycle hooks](https://docs.nestjs.com/fundamentals/lifecycle-events), called as a controller's are, with the endpoint's instance as [`this`](#this). An endpoint that NestJS makes for each request cannot declare one, since NestJS calls them only on what it makes once. |
+| `lifecycle` | object of functions: `onModuleInit`, `onApplicationBootstrap`, `onModuleDestroy`, `beforeApplicationShutdown`, `onApplicationShutdown` | [Lifecycle hooks](https://docs.nestjs.com/fundamentals/lifecycle-events), called as a controller's are, with the endpoint's instance as [`this`](#this). |
 | `summary` | `string` | The operation's summary in an [OpenAPI document](../clients/openapi.md). |
 | `tags` | `string[]` | OpenAPI tags, added to the one the operation gets [from its router](../clients/openapi.md#what-an-endpoint-contributes). |
 
-`query` and `params` take an object schema, bare or behind a transform or preprocess step. Anything
-else is a type error. The `params` of an endpoint whose
-[router declares some](../guide/router-context.md#path-parameters) is a plain `z.object()`.
+`params` and `query` take an object schema, bare or behind a transform or preprocess step.
 
 ## The handler
 
@@ -48,11 +46,11 @@ The handler receives one object:
 
 | Key | Present when | Value |
 | --- | --- | --- |
+| `params` | `params` is declared, by the endpoint or by [its router](../guide/router-context.md#path-parameters) | The parsed path parameters. |
+| `query` | `query` is declared | The parsed search parameters. |
 | `input` | `input` is declared | The parsed body. |
 | `rawInput` | `input` is declared | The body before parsing. |
-| `query` | `query` is declared | The parsed search parameters. |
-| `params` | `params` is declared, by the endpoint or by [its router](../guide/router-context.md#path-parameters) | The parsed path parameters. |
-| `schemas` | always | The Zod schemas: `{ input?, query?, params? }`. |
+| `schemas` | always | The Zod schemas: `{ params?, query?, input? }`. |
 | `response` | always | `response(status, body)`. Required when `output` has a schema per status. |
 | your own keys | | Everything from `inject` and `injectOnRequest`, and from the [router's](../guide/router-context.md), by name. |
 
@@ -64,7 +62,7 @@ the endpoint's instance as `this`:
 ```ts
 export default endpoint.query({
   inject: { users: UsersService },
-  input: z.object({ id: z.number() }),
+  params: z.object({ id: z.coerce.number() }),
   properties: () => ({ cache: new Map<number, User>() }),
   methods: {
     find(id: number) {
@@ -76,37 +74,31 @@ export default endpoint.query({
       this.cache.clear();
     },
   },
-  handler({ input }) {
-    return this.find(input.id);
+  handler({ params }) {
+    return this.find(params.id);
   },
 });
 ```
 
 `this` has what `inject` gives, the [router's](../guide/router-context.md) included, with the
-endpoint's `properties` and `methods`. What a request gives (`input`, `params`, `query` and
-`injectOnRequest`) is the handler's argument only. A name is declared once among `inject`,
-`properties` and `methods`, and none is `handler`, `invoke` or a lifecycle hook's. Nothing else
-in the options has `this`: not the `properties` function itself, and not a router's
-`endpoints()`.
+endpoint's `properties` and `methods`. What a request gives (`params`, `query`, `input` and
+`injectOnRequest`) is the handler's argument only. Nothing else in the options has `this`, not
+even the `properties` function. TypeScript types `this` under `strict` or `noImplicitThis`.
 
-TypeScript types `this` under `strict` or `noImplicitThis`.
-
-An endpoint is made for each request when it, or a guard, interceptor, pipe or filter that
-applies to it, depends on a request-scoped provider. Its `properties` are then made again for
-each request. If it declares a lifecycle hook, the app fails as it starts; in an app with no
-router and no `forRoot()`, each request for the endpoint fails.
+An endpoint that depends on a request-scoped provider, itself or through a guard, interceptor,
+pipe or filter, is made for each request, and its `properties` with it.
 
 ## Behavior
 
 - An endpoint answers `200`, a `POST` included, unless its handler returns another status with
   `response(status, body)`.
 - A request without a body reads as `{}`, unless `input` accepts a missing body.
-- `query` and `params` values arrive as strings. Coerce them: `z.coerce.number()`,
+- `params` and `query` values arrive as strings. Coerce them: `z.coerce.number()`,
   `z.coerce.date()`, and `z.stringbool()` for booleans. `z.coerce.boolean()` reads the string
   `'false'` as `true`.
 - An array in `query` takes repeated keys, `?tags=a&tags=b`. A single `?tags=a` reads as a
   one-item array.
-- A request that fails `input`, `query` or `params` is answered `400`, with a
+- A request that fails `params`, `query` or `input` is answered `400`, with a
   `ZodValidationException`.
 - The response is parsed with `output` before it is sent, which strips the keys the schema
   doesn't declare. A return value that fails it is answered `500`, with a
@@ -117,14 +109,15 @@ router and no `forRoot()`, each request for the endpoint fails.
 ## `invoke()`
 
 Every endpoint class has an `invoke()` method, which runs the endpoint without HTTP. See
-[Integration tests](../guide/testing.md#integration-tests).
+[Invoking an endpoint directly](../guide/testing.md#invoke).
 
-| Endpoint declares | Call |
-| --- | --- |
-| No `input`, `query` or `params` | `invoke()` |
-| `input` only | `invoke(rawInput)` |
-| `query` and/or `params`, without `input` | `invoke({ query, params })` |
-| `input`, and `query` and/or `params` | `invoke(rawInput, { query, params })` |
+```ts
+invoke({ params, query, input });
+```
+
+Each key takes the raw value for the endpoint's option of the same name. Keys, and the argument
+itself, may be left out: validation refuses a missing value a schema requires, with a
+`ZodValidationException`, as it refuses a request.
 
 ## Helpers
 

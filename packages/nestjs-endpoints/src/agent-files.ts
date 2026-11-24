@@ -9,8 +9,10 @@ import path from 'node:path';
  *
  * - `.claude/rules/nestjs-endpoints.md`, a few lines Claude Code reads at the start of every
  *   session, whether the repo has a `CLAUDE.md` or not;
- * - the skill, `.claude/skills/nestjs-endpoints/SKILL.md`, for agents that load skills, and the
- *   same file under `.agents/` and `.cursor/` where those folders exist.
+ * - the skills, `.claude/skills/<name>/SKILL.md`, and the same files under `.agents/` and
+ *   `.cursor/` where those folders exist: `nestjs-endpoints`, for agents that load skills, and
+ *   `nestjs-endpoints-refactor`, which a person runs to rework an API to the recommended
+ *   architecture.
  *
  * Each file's first lines carry the version that wrote it and a hash of the rest, so the file
  * alone says whether it is out of date and whether anyone has edited it. A file someone edited,
@@ -20,7 +22,16 @@ import path from 'node:path';
 const packageDir = path.join(import.meta.dirname, '..');
 
 export const RULES_FILE = path.join('.claude', 'rules', 'nestjs-endpoints.md');
-export const SKILL_FILE = path.join('.claude', 'skills', 'nestjs-endpoints', 'SKILL.md');
+
+/** The package's skills, each in `skills/<name>/SKILL.md`. */
+export const SKILLS = ['nestjs-endpoints', 'nestjs-endpoints-refactor'] as const;
+export type SkillName = (typeof SKILLS)[number];
+
+/** Where a skill's copy goes in a repo, under `.claude/` or another agent's folder. */
+export const skillFile = (name: SkillName, root = '.claude') =>
+  path.join(root, 'skills', name, 'SKILL.md');
+
+export const SKILL_FILE = skillFile('nestjs-endpoints');
 
 /** Folders other agents read skills from: the skill is copied into each that exists. */
 const OTHER_SKILL_ROOTS = ['.agents', '.cursor'];
@@ -57,36 +68,36 @@ const rules: ManagedFile = {
 };
 
 /**
- * The skill: the package's `skills/nestjs-endpoints/SKILL.md`, where pnpm looks for a
- * dependency's skills, with the banner as a YAML comment on line 2. YAML frontmatter has to
- * start on line 1, or it isn't read and the skill loses its `description`; a comment inside it
- * is dropped by the parser and still the first thing a person opening the file sees.
+ * A skill: the package's `skills/<name>/SKILL.md`, where pnpm looks for a dependency's skills,
+ * with the banner as a YAML comment on line 2. YAML frontmatter has to start on line 1, or it
+ * isn't read and the skill loses its `description`; a comment inside it is dropped by the
+ * parser and still the first thing a person opening the file sees.
  */
-const skill: ManagedFile = {
-  render(version) {
-    const body = fs.readFileSync(path.join(packageDir, 'skills/nestjs-endpoints/SKILL.md'), 'utf8');
-    if (!body.startsWith('---\n')) {
-      throw new Error('skills/nestjs-endpoints/SKILL.md must open with YAML frontmatter on line 1');
-    }
-    return `---\n# nestjs-endpoints skill v${version} sha256:${hash(body)} ${TAIL}\n${body.slice(4)}`;
-  },
-  read(text) {
-    const lines = text.split('\n');
-    const match =
-      lines[0] === '---'
-        ? /^# nestjs-endpoints skill v(\S+) sha256:([0-9a-f]{64}) .*$/.exec(lines[1] ?? '')
-        : null;
-    const rest = [lines[0], ...lines.slice(2)].join('\n');
-    return match ? { version: match[1]!, unedited: hash(rest) === match[2] } : null;
-  },
-};
+function skill(name: SkillName): ManagedFile {
+  const banner = new RegExp(`^# ${name} skill v(\\S+) sha256:([0-9a-f]{64}) .*$`);
+  return {
+    render(version) {
+      const body = fs.readFileSync(path.join(packageDir, 'skills', name, 'SKILL.md'), 'utf8');
+      if (!body.startsWith('---\n')) {
+        throw new Error(`skills/${name}/SKILL.md must open with YAML frontmatter on line 1`);
+      }
+      return `---\n# ${name} skill v${version} sha256:${hash(body)} ${TAIL}\n${body.slice(4)}`;
+    },
+    read(text) {
+      const lines = text.split('\n');
+      const match = lines[0] === '---' ? banner.exec(lines[1] ?? '') : null;
+      const rest = [lines[0], ...lines.slice(2)].join('\n');
+      return match ? { version: match[1]!, unedited: hash(rest) === match[2] } : null;
+    },
+  };
+}
 
 export function renderRules(version: string): string {
   return rules.render(version);
 }
 
-export function renderSkill(version: string): string {
-  return skill.render(version);
+export function renderSkill(version: string, name: SkillName = 'nestjs-endpoints'): string {
+  return skill(name).render(version);
 }
 
 /** `true` when `a` is an older `x.y.z` version than `b`. */
@@ -127,10 +138,10 @@ function stateOf(
 }
 
 /**
- * A skill under `.claude/skills/` that links into this installed package's `skills/` folder, as
- * `pnpm approve` makes one (`pnpm-nestjs-endpoints-nestjs-endpoints`, or `nestjs-endpoints`).
+ * A skill under `.claude/skills/` that links to the installed package's `skills/<name>`, as
+ * `pnpm approve` makes one (`pnpm-nestjs-endpoints-<name>`, or `<name>`).
  */
-function linkedSkill(root: string, installed: string): string | null {
+function linkedSkill(root: string, installed: string, name: SkillName): string | null {
   const dir = path.join(root, '.claude', 'skills');
   let entries: string[];
   try {
@@ -138,12 +149,12 @@ function linkedSkill(root: string, installed: string): string | null {
   } catch {
     return null;
   }
-  for (const name of entries) {
-    const entry = path.join(dir, name);
+  for (const entryName of entries) {
+    const entry = path.join(dir, entryName);
     try {
       if (
         fs.lstatSync(entry).isSymbolicLink() &&
-        fs.realpathSync(entry).startsWith(path.join(installed, 'skills') + path.sep)
+        fs.realpathSync(entry) === path.join(installed, 'skills', name)
       ) {
         return entry;
       }
@@ -161,9 +172,9 @@ function write(file: string, content: string): void {
 
 /**
  * Writes each file that is missing, and rewrites each one an older version wrote and nobody
- * edited since. Where pnpm linked the skill, the package's own copy in `.claude/skills/` is
+ * edited since. Where pnpm linked a skill, the package's own copy of it in `.claude/skills/` is
  * removed if nobody edited it, since two copies would list the skill twice. Returns the files
- * it changed.
+ * it changed: the rules file, then each skill's, in `SKILLS` order.
  *
  * @param root The repository the files go in.
  * @param installed The installed package's directory, its real path.
@@ -183,27 +194,37 @@ export function syncAgentFiles(opts: {
     changed.push(rulesFile);
   }
 
-  const skillFile = path.join(root, SKILL_FILE);
-  const skillTargets = OTHER_SKILL_ROOTS.filter((dir) => fs.existsSync(path.join(root, dir))).map(
-    (dir) => path.join(root, dir, 'skills', 'nestjs-endpoints', 'SKILL.md'),
+  for (const name of SKILLS) {
+    changed.push(...syncSkill(root, opts.installed, name, version));
+  }
+  return changed;
+}
+
+/** One skill's copies: under `.claude/` unless pnpm linked it, and under the other agents' folders. */
+function syncSkill(root: string, installed: string, name: SkillName, version: string): string[] {
+  const kind = skill(name);
+  const changed: string[] = [];
+  const own = path.join(root, skillFile(name));
+  const targets = OTHER_SKILL_ROOTS.filter((dir) => fs.existsSync(path.join(root, dir))).map(
+    (dir) => path.join(root, skillFile(name, dir)),
   );
-  if (linkedSkill(root, opts.installed)) {
-    const state = stateOf(skillFile, skill, version);
+  if (linkedSkill(root, installed, name)) {
+    const state = stateOf(own, kind, version);
     if (state === 'stale' || state === 'current') {
-      fs.rmSync(skillFile);
-      const dir = path.dirname(skillFile);
+      fs.rmSync(own);
+      const dir = path.dirname(own);
       if (fs.readdirSync(dir).length === 0) {
         fs.rmdirSync(dir);
       }
-      changed.push(skillFile);
+      changed.push(own);
     }
   } else {
-    skillTargets.unshift(skillFile);
+    targets.unshift(own);
   }
-  for (const file of skillTargets) {
-    const state = stateOf(file, skill, version);
+  for (const file of targets) {
+    const state = stateOf(file, kind, version);
     if (state === 'missing' || state === 'stale') {
-      write(file, skill.render(version));
+      write(file, kind.render(version));
       changed.push(file);
     }
   }

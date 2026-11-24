@@ -5,8 +5,9 @@
 End-to-end type safety, built on NestJS controllers.
 
 Write each endpoint as one file, with Zod schemas for its request and response and a handler.
-nestjs-endpoints serves it at a route that comes from where the file sits, validates what goes
-in and out, and generates a typed axios or React Query client from the same schemas.
+nestjs-endpoints serves it at a route that comes from where the file sits, hands it the path
+parameters, providers and guards the routers of its folders declare, validates what goes in and
+out, and generates a typed axios or React Query client from the same schemas.
 
 **Documentation: [nestjs-endpoints.dev](https://nestjs-endpoints.dev)**
 
@@ -19,9 +20,14 @@ in and out, and generates a typed axios or React Query client from the same sche
   parsed before the handler runs, and a response that doesn't match its schema doesn't compile.
 - **Generated clients.** A typed axios client or React Query hooks, nested by the routers'
   namespaces.
-- **Router-scoped middleware, interceptors and guards.**
+- **Routers that share down the tree.** A `router.ts` declares a folder's path parameters,
+  providers, guards, middleware and interceptors once, for every endpoint under it and every
+  router nested in it.
+- **State and lifecycle hooks.** An endpoint or a router keeps its own properties and methods,
+  and runs NestJS's lifecycle hooks.
 - **Built for coding agents.** An agent rules file and a skill that point an agent at the docs
-  shipped inside the package.
+  shipped inside the package, and a `/nestjs-endpoints-refactor` skill that reworks an API to
+  the [recommended architecture](https://nestjs-endpoints.dev/guide/architecture).
 
 ## Install
 
@@ -64,6 +70,7 @@ const { data } = client.useGreet({ body: { name: 'Satie' } });
 ## Documentation
 
 - [Getting started](https://nestjs-endpoints.dev/guide/getting-started)
+- [Recommended architecture](https://nestjs-endpoints.dev/guide/architecture)
 - [Writing an endpoint](https://nestjs-endpoints.dev/guide/endpoints)
 - [File-based routing](https://nestjs-endpoints.dev/guide/file-based-routing)
 - [Generating clients](https://nestjs-endpoints.dev/clients/codegen)

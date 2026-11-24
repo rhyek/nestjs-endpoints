@@ -21,12 +21,12 @@ export class AppModule {}
 ```
 
 Sets the library up for an app, and creates its root router. Call it once, in the app's root
-module: a second call fails the start.
+module.
 
 | Option | Type | |
 | --- | --- | --- |
 | `router` | the router [options](#options) | The app's root router. Its `rootDirectory` is relative to the file that calls `forRoot()`. An app made only of routers it imports can leave `router` out. |
-| `watch` | `boolean` | Whether the app watches its endpoint folders, so that `node --watch` restarts it when an endpoint file is added or removed. `nest start --watch` restarts by itself. The app keeps a small file per router under `node_modules/.cache/nestjs-endpoints/` for it. Defaults to `false`. See [Development](../guide/development.md#with-node-and-a-typescript-loader). |
+| `watch` | `boolean` | Whether the app watches its endpoint folders, so that `node --watch` restarts it when an endpoint file is added or removed. `nest start --watch` restarts by itself. Defaults to `false`. See [Development](../guide/development.md#with-node-and-a-typescript-loader). |
 
 `forRoot()` returns what `create()` returns.
 
@@ -58,7 +58,7 @@ The returned promise also has:
 | `rootDirectory` | `string \| string[]` | The folder to look for endpoint files in, relative to the calling file, or several, all under the same `basePath`. Defaults to the calling file's own folder. |
 | `basePath` | `string` | The URL prefix of everything the router owns. [Inferred](../guide/routers.md#base-path) when left out. `''` or `'/'` mounts the router at the root. |
 | `namespace` | `boolean \| string` | The router's [namespace](../clients/namespaces.md) in the generated clients. It does not affect URLs. |
-| `description` | `string` | Documents the router's namespace: a comment on it in the generated clients. Only beside `namespace`. |
+| `description` | `string` | Documents the router's namespace: a comment on it in the generated clients. |
 | `endpoints` | array of endpoints, or a function returning endpoints and `import()`s | Endpoints [registered by hand](../guide/explicit-paths.md#on-a-router). They get the router's `basePath`. |
 | `middleware` | array of `NestMiddleware` classes and functions | Middleware for every endpoint under the router. Its last entry may be `{ exclude: string[] }`, with paths relative to `basePath`. |
 | `interceptors` | array of interceptor classes or instances | Interceptors for every endpoint under the router. |
@@ -70,7 +70,7 @@ The returned promise also has:
 | `inject` | object of provider classes or `decorated<T>()` | Providers for the router's own instance: on [`this`](./endpoint.md#this) in its `lifecycle` hooks, `methods` and the getters of its `properties`. Its endpoints and the routers under it don't get them. |
 | `imports`, `providers` | as in `@Module()` | The router's own, which every router made with its [`child()`](../guide/router-context.md#providers) has too. |
 | `properties`, `methods` | as the [endpoint options](./endpoint.md#options) of the same names | Properties and methods of the router's instance, read from `this`. They are the router's own: its endpoints and the routers under it do not have them. |
-| `lifecycle` | object of functions: `onModuleInit`, `onApplicationBootstrap`, `onModuleDestroy`, `beforeApplicationShutdown`, `onApplicationShutdown` | [Lifecycle hooks](https://docs.nestjs.com/fundamentals/lifecycle-events), called as a module's are. A router starts after the routers above it and before its own endpoints, and stops in the reverse order. Written as a method, a hook has on [`this`](./endpoint.md#this) what the router's own `inject` gives, with its `properties` and `methods`. A router whose `inject` has a request-scoped provider cannot declare one: the app fails as it starts. |
+| `lifecycle` | object of functions: `onModuleInit`, `onApplicationBootstrap`, `onModuleDestroy`, `beforeApplicationShutdown`, `onApplicationShutdown` | [Lifecycle hooks](https://docs.nestjs.com/fundamentals/lifecycle-events), called as a module's are. A router starts after the routers above it and before its own endpoints, and stops in the reverse order. Written as a method, a hook has on [`this`](./endpoint.md#this) what the router's own `inject` gives, with its `properties` and `methods`. |
 
 How a router finds endpoint files and builds their URLs is in
 [File-based routing](../guide/file-based-routing.md), and how it finds nested routers in

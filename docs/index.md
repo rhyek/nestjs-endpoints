@@ -7,7 +7,7 @@ intro:
   name: nestjs-endpoints
   # Non-breaking hyphens (U+2011), so a line never ends inside "End-to-end".
   text: End‑to‑end type safety, built on NestJS controllers.
-  tagline: Declare Zod schemas and a handler, and get validation in and out and a typed axios or React Query client.
+  tagline: Small files, serious APIs. Each endpoint carries its own route, rules and logic, so the code you need is always the code in front of you.
   file: src/endpoints/orders/create.endpoint.ts
   actions:
     - theme: brand
@@ -19,17 +19,17 @@ intro:
     - theme: alt
       text: GitHub
       link: https://github.com/rhyek/nestjs-endpoints
-  yieldsLead: What that one file gives your app
+  yieldsLead: What comes with that one file
   yields:
     - label: Route
       value: POST /orders/create
       details: Derived from where the file sits. There is no decorator to write and no module to add it to.
-    - label: Validation
-      value: 400 Validation failed
-      details: Bodies, search parameters and path parameters are parsed before the handler runs, and the response is checked before it is sent.
-    - label: Types
+    - label: Schemas
       value: 'input.quantity: number'
-      details: The handler's arguments are inferred from the schemas, and its return value is checked against output.
+      details: The request is parsed before the handler runs and arrives typed. The response is checked against output as you type, and again before it is sent, with the keys output doesn't declare stripped.
+    - label: Context
+      value: router.child()
+      details: The routers of the folders above hand it their path parameters, providers, per-request values and guards, through every level. A file declares only what is its own.
     - label: Client
       value: client.orders.create()
       details: A generated axios call and a React Query hook, typed from the same schemas.
@@ -42,31 +42,43 @@ types:
     file: src/endpoints/orders/list.endpoint.ts
     linkText: Type safety
     link: /guide/type-safety
-  response:
-    eyebrow: Server
-    title: A wrong response doesn't compile.
-    details: The handler's return value is checked against the output schema as you type, and validated again before it is sent. Keys the schema doesn't declare are stripped, so nothing leaves the API that its contract doesn't name.
-    file: src/endpoints/orders/$orderId.view.endpoint.ts
-    linkText: Responses
-    link: /guide/responses
   client:
     eyebrow: Client
     title: Your front end knows the API.
-    details: Generate an axios or React Query client from the same schemas. Routes, request bodies and responses autocomplete, and a server change that breaks a caller is a type error in the front end.
+    details: Generate an axios or React Query client from the same schemas. Routes, request bodies and responses autocomplete as you type, nested the way your routers are, and a change on the server reaches the front end as types.
     linkText: Generating clients
     link: /clients/codegen
+
+context:
+  row:
+    eyebrow: Router context
+    title: Declare it once, on the router.
+    details: A router declares what its folder shares, once. Path parameters, providers, per-request values, guards and middleware reach every <span class="endpoint-term">endpoint</span> under it, typed, through as many levels of child routers as your folders have.
+    linkText: Router context
+    link: /guide/router-context
+    moreLinks:
+      - text: Recommended architecture
+        link: /guide/architecture
+  files:
+    parent: src/endpoints/teams/router.ts
+    child: src/endpoints/teams/$teamId/router.ts
+    endpoint: src/endpoints/teams/$teamId/members/find.endpoint.ts
 
 nest:
   eyebrow: NestJS
   title: It's still NestJS.
-  details: Each <span class="endpoint-term">endpoint</span> is an ordinary controller class. Providers, guards, interceptors, exception filters and the testing module work the way they do in any Nest app, on Express, Fastify or the Node adapter. Add one endpoint beside the controllers you already have, and move the rest when it suits you.
+  details: Each <span class="endpoint-term">endpoint</span> is an ordinary controller class. Providers, guards, interceptors, lifecycle hooks, exception filters and the testing module work the way they do in any Nest app, on Express, Fastify or the Node adapter. Add one endpoint beside the controllers you already have, and move the rest when it suits you.
   points:
     - term: inject
       text: Providers, as a constructor takes them.
     - term: injectOnRequest
       text: '@Req(), @Session() and your own parameter decorators.'
+    - term: guards, interceptors
+      text: '@UseGuards() and @UseInterceptors().'
+    - term: lifecycle
+      text: onModuleInit(), onApplicationBootstrap() and the other lifecycle hooks.
     - term: decorators
-      text: '@UseGuards(), @UseInterceptors(), @SetMetadata().'
+      text: Any other method decorator, such as @SetMetadata().
   file: src/endpoints/admin/refund.endpoint.ts
   linkText: How it fits NestJS
   link: /guide/nestjs
@@ -126,32 +138,21 @@ routes:
   linkText: File-based routing
   link: /guide/file-based-routing
 
-context:
-  row:
-    eyebrow: Router context
-    title: Declare it once, on the router.
-    details: A router declares the path parameters and injections of its folder, and every <span class="endpoint-term">endpoint</span> under it receives them in its handler, typed. A child router inherits its parent's and adds its own, so a parameter is written where its folder is, not in each file under it.
-    linkText: Router context
-    link: /guide/router-context
-  files:
-    router: src/endpoints/projects/$projectId/router.ts
-    endpoint: src/endpoints/projects/$projectId/view.endpoint.ts
-
 featuresTitle: What else is in the box
 
 features:
-  - icon: 🛡️
-    title: Guards scoped to a router
-    details: Declare middleware, interceptors and guards once on a router, and they cover every <span class="endpoint-term">endpoint</span> it owns, nested routers included. Plain NestJS has no such scope.
-    link: /guide/improvements
+  - icon: 🤖
+    title: Ready for coding agents
+    details: The docs ship inside the package, indexed by llms.txt, and installing it gives your agent a rules file and a skill that point at them, and a skill that reworks an API to the recommended architecture.
+    link: /ai/overview
   - icon: 🔁
     title: Queries and mutations
     details: endpoint.query() and endpoint.mutation() decide whether the React Query client gives an operation a query hook or a mutation hook.
     link: /guide/endpoints
-  - icon: 🚦
-    title: Typed status codes
-    details: Give output a schema per status and return response(201, body). The status and its body are both type-checked.
-    link: /guide/responses
+  - icon: 🛡️
+    title: Solid
+    details: Built on NestJS's foundations, and covered by {{ testCount }} tests, run on Express, Fastify and the Node adapter.
+    link: /guide/nestjs
   - icon: 📜
     title: Works with @nestjs/swagger
     details: Endpoints carry the metadata SwaggerModule reads, so they are in the OpenAPI document your app builds.
@@ -168,10 +169,10 @@ features:
     title: Tests at every level
     details: Call an endpoint's invoke() with only its providers, load one router, or start the app and call it through the generated client.
     link: /guide/testing
-  - icon: 🤖
-    title: Ready for coding agents
-    details: The docs ship inside the package, indexed by llms.txt, and installing it gives your agent a rules file and a skill that point at them.
-    link: /ai/overview
+  - icon: ♻️
+    title: State and lifecycle hooks
+    details: An endpoint or a router keeps its own properties and methods, and runs NestJS's lifecycle hooks, such as onModuleInit, with all of it on this.
+    link: /guide/state-and-lifecycle
   - icon: 🔌
     title: Your HTTP adapter
     details: Express, Fastify, or node:http through @nestjs/platform-node.

@@ -334,11 +334,11 @@ describe('buildSchemasModuleSource', () => {
       {
         operationId: 'Greet',
         schemas: {
-          input: { type: 'object' },
           query: {
             type: 'object',
             properties: { name: { type: 'string' } },
           },
+          input: { type: 'object' },
         },
       },
     ],
@@ -350,7 +350,7 @@ describe('buildSchemasModuleSource', () => {
       `export const authLogin: { input: InputSchema<NonNullable<AuthLoginOptions['body']>> } =`,
     );
     expect(source).toContain(
-      `export const greet: { input: InputSchema<NonNullable<GreetOptions['body']>>; query: InputSchema<NonNullable<GreetOptions['query']>> } =`,
+      `export const greet: { query: InputSchema<NonNullable<GreetOptions['query']>>; input: InputSchema<NonNullable<GreetOptions['body']>> } =`,
     );
     expect(source).toContain(`export type InputSchema<T> = {`);
     expect(source).toContain(`import type { AuthLoginOptions, GreetOptions } from './types';`);

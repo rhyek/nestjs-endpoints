@@ -6,8 +6,11 @@ import { rendererFloatingVue, transformerTwoslash } from '@shikijs/vitepress-two
 import ts from 'typescript';
 import { defineConfig } from 'vitepress';
 import llmstxt from 'vitepress-plugin-llms';
+import { countTests } from './test-count';
 
 const repo = 'https://github.com/rhyek/nestjs-endpoints';
+// The repository's tests, as the home page's Solid feature gives the number.
+const testCount = countTests().toLocaleString('en-US');
 const site = 'https://nestjs-endpoints.dev';
 
 /**
@@ -95,7 +98,7 @@ const twoslashRenderer = {
 export default defineConfig({
   title: 'nestjs-endpoints',
   description:
-    'Write each NestJS endpoint as one file with Zod schemas, and get validation and a typed axios or React Query client.',
+    'Write each NestJS endpoint as one file: its folder gives it a URL, its routers give it path parameters, providers and guards, and its Zod schemas give it validation and a typed axios or React Query client.',
   cleanUrls: true,
   lastUpdated: false,
   sitemap: { hostname: site },
@@ -133,6 +136,14 @@ export default defineConfig({
       },
     ],
   ],
+
+  // `{{ testCount }}` in the home page's features is the repository's number of tests, as
+  // scripts/test.sh last recorded it, so the page is rendered with it.
+  transformPageData(pageData) {
+    for (const feature of (pageData.frontmatter.features ?? []) as { details?: string }[]) {
+      feature.details = feature.details?.replaceAll('{{ testCount }}', testCount);
+    }
+  },
 
   // Each page's link preview names the page: its title, its description and its URL.
   transformHead({ pageData, title, description }) {
@@ -173,6 +184,7 @@ export default defineConfig({
           { text: 'Type safety', link: '/guide/type-safety' },
           { text: 'Responses', link: '/guide/responses' },
           { text: 'Dependency injection', link: '/guide/dependency-injection' },
+          { text: 'State and lifecycle', link: '/guide/state-and-lifecycle' },
         ],
       },
       {
@@ -194,9 +206,11 @@ export default defineConfig({
           { text: 'OpenAPI', link: '/clients/openapi' },
         ],
       },
+      // What the pages above build to: how to lay an API out with them, run it and test it.
       {
-        text: 'Workflow',
+        text: 'In practice',
         items: [
+          { text: 'Recommended architecture', link: '/guide/architecture' },
           { text: 'Development', link: '/guide/development' },
           { text: 'Testing', link: '/guide/testing' },
         ],
@@ -247,7 +261,7 @@ export default defineConfig({
         ].join('\n\n'),
         customTemplateVariables: {
           agents:
-            '**Coding agents:** read the [Agent playbook](/ai/playbook.md) first. It has the rules and a recipe for each task, and links to the pages below.',
+            '**Coding agents:** read the [Agent playbook](/ai/playbook.md) first, then [Recommended architecture](/guide/architecture.md). The playbook has the rules and a recipe for each task, and links to the pages below.',
         },
       }),
     ],

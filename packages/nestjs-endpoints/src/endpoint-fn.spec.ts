@@ -265,8 +265,7 @@ describe("a router's params", () => {
     await expect(new cls().invoke({ params: { clinicId: 'no' } })).rejects.toThrow(
       ZodValidationException,
     );
-    // @ts-expect-error the router's params are required
-    void (() => new cls().invoke());
+    await expect(new cls().invoke()).rejects.toThrow(ZodValidationException);
   });
 
   test('with no key, leave invoke() its params to omit', async () => {
@@ -451,7 +450,10 @@ describe("an endpoint's `this`", () => {
       },
     });
     const app = await start(Find);
-    await expect(app.get(Find).invoke({ id: 2 })).resolves.toEqual({ id: 2, name: 'user 2' });
+    await expect(app.get(Find).invoke({ input: { id: 2 } })).resolves.toEqual({
+      id: 2,
+      name: 'user 2',
+    });
     await app.close();
   });
 
@@ -486,7 +488,7 @@ describe("an endpoint's `this`", () => {
         return [input.id, 'req' in this, 'input' in this];
       },
     });
-    await expect(new Url().invoke({ id: 1 })).resolves.toEqual([1, false, false]);
+    await expect(new Url().invoke({ input: { id: 1 } })).resolves.toEqual([1, false, false]);
   });
 
   test('has the properties the endpoint declares, made for each instance', async () => {
@@ -511,9 +513,9 @@ describe("an endpoint's `this`", () => {
     const one = new Count();
     const other = new Count();
     expect(made).toBe(2);
-    await one.invoke({ name: 'a' });
-    await expect(one.invoke({ name: 'b' })).resolves.toBe(2);
-    await expect(other.invoke({ name: 'c' })).resolves.toBe(1);
+    await one.invoke({ input: { name: 'a' } });
+    await expect(one.invoke({ input: { name: 'b' } })).resolves.toBe(2);
+    await expect(other.invoke({ input: { name: 'c' } })).resolves.toBe(1);
     expect([...one.seen]).toEqual(['a', 'b']);
     expect([...other.seen]).toEqual(['c']);
   });
@@ -647,7 +649,7 @@ describe("an endpoint's `this`", () => {
     });
     const app = await start(Pair);
     const pair = app.get(Pair);
-    await expect(pair.invoke({ id: 3 })).resolves.toEqual({
+    await expect(pair.invoke({ input: { id: 3 } })).resolves.toEqual({
       users: [
         { id: 3, name: 'user 3' },
         { id: 3, name: 'user 3' },
@@ -962,58 +964,56 @@ describe('what invoke() takes', () => {
   });
   const all = endpoint.mutation({
     path: 'invoke/all/:id',
-    input: z.object({ name: z.string() }),
     params: z.object({ id: z.coerce.number() }),
     query: z.object({ q: z.string().optional() }),
-    handler: ({ input: { name }, params: { id }, query }) => [name, id, query.q ?? null],
+    input: z.object({ name: z.string() }),
+    handler: ({ params: { id }, query, input: { name } }) => [name, id, query.q ?? null],
   });
 
   test('nothing, for an endpoint that declares nothing', async () => {
     await expect(new none().invoke()).resolves.toBeNull();
-    // @ts-expect-error no argument to give
-    void (() => new none().invoke({}));
+    await expect(new none().invoke({})).resolves.toBeNull();
+    // @ts-expect-error a key the endpoint does not declare
+    void (() => new none().invoke({ input: {} }));
   });
 
-  test('the raw input, alone', async () => {
-    await expect(new input().invoke({ id: 1 })).resolves.toBe(1);
-    // @ts-expect-error the input is required
-    void (() => new input().invoke());
+  test('the raw input, under `input`', async () => {
+    await expect(new input().invoke({ input: { id: 1 } })).resolves.toBe(1);
     // @ts-expect-error of the type the schema reads
-    void (() => new input().invoke({ id: '1' }));
+    void (() => new input().invoke({ input: { id: '1' } }));
   });
 
-  test('required path params, as the strings a URL has', async () => {
+  test('the path params, under `params`, as the strings a URL has', async () => {
     await expect(new params().invoke({ params: { id: '7' } })).resolves.toBe(7);
-    // @ts-expect-error the params are required
-    void (() => new params().invoke());
-    // @ts-expect-error and so is each of their keys
-    void (() => new params().invoke({ params: {} }));
   });
 
-  test('search params, which may be left out when none is required', async () => {
+  test('the search params, under `query`', async () => {
     await expect(new optionalQuery().invoke()).resolves.toBeNull();
-    await expect(new optionalQuery().invoke({})).resolves.toBeNull();
     await expect(new optionalQuery().invoke({ query: { q: 'a' } })).resolves.toBe('a');
     await expect(new requiredQuery().invoke({ query: { q: 'b' } })).resolves.toBe('b');
-    // @ts-expect-error a search param is required
-    void (() => new requiredQuery().invoke());
-    // @ts-expect-error and its options with it
-    void (() => new requiredQuery().invoke({}));
   });
 
-  test('the input first, then the path and search params', async () => {
-    await expect(new all().invoke({ name: 'n' }, { params: { id: '3' } })).resolves.toEqual([
+  test('all three in one object, as the endpoint names them', async () => {
+    await expect(new all().invoke({ params: { id: '3' }, input: { name: 'n' } })).resolves.toEqual([
       'n',
       3,
       null,
     ]);
     await expect(
-      new all().invoke({ name: 'n' }, { params: { id: '3' }, query: { q: 'x' } }),
+      new all().invoke({ params: { id: '3' }, query: { q: 'x' }, input: { name: 'n' } }),
     ).resolves.toEqual(['n', 3, 'x']);
-    // @ts-expect-error the path params are required though the search params are not
-    void (() => new all().invoke({ name: 'n' }));
-    // @ts-expect-error the input comes first
-    void (() => new all().invoke({ params: { id: '3' } }));
+  });
+
+  test('any of them left out, which validation refuses when its schema requires it', async () => {
+    await expect(new input().invoke()).rejects.toThrow(ZodValidationException);
+    await expect(new params().invoke()).rejects.toThrow(ZodValidationException);
+    await expect(new params().invoke({ params: {} } as never)).rejects.toThrow(
+      ZodValidationException,
+    );
+    await expect(new requiredQuery().invoke({})).rejects.toThrow(ZodValidationException);
+    await expect(new all().invoke({ input: { name: 'n' } })).rejects.toThrow(
+      ZodValidationException,
+    );
   });
 
   test('params and search params that all have a default, or none of them required, to leave out', async () => {
@@ -1034,15 +1034,13 @@ describe('what invoke() takes', () => {
       handler: ({ params, query }) => [params.page, query.q],
     });
     await expect(new mixed().invoke({ query: { q: 'a' } })).resolves.toEqual([1, 'a']);
-    // @ts-expect-error the search param is required though the path params are not
-    void (() => new mixed().invoke());
   });
 
   test('fails a request that fails a schema, as a request over HTTP does', async () => {
     await expect(new params().invoke({ params: { id: 'seven' } })).rejects.toThrow(
       ZodValidationException,
     );
-    await expect(new input().invoke({ id: 'one' } as never)).rejects.toThrow(
+    await expect(new input().invoke({ input: { id: 'one' } } as never)).rejects.toThrow(
       ZodValidationException,
     );
   });

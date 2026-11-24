@@ -8,30 +8,26 @@ With file-based routing, an endpoint's URL is where its file sits. You create a 
 `export default` an endpoint from it. A [router](./routers.md) finds it and registers it.
 
 ```
-src/
-├── app.module.ts
-└── endpoints/
-    ├── health.endpoint.ts               GET  /health
-    └── orders/
-        ├── router.ts
-        ├── orders.service.ts
-        ├── create.endpoint.ts           POST /orders/create
-        ├── list.endpoint.ts             POST /orders/list
-        ├── $orderId.view.endpoint.ts    POST /orders/:orderId/view
-        └── $orderId.cancel.endpoint.ts  POST /orders/:orderId/cancel
+src/endpoints/
+├── health.endpoint.ts               GET  /health
+└── orders/
+    ├── router.ts
+    ├── orders.service.ts
+    ├── create.endpoint.ts           POST /orders/create
+    ├── list.endpoint.ts             POST /orders/list
+    ├── $orderId.view.endpoint.ts    POST /orders/:orderId/view
+    └── $orderId.cancel.endpoint.ts  POST /orders/:orderId/cancel
 ```
 
-A router scans its folder when the app starts, where the app runs: `src/` under a TypeScript
-loader or Vitest, `dist/` when compiled. It does so the same way in every environment. An
-endpoint file you add is served after a restart: see [Development](./development.md).
+A router scans its folder as the app starts, where the app runs: `src/` under a TypeScript
+loader or Vitest, `dist/` when compiled. An endpoint file you add is served after a restart: see
+[Development](./development.md).
 
 ## Endpoint files
 
-A file is an endpoint file when its name ends in `.endpoint.ts`, or is exactly `endpoint.ts`.
-The `.js`, `.mjs` and `.mts` extensions work too.
-
-Every other file is ignored. Services, schemas, guards and tests can sit right beside the
-endpoints they belong to.
+A file is an endpoint file when its name ends in `.endpoint.ts` (or `.js`, `.mjs`, `.mts`), or
+is exactly `endpoint.ts`. Every other file is ignored, so services, schemas, guards and tests can
+sit beside the endpoints they belong to.
 
 ## How a path is built
 
@@ -70,7 +66,8 @@ declare class RecipesRepository {
   rename(id: number, name: string): Promise<{ id: number; name: string }>;
 }
 // ---cut---
-// src/endpoints/recipes/edit/$recipeId.endpoint.ts  →  POST /recipes/edit/:recipeId
+// src/endpoints/recipes/edit/$recipeId.endpoint.ts
+//   →  POST /recipes/edit/:recipeId
 export default endpoint.mutation({
   params: z.object({ recipeId: z.coerce.number() }),
   input: z.object({ name: z.string() }),
@@ -81,28 +78,25 @@ export default endpoint.mutation({
 });
 ```
 
-Every `:param` in the URL must be a key of `params`, and every key of `params` must be a
-`:param` in the URL.
-
 A parameter that a whole folder shares, such as the `$recipeId` of everything under
 `recipes/$recipeId/`, can be declared once, on a router. See
 [Router context](./router-context.md#path-parameters).
 
 ### A name beside a parameter
 
-A file or folder with a name, beside a `$param` one, has every URL under that name. With
-`recipes/featured.endpoint.ts` beside `recipes/$recipeId/view.endpoint.ts`, `/recipes/featured`
-is the featured endpoint's, and `/recipes/featured/view` is a 404, as a URL no route answers:
-a path parameter doesn't take a name beside it as its value. The paths of the app's own
-controllers count as names too.
+A file or folder with a name, beside a `$param` one, has every URL under that name: a path
+parameter never takes a name beside it as its value. With `recipes/featured.endpoint.ts` beside
+`recipes/$recipeId/view.endpoint.ts`, `/recipes/featured` is the featured endpoint's, and
+`/recipes/featured/view` is a 404. The paths of the app's own controllers count as names too.
 
-On Express, which answers a URL with the first route registered that matches it, create the
-app with `routeResolutionStrategy: 'specificity'`, so that NestJS registers names before
-parameters. The app warns as it starts where it needs this. Fastify and the Node adapter always
-match a name first.
+On Express, which answers with the first matching route registered, create the app with
+`routeResolutionStrategy: 'specificity'` so that NestJS registers names before parameters.
+Fastify and the Node adapter always match a name first.
 
 ```ts
-const app = await NestFactory.create(AppModule, { routeResolutionStrategy: 'specificity' });
+const app = await NestFactory.create(AppModule, {
+  routeResolutionStrategy: 'specificity',
+});
 ```
 
 ## Changing a route without moving the file
@@ -120,4 +114,3 @@ supported.
 
 Build into a clean folder (`deleteOutDir` in `nest-cli.json`, on in a new Nest project): a built
 app serves every compiled endpoint file it finds, one left from a deleted endpoint included.
-`nest start` skips a compiled endpoint whose source is gone, when `sourceMap` is on.

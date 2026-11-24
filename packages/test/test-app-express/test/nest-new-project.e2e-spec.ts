@@ -110,6 +110,7 @@ describe('a project made by `nest new`, with nestjs-endpoints added', { timeout:
           ...before,
           '.claude/rules/nestjs-endpoints.md',
           '.claude/skills/nestjs-endpoints/SKILL.md',
+          '.claude/skills/nestjs-endpoints-refactor/SKILL.md',
         ].sort(),
       );
       expect(await read('.claude/rules/nestjs-endpoints.md')).toContain(

@@ -44,14 +44,15 @@ seconds.
 | `single`           | One API at the root, the package in `node_modules/nestjs-endpoints`.                          |
 | `pnpm-monorepo`    | Two APIs in a pnpm workspace, each linking the package from `node_modules/.pnpm/`; nothing at the root's `node_modules/nestjs-endpoints`. |
 | `npm-two-versions` | Two APIs in an npm workspace on different versions: one hoisted to the root, the other in the API's own `node_modules`. |
+| `rudimentary`      | One API written without guidance: every id in a request body, no `params`, one router, a service behind every handler. Its three tasks (archive a project, rename a task in a project, a health check) are graded on what the agent writes. |
 
 | Setup       | The agent files                                          |
 | ----------- | -------------------------------------------------------- |
-| `installed` | The rules file and the skill, as the postinstall writes them. |
+| `installed` | The rules file and both skills, as the postinstall writes them. |
 | `skill`     | The skill alone.                                         |
 | `rules`     | The rules file alone.                                    |
 
-Each layout has two tasks, a person's request to add or change an endpoint that names neither the
+Each other layout has two tasks, a person's request to add or change an endpoint that names neither the
 library nor its docs. In the monorepos each names one of the two APIs.
 
 ## How a run is graded
@@ -62,7 +63,12 @@ library nor its docs. In the monorepos each names one of the two APIs.
 - **A run stops when the agent tries to write a file.** What it read before then is graded:
   whether it loaded the skill, ran the `require.resolve` command the agent files give, read the
   `llms.txt` of the copy its API resolves (by real path), read another copy's, and read the
-  playbook.
+  playbook and the Recommended architecture page.
+- **A task with a `wrote` grader runs to its end instead,** and every Write and Edit it tried is
+  graded on whether it follows the recommended architecture (an id in the path, `params`, no new
+  service, `GET` for a health check). The report counts that over the runs that tried to write
+  an endpoint file, and counts the rest as "wrote nothing": a run that stopped after a refused
+  edit to a service, or wrote through Bash, which the hook refuses and the grader doesn't see.
 
 Keep the transcripts out of the repo: they hold this machine's paths. `maintenance/agent-runs/` is
 ignored for them.

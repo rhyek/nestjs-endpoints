@@ -46,7 +46,7 @@ import {
 
 | Export | |
 | --- | --- |
-| `ZodValidationException` | Thrown when `input`, `query` or `params` fails its schema. A `BadRequestException`, answered `400`. |
+| `ZodValidationException` | Thrown when `params`, `query` or `input` fails its schema. A `BadRequestException`, answered `400`. |
 | `ZodSerializationException` | Thrown when a return value fails `output`. An `InternalServerErrorException`, answered `500`. |
 
 Both have a `getZodError()` method, which returns the `ZodError`.
@@ -64,11 +64,11 @@ Both have a `getZodError()` method, which returns the `ZodError`.
 
 | Export | |
 | --- | --- |
-| `ApiQueries`, `ApiParams` | Decorators that document a Zod object schema as query or path parameters. Endpoints apply them for you, so they are rarely needed directly. Without `@nestjs/swagger` installed they do nothing. |
+| `ApiParams`, `ApiQueries` | Decorators that document a Zod object schema as path or query parameters. Endpoints apply them for you. Without `@nestjs/swagger` installed they do nothing. |
 
 ## Deprecated names
 
-These still work. Use the current name in new code:
+Aliases of a current name. Use the current name in new code:
 
 | Deprecated | Use |
 | --- | --- |

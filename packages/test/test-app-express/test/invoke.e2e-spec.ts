@@ -37,7 +37,7 @@ test('can test controllers directly without http pipeline', async () => {
   await expect(userListNoPath.invoke()).resolves.toEqual([]);
   try {
     await userCreate.invoke({
-      email: 'john@example.com',
+      input: { email: 'john@example.com' },
     } as any);
     throw new Error('Should not reach here');
   } catch (error) {
@@ -55,8 +55,7 @@ test('can test controllers directly without http pipeline', async () => {
     });
   }
   const created = await userCreate.invoke({
-    name: 'John',
-    email: 'john@example.com',
+    input: { name: 'John', email: 'john@example.com' },
   });
   expect(created).toEqual({ id: 1 });
   // Type-level gate: an endpoint with a single `output` schema resolves to
@@ -68,7 +67,7 @@ test('can test controllers directly without http pipeline', async () => {
   await expect(userListNoPath.invoke()).resolves.toEqual([
     { id: 1, name: 'John', email: 'john@example.com' },
   ]);
-  await expect(userFind.invoke({ id: 1 })).resolves.toEqual({
+  await expect(userFind.invoke({ input: { id: 1 } })).resolves.toEqual({
     id: 1,
     name: 'John',
     email: 'john@example.com',
@@ -77,7 +76,7 @@ test('can test controllers directly without http pipeline', async () => {
   await expect(userListNoPath.invoke()).resolves.toEqual([]);
 });
 
-test('invoke threads path params through the second arg', async () => {
+test('invoke takes path params under `params`, beside the input', async () => {
   const moduleFixture: TestingModule = await Test.createTestingModule({
     controllers: [recipesEditEndpoint],
     providers: [RecipesRepository],
@@ -91,12 +90,12 @@ test('invoke threads path params through the second arg', async () => {
   const recipesEdit = app.get(recipesEditEndpoint);
   // Path param strings get coerced by the Zod schema, just like an HTTP call.
   await expect(
-    recipesEdit.invoke({ name: 'Margherita' }, { params: { recipeId: '1' } }),
+    recipesEdit.invoke({ params: { recipeId: '1' }, input: { name: 'Margherita' } }),
   ).resolves.toEqual({ id: 1, name: 'Margherita' });
 
   // Validation errors on params should surface as ZodValidationException.
   try {
-    await recipesEdit.invoke({ name: 'X' }, { params: { recipeId: 'nope' } });
+    await recipesEdit.invoke({ params: { recipeId: 'nope' }, input: { name: 'X' } });
     throw new Error('Should not reach here');
   } catch (error) {
     expect(error).toBeInstanceOf(ZodValidationException);
@@ -105,7 +104,7 @@ test('invoke threads path params through the second arg', async () => {
   }
 });
 
-test('invoke threads search params through the last arg', async () => {
+test('invoke takes search params under `query`, beside the input', async () => {
   const moduleFixture: TestingModule = await Test.createTestingModule({
     controllers: [oauthCallbackEndpoint, searchEndpoint],
   }).compile();
@@ -123,21 +122,21 @@ test('invoke threads search params through the last arg', async () => {
 
   // With an `input`, the body comes first and the search params after it.
   const search = app.get(searchEndpoint);
-  await expect(search.invoke({ term: 'pizza' }, { query: { page: '3' } })).resolves.toEqual({
+  await expect(search.invoke({ query: { page: '3' }, input: { term: 'pizza' } })).resolves.toEqual({
     term: 'pizza',
     tags: [],
     page: 3,
   });
 
   // Every search param is optional, so the options may be left out.
-  await expect(search.invoke({ term: 'pizza' })).resolves.toEqual({
+  await expect(search.invoke({ input: { term: 'pizza' } })).resolves.toEqual({
     term: 'pizza',
     tags: [],
     page: 1,
   });
 
   try {
-    await search.invoke({ term: 'pizza' }, { query: { page: 0 } });
+    await search.invoke({ query: { page: 0 }, input: { term: 'pizza' } });
     throw new Error('Should not reach here');
   } catch (error) {
     expect(error).toBeInstanceOf(ZodValidationException);

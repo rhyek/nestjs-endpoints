@@ -40,21 +40,20 @@ the [endpoint options](../reference/endpoint.md#options).
 
 ## A router is a module
 
-`NestjsEndpoints.forRoot()`, in the app module, returns the app's root router, and
-`EndpointRouter.create()` any other one. Each is a dynamic module: import it where you
-would import any module, and give the router `providers` and `imports` as you would
-`@Module()`. A router has no `exports`: what it provides is for its own endpoints and the routers
-under it. To share a provider with another module, provide it in a module and import that in
-both. An endpoint's providers resolve in the module of the router that owns it. See
-[Routers](./routers.md).
+`NestjsEndpoints.forRoot()` returns the app's root router, and `EndpointRouter.create()` any
+other one. Each is a dynamic module: import it where you would import any module, and give it
+`providers` and `imports` as you would `@Module()`. What a router provides is for its own
+endpoints and the routers under it; to share a provider with another module, provide it in a
+module and import that in both. See [Routers](./routers.md).
 
 ## Guards, interceptors, filters and pipes
 
 - **Global ones still apply.** `app.useGlobalGuards()`, `APP_INTERCEPTOR`, `APP_FILTER` and the
   like see <Endpoint>endpoints</Endpoint> as they see any controller.
-- **Per endpoint**, pass method decorators in `decorators`.
+- **Per endpoint**, in its `guards` and `interceptors`, and any other method decorator in
+  `decorators`.
 - **Per folder**, declare them on the [router](./routers.md).
-- **Validation is the endpoint's own.** `input`, `query` and `params` are parsed with their Zod
+- **Validation is the endpoint's own.** `params`, `query` and `input` are parsed with their Zod
   schemas, so an endpoint needs no `ValidationPipe`.
 
 ## Errors
@@ -72,7 +71,7 @@ handler: ({ params, orders }) => {
 ```
 
 The library's own failures are HTTP exceptions too, so your exception filters can catch them:
-a `ZodValidationException` (`400`) when `input`, `query` or `params` fails its schema, and a
+a `ZodValidationException` (`400`) when `params`, `query` or `input` fails its schema, and a
 `ZodSerializationException` (`500`) when the handler's return value fails `output`. Both carry
 the `ZodError`, from `getZodError()`.
 
@@ -84,11 +83,6 @@ and the [generated clients](../clients/codegen.md#what-a-client-covers) cover en
 
 ## HTTP adapters
 
-Express, Fastify, and `node:http` through `@nestjs/platform-node` are supported. Two things
-depend on the adapter:
-
-- **Fastify** answers `400` to a request that sends `Content-Type: application/json` with no
-  body, before it reaches the endpoint. Send `{}`, or leave the header off.
-- **Nested objects in search parameters** (`?add[a]=1&add[b]=2`) need the adapter's extended
-  query parser. See the NestJS docs on
-  [query parameters](https://docs.nestjs.com/controllers#query-parameters).
+Express, Fastify, and `node:http` through `@nestjs/platform-node` are supported. Nested objects
+in search parameters (`?add[a]=1&add[b]=2`) need the adapter's extended query parser. See the
+NestJS docs on [query parameters](https://docs.nestjs.com/controllers#query-parameters).

@@ -10,8 +10,10 @@
 - **A router file can be named `router.ts`**, and `router.module.ts` keeps working. See [Routers](docs/guide/routers.md#nested-routers).
 - **Endpoints and routers take NestJS's lifecycle hooks in `lifecycle`**, such as `lifecycle: { onModuleInit() {} }`, and a router starts after the routers above it. See [Endpoint options](docs/reference/endpoint.md#options).
 - **A child router loads by itself in a test with everything the routers above it give**, and none of their endpoints. See [Testing](docs/guide/testing.md).
+- **Endpoints take `guards` and `interceptors`**, which run after those of their routers. See [Endpoint options](docs/reference/endpoint.md#options).
 - **Endpoints and routers declare `properties` and `methods`, and a handler, method or hook written as a method reads them, and what is injected, from `this`.** See [`this`](docs/reference/endpoint.md#this).
 - **A router's `inject` is for its own lifecycle hooks and methods**, and its endpoints get what its `context` gives. See [Router options](docs/reference/router.md#options).
+- **The docs recommend an architecture, and a `/nestjs-endpoints-refactor` skill reworks an API to it.** See [Recommended architecture](docs/guide/architecture.md).
 
 ### Fixes
 
@@ -23,6 +25,7 @@
 
 ### Breaking changes
 
+- **`invoke()` takes one object, `{ params, query, input }`, each key optional.** Move the input under `input`: `invoke(body, { params })` becomes `invoke({ params, input: body })`. See [`invoke()`](docs/reference/endpoint.md#invoke).
 - **A router's `endpointConfig` is renamed `context`**, which takes `params` too. Rename the key. See [Router context](docs/guide/router-context.md).
 - **`EndpointRouterModule` is renamed `EndpointRouter`**, and the deprecated `EndpointsRouterModule` and `register()` are removed. Rename the import, and call `create()`.
 - **`getHttpPathPascalName`, `getEndpointHttpPath`, `getCallsiteFile` and `moduleAls` are not exported**: they were the library's internals.

@@ -52,10 +52,9 @@ In NestJS, every pipe bound to a route, its controller or the app is handed ever
 handler, your parameter decorators' values included, and has to pick which to validate. A Zod pipe
 bound with `@UsePipes()`, as the NestJS docs build one, parses them all with its one schema.
 
-An <Endpoint>endpoint</Endpoint> calls each schema on its own value: `input` on the body, `query`
-and `params` on the parameters, `output` on the return value. With no pipe and no interceptor, it
-is also faster: about 25% more requests per second where both are validated. See
-[Performance](./performance.md).
+An <Endpoint>endpoint</Endpoint> calls each schema on its own value: `params` and `query` on the
+parameters, `input` on the body, `output` on the return value. With no pipe and no interceptor, it
+is also [faster](./performance.md).
 
 ## Responses the compiler checks
 

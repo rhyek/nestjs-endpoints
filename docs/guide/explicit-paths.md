@@ -67,22 +67,22 @@ export default EndpointRouter.create({
 ```
 
 Endpoints built with the router's own `endpoint` builder, to receive its
-[context](./router-context.md), are listed with a callback of
-`import()`s. A static import of them from the router file would be an import cycle.
+[context](./router-context.md), are listed with a callback of `import()`s, since a static import
+of them from the router file would be an import cycle. Each `import()` lists every endpoint the
+module exports, default or named.
 
 ```ts
 export default EndpointRouter.create({
   basePath: 'recipes',
   providers: [RecipesRepository],
   context: { inject: { recipes: RecipesRepository } },
-  endpoints: () => [import('./create-recipe.js'), import('./list-recipes.js')],
+  endpoints: () => [
+    import('./create-recipe.js'),
+    import('./list-recipes.js'),
+  ],
 });
 ```
 
-The router calls the callback when it runs. Each `import()` lists every endpoint the module
-exports, default or named.
-
 ## Mixing the two styles
 
-Both styles work in one app, and on one router: a router registers the endpoint files it finds
-and everything in its `endpoints`.
+A router registers both the endpoint files it finds and everything in its `endpoints`.

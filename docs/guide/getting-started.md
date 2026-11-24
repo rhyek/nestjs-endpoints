@@ -17,13 +17,9 @@ From those schemas you get validation and, if you want one, a
 - **NestJS 12 or later**
 - **TypeScript 6 or later**
 - **Zod 4.1 or later**
-- **An ESM project**, with `"type": "module"` in its `package.json`. CommonJS is not supported.
-- **Run with the Nest CLI** (`nest start`).
-
-::: info Note
-Node with a TypeScript loader, such as SWC's (`@swc-node/register`) or oxc's (`@oxc-node/core`),
-works too. See [Development](./development.md#with-node-and-a-typescript-loader).
-:::
+- **An ESM project**, with `"type": "module"` in its `package.json`.
+- **Run with the Nest CLI** (`nest start`), or Node with a TypeScript loader. See
+  [Development](./development.md#with-node-and-a-typescript-loader).
 
 ## Install
 
@@ -64,8 +60,6 @@ allowBuilds:
 
 :::
 
-pnpm 11 and later stop the install until the package is listed, with `true` or `false`.
-
 ## Set up the app module
 
 `NestjsEndpoints.forRoot` sets the library up, once, in your app's root module. Its `router` is
@@ -81,7 +75,10 @@ import { OrdersService } from './endpoints/orders/orders.service.js';
 @Module({
   imports: [
     NestjsEndpoints.forRoot({
-      router: { rootDirectory: './endpoints', providers: [OrdersService] },
+      router: {
+        rootDirectory: './endpoints',
+        providers: [OrdersService],
+      },
     }),
   ],
 })
@@ -94,8 +91,7 @@ and `imports` as any Nest module does.
 ## Set up Vitest
 
 A new Nest project tests with Vitest. Add `nestjs-endpoints` to `server.deps.inline` in both of
-its configs, `vitest.config.ts` and `vitest.config.e2e.ts`, so that the endpoint files the
-package loads go through Vite like the rest of your code:
+its configs, `vitest.config.ts` and `vitest.config.e2e.ts`:
 
 ```ts
 // vitest.config.e2e.ts
@@ -139,8 +135,7 @@ export default endpoint.mutation({
 });
 ```
 
-Hover over `input` or `orders` in the handler: both are typed, from the schema and from the
-provider's class.
+Hover over `input` or `orders`: both are typed, from the schema and from the provider's class.
 
 - The file's path under `rootDirectory` is the route: `POST /orders/create`. See
   [File-based routing](./file-based-routing.md).
@@ -157,10 +152,8 @@ Start the app:
 npx nest start --watch
 ```
 
-The router finds the endpoint files when the app starts. An endpoint file you add later is served
-after a restart, which `nest start --watch` does by itself. See [Development](./development.md).
-
-Then send a request:
+The router finds the endpoint files when the app starts, and `--watch` restarts it when you add
+one. See [Development](./development.md). Then send a request:
 
 ```bash
 $ curl -X POST localhost:3000/orders/create \
@@ -200,6 +193,9 @@ namespaces, and a React front end that calls it through the generated React Quer
 
 - [Why nestjs-endpoints](./why.md): what it replaces, and what it asks of you.
 - [How it fits NestJS](./nestjs.md): what an endpoint is to the rest of a Nest app.
-- [Writing an endpoint](./endpoints.md): `input`, `query`, `params`, `output` and the handler.
+- [Writing an endpoint](./endpoints.md): `params`, `query`, `input`, `output` and the handler.
 - [Type safety](./type-safety.md): what the compiler checks for you.
+- [Routers](./routers.md) and [Router context](./router-context.md): what a folder shares,
+  declared once.
 - [Generating clients](../clients/codegen.md): a typed axios or React Query client.
+- [Recommended architecture](./architecture.md): how to lay an API out with all of it.

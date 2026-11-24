@@ -14,6 +14,7 @@ import {
   Res,
   Type,
   UseGuards,
+  UseInterceptors,
 } from '@nestjs/common';
 import { GUARDS_METADATA } from '@nestjs/common/constants';
 import { HttpAdapterHost, ModulesContainer } from '@nestjs/core';
@@ -46,6 +47,7 @@ import {
   type RouterContext,
   type WithoutKeys,
 } from './router-context';
+import type { Guard, Interceptor } from './router-lineage';
 import { isSameModule, shown } from './routing-files';
 import {
   type ObjectSchemaUnion,
@@ -181,39 +183,21 @@ type OnRequestOnly<OnRequest, Inject> = WithoutKeys<
 >;
 
 /**
- * The raw value of a schema the endpoint declares, under `Key`: one the
- * options may leave out when it has no required key.
+ * The raw value of a schema the endpoint declares, under `Key`, which a call may leave out:
+ * validation refuses what it requires. An endpoint that declares no such schema takes no key.
  */
-type RawOption<Key extends string, S extends SchemaOption> = IfDeclared<
-  S,
-  // eslint-disable-next-line @typescript-eslint/no-empty-object-type
-  {} extends z.input<S> ? { [K in Key]?: z.input<S> } : { [K in Key]: z.input<S> }
->;
+type RawOption<Key extends string, S extends SchemaOption> = S extends undefined
+  ? { [K in Key]?: never }
+  : { [K in Key]?: z.input<S> };
 
-type InvokeOptions<ParamsSchema extends SchemaOption, QuerySchema extends SchemaOption> = RawOption<
-  'params',
-  ParamsSchema
-> &
-  RawOption<'query', QuerySchema>;
-
-/**
- * `invoke`'s arguments: the raw input when the endpoint has an `input`, then
- * the raw path and search params when it has `params` or `query`. The
- * options may be left out when no path or search param is required.
- */
-type InvokeArgs<
+/** `invoke`'s request: the raw `params`, `query` and `input`, named as the endpoint's options. */
+type InvokeRequest<
   InputSchema extends SchemaOption,
   ParamsSchema extends SchemaOption,
   QuerySchema extends SchemaOption,
-> = [
-  ...(InputSchema extends undefined ? [] : [rawInput: z.input<InputSchema>]),
-  ...([ParamsSchema, QuerySchema] extends [undefined, undefined]
-    ? []
-    : // eslint-disable-next-line @typescript-eslint/no-empty-object-type
-      {} extends InvokeOptions<ParamsSchema, QuerySchema>
-      ? [opts?: InvokeOptions<ParamsSchema, QuerySchema>]
-      : [opts: InvokeOptions<ParamsSchema, QuerySchema>]),
-];
+> = RawOption<'params', ParamsSchema> &
+  RawOption<'query', QuerySchema> &
+  RawOption<'input', InputSchema>;
 
 type EndpointControllerClass<
   InjectProviders = undefined,
@@ -254,13 +238,12 @@ type EndpointInstance<
     OutputSchema
   >;
   /**
-   * Invoke the endpoint with raw input. Useful for testing. When the
-   * endpoint declares a `params` or `query` schema, the last argument
-   * carries the raw path or search parameters
-   * (`{ params: { ... }, query: { ... } }`).
+   * Calls the handler without HTTP, with the raw `params`, `query` and
+   * `input` validated as a request's are: `invoke({ params, query, input })`.
+   * Useful for testing.
    */
   invoke: (
-    ...args: InvokeArgs<InputSchema, ParamsSchema, QuerySchema>
+    request?: InvokeRequest<InputSchema, ParamsSchema, QuerySchema>,
   ) => MaybePromise<InvokeReturn<OutputSchema>>;
 };
 
@@ -417,6 +400,24 @@ type EndpointOptions<
    * @deprecated Use `injectOnRequest` instead.
    */
   injectAtRequest?: OnRequestOnly<InjectOnRequestParameters, InjectProviders>;
+  /**
+   * Guards for this endpoint, as `@UseGuards()` on a controller method takes
+   * them. They run after its routers' guards, and before any in
+   * `decorators`.
+   *
+   * @example
+   *   guards: [AdminGuard]
+   */
+  guards?: Guard[];
+  /**
+   * Interceptors for this endpoint, as `@UseInterceptors()` on a controller
+   * method takes them. They run inside its routers' interceptors, and
+   * outside any in `decorators`.
+   *
+   * @example
+   *   interceptors: [AuditInterceptor]
+   */
+  interceptors?: Interceptor[];
   /**
    * Method decorators.
    *
@@ -639,7 +640,15 @@ function defineEndpoint(
 ): any {
   const at = `endpoint.${kind}() in ${file}`;
   const params = withRouterContext(at, options, router);
-  const { method: httpMethod = 'post', path: explicitPath, summary, tags, decorators } = params;
+  const {
+    method: httpMethod = 'post',
+    path: explicitPath,
+    summary,
+    tags,
+    guards,
+    interceptors,
+    decorators,
+  } = params;
   const fail = (message: string) => new Error(`${at}: ${message}`);
   if (!Object.hasOwn(httpMethodDecorators, httpMethod)) {
     const methods = Object.keys(httpMethodDecorators)
@@ -747,15 +756,15 @@ function defineEndpoint(
     return sendResponse(httpAdapter, res, toResponse(result, outputSchemas));
   };
 
-  proto.invoke = async function (...args: any[]) {
-    // Without an `input` schema the options come first: `invoke({ params, query })`.
-    const [rawInput, opts] = inputSchema ? args : [undefined, args[0]];
+  proto.invoke = async function (
+    request: { params?: unknown; query?: unknown; input?: unknown } = {},
+  ) {
     const result = await callHandler(
       this,
       { response, schemas },
-      rawInput,
-      paramsSchema && opts?.params,
-      querySchema && opts?.query,
+      inputSchema && request.input,
+      paramsSchema && request.params,
+      querySchema && request.query,
     );
     const res = toResponse(result, outputSchemas);
     return result instanceof EndpointResponse ? res : res.body;
@@ -819,8 +828,8 @@ function defineEndpoint(
     Object.defineProperty(cls, 'name', { value: `${httpPathPascalName}Endpoint` });
     Controller(httpPath)(cls);
     // A value of a path parameter that is a name beside it is no value: the URL is the name's.
-    const guards = (Reflect.getMetadata(GUARDS_METADATA, cls) as unknown[] | undefined) ?? [];
-    if (urlParams.length > 0 && !guards.includes(NamesBesideGuard)) {
+    const classGuards = (Reflect.getMetadata(GUARDS_METADATA, cls) as unknown[] | undefined) ?? [];
+    if (urlParams.length > 0 && !classGuards.includes(NamesBesideGuard)) {
       UseGuards(NamesBesideGuard)(cls);
     }
 
@@ -849,6 +858,9 @@ function defineEndpoint(
       // document gives an endpoint without `output`, which a POST would
       // otherwise get as 201.
       HttpCode(200),
+      // Before `decorators`, so their guards and interceptors run first.
+      ...(guards?.length ? [UseGuards(...guards)] : []),
+      ...(interceptors?.length ? [UseInterceptors(...interceptors)] : []),
       ...(decorators ?? []),
     ];
     // Each schema is converted once; the decorators and the descriptor read

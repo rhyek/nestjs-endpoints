@@ -6,14 +6,14 @@ description: What the compiler checks in an endpoint and in the generated client
 
 An endpoint's Zod schemas are the only place its types are written. The handler's arguments, its
 return value, the generated client's requests and its responses are all inferred from them, so a
-change to a schema is checked everywhere it matters, on the server and in the front end.
+change to a schema is checked on the server and in the front end.
 
-Every code sample on this page is compiled against the library when the site is built. The types
-and errors shown are the compiler's own. Hover over any name to see its type.
+Every sample on this page is compiled when the site is built; the types and errors shown are the
+compiler's own. Hover over any name to see its type.
 
 ## The handler's arguments
 
-`input`, `query` and `params` reach the handler as the **parsed output** of their schemas:
+`params`, `query` and `input` reach the handler as the **parsed output** of their schemas:
 coerced, defaulted and narrowed.
 
 ```ts twoslash
@@ -42,18 +42,19 @@ What you [inject](./dependency-injection.md) is typed as well, from the provider
 the type you give `decorated<T>()`:
 
 ```ts twoslash
-// @filename: src/endpoints/admin/refund.sample.ts
+// @filename: src/endpoints/orders/$orderId.refund.sample.ts
 import { decorated, endpoint, z } from 'nestjs-endpoints';
 import { CurrentUser, type User } from '../../auth/current-user.decorator.js';
 import { PaymentsService } from '../../payments/payments.service.js';
 // ---cut---
 export default endpoint.mutation({
-  input: z.object({ orderId: z.number(), reason: z.string() }),
+  params: z.object({ orderId: z.coerce.number() }),
+  input: z.object({ reason: z.string() }),
   inject: { payments: PaymentsService },
   injectOnRequest: { user: decorated<User>(CurrentUser()) },
-  handler: ({ input, payments, user }) =>
-    //                         ^?
-    payments.refund(input.orderId, input.reason, user.id),
+  handler: ({ params, input, payments, user }) =>
+    //                                 ^?
+    payments.refund(params.orderId, input.reason, user.id),
 });
 ```
 
@@ -80,8 +81,6 @@ export default endpoint.query({
   }),
 });
 ```
-
-A missing field is an error in the same way.
 
 A return value may carry **more** than `output` declares. Those keys are not a type error: they
 are [stripped when the response is parsed](./responses.md#one-response).
@@ -112,14 +111,11 @@ export default endpoint.query({
 });
 ```
 
-An object literal with a key `output` doesn't declare is then an error too, though a value from
-a variable or a call may still carry more.
-
 ## Status codes
 
 With a [schema per status](./responses.md#several-statuses), the handler returns
-`response(status, body)`. The status must be one `output` declares, and the body is checked
-against that status's schema:
+`response(status, body)`. The status must be one `output` declares, and the body must match
+that status's schema:
 
 ```ts twoslash
 // @errors: 2322
@@ -137,9 +133,6 @@ export default endpoint.mutation({
       : response(201, { id: 'not-a-number' }),
 });
 ```
-
-Both are arguments of a call, so a mismatch is reported on the value itself, in a block body
-too.
 
 ## The client
 
@@ -240,7 +233,7 @@ create.mutate({ body: { productId: 42, quantity: 2 } });
 
 ## Tests
 
-An endpoint's [`invoke()`](./testing.md#integration-tests) runs it without HTTP, and resolves to
+An endpoint's [`invoke()`](./testing.md#invoke) runs it without HTTP, and resolves to
 the type of its `output`:
 
 ```ts twoslash
@@ -249,8 +242,7 @@ import createOrder from './src/endpoints/orders/create.endpoint.js';
 declare const app: INestApplication;
 // ---cut---
 const created = await app.get(createOrder).invoke({
-  productId: 'sku_42',
-  quantity: 2,
+  input: { productId: 'sku_42', quantity: 2 },
 });
 
 created;

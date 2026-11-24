@@ -3,12 +3,20 @@
 import { useApiClient } from './generated/react-query-client.js';
 // ---cut---
 // React Query
-function Order({ orderId }) {
-  // ...
+function Orders() {
   const client = useApiClient();
-  const order = client.orders.useView({ path: { orderId } });
+  const orders = client.orders.useList({
+    query: { page: 1 },
+    body: { status: 'paid' },
+  });
 
-  order.data?.
-  //          ^|
+  return (
+    <ul>
+      {orders.data?.map((order) => (
+        <li key={order.id}>{order.}</li>
+      //                          ^|
+      ))}
+    </ul>
+  );
 }
 ```

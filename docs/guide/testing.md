@@ -1,5 +1,5 @@
 ---
-description: Test endpoints over HTTP, through the generated client, one router at a time, or by calling a handler directly with invoke().
+description: Test endpoints over HTTP, through the generated client, by invoking one under its routers, or in isolation with only the providers it needs.
 ---
 
 # Testing
@@ -40,24 +40,26 @@ import request from 'supertest';
 import { AppModule } from '../src/app.module.js';
 
 test('creates an order', async () => {
-  const moduleRef = await Test.createTestingModule({ imports: [AppModule] }).compile();
+  const moduleRef = await Test.createTestingModule({
+    imports: [AppModule],
+  }).compile();
   const app = moduleRef.createNestApplication();
   await app.init();
 
-  await request(app.getHttpServer())
+  const { body } = await request(app.getHttpServer())
     .post('/orders/create')
     .send({ productId: 'sku_42', quantity: 2 })
-    .expect(200)
-    .then((response) => {
-      expect(response.body).toMatchObject({ id: 1, status: 'pending' });
-    });
+    .expect(200);
+  expect(body).toMatchObject({ id: 1, status: 'pending' });
 });
 ```
 
 Replace a provider with NestJS's own testing API:
 
 ```ts
-const moduleRef = await Test.createTestingModule({ imports: [AppModule] })
+const moduleRef = await Test.createTestingModule({
+  imports: [AppModule],
+})
   .overrideProvider(OrdersService)
   .useValue(fakeOrders)
   .compile();
@@ -73,7 +75,9 @@ on port `0` and read the URL back:
 import { createApiClient } from '../generated/axios-client.js';
 
 test('creates an order', async () => {
-  const moduleRef = await Test.createTestingModule({ imports: [AppModule] }).compile();
+  const moduleRef = await Test.createTestingModule({
+    imports: [AppModule],
+  }).compile();
   const app = moduleRef.createNestApplication();
   await app.init();
   await app.listen(0);
@@ -81,7 +85,9 @@ test('creates an order', async () => {
   const client = createApiClient({ baseURL: await app.getUrl() });
 
   await expect(
-    client.orders.create({ body: { productId: 'sku_42', quantity: 2 } }),
+    client.orders.create({
+      body: { productId: 'sku_42', quantity: 2 },
+    }),
   ).resolves.toMatchObject({
     status: 200,
     data: { id: 1, status: 'pending' },
@@ -89,64 +95,127 @@ test('creates an order', async () => {
 });
 ```
 
-## Testing one router
+## Invoking an endpoint directly {#invoke}
 
-Import a router without the rest of the app, and only that router's folder is loaded:
+Every endpoint has an [`invoke()`](../reference/endpoint.md#invoke) method, which calls its
+handler without HTTP. It validates `params`, `query`, `input` and `output` as a request would,
+and runs nothing else: no middleware, guards, interceptors, pipes or exception filters, the
+routers' or the endpoint's own. Values from `injectOnRequest` come from a request, so they are
+`undefined`: test a handler that needs one over HTTP.
 
-```ts
-import OrdersRouterModule from '../src/endpoints/orders/router.js';
+Take an API whose `teams` folder has three levels of routers, each made with its parent's
+[`child()`](./router-context.md#child-routers):
 
-test('orders router', async () => {
-  const moduleRef = await Test.createTestingModule({
-    imports: [OrdersRouterModule],
-  }).compile();
-  // …
+::: code-group
+
+```ts [teams/router.ts]
+export default EndpointRouter.create({
+  imports: [DbModule],
+  context: { inject: { db: DbService } },
 });
 ```
 
-A test that imports more than one router imports `NestjsEndpoints.forRoot()` beside them,
-as the app's root module does.
+```ts [teams/$teamId/router.ts]
+import teamsRouter from '../router.js';
 
-A router made with another's [`child()`](./router-context.md#child-routers) loads by itself too,
-under the base path its parents give it. It brings what they give it: their `providers` and
-`imports`, their `guards`, `interceptors` and `middleware`, and their lifecycle hooks. It does
-not bring their endpoints.
+export default teamsRouter.child({
+  context: { params: z.object({ teamId: z.uuid() }) },
+});
+```
 
-## Integration tests
+```ts [teams/$teamId/members/router.ts]
+import teamRouter from '../router.js';
 
-Load individual endpoints as controllers, with only the providers they need, and call them with
-`invoke()`. It runs the endpoint without HTTP, through the same validation of `input`, `query`,
-`params` and `output`:
+export default teamRouter.child({
+  providers: [Mailer],
+  context: { inject: { mailer: Mailer } },
+});
+```
+
+:::
+
+And an endpoint under the grandchild:
+
+```ts
+// src/endpoints/teams/$teamId/members/invite.endpoint.ts
+import membersRouter from './router.js';
+
+export default membersRouter.endpoint.mutation({
+  input: z.object({ email: z.email() }),
+  handler: async ({ params, input, db, mailer }) => {
+    const [member] = await db
+      .insert(members)
+      .values({ teamId: params.teamId, email: input.email })
+      .returning();
+    await mailer.sendInvite(input.email);
+    return member;
+  },
+});
+```
+
+Import the router of the endpoint's folder, the grandchild here, and nothing else. It brings
+what the routers above it give: the `teams` router's `DbModule` and `db`, and the `$teamId`
+router's `teamId`. Get the endpoint's instance from the app and invoke it:
 
 ```ts
 import { Test } from '@nestjs/testing';
-import createOrder from '../src/endpoints/orders/create.endpoint.js';
-import viewOrder from '../src/endpoints/orders/$orderId.view.endpoint.js';
-import { OrdersService } from '../src/endpoints/orders/orders.service.js';
+import inviteEndpoint from '../src/endpoints/teams/$teamId/members/invite.endpoint.js';
+import membersRouter from '../src/endpoints/teams/$teamId/members/router.js';
 
-test('creates and reads an order', async () => {
+test('invites a member', async () => {
   const moduleRef = await Test.createTestingModule({
-    controllers: [createOrder, viewOrder],
-    providers: [OrdersService],
+    imports: [membersRouter],
   }).compile();
   const app = moduleRef.createNestApplication();
   await app.init();
 
-  const created = await app.get(createOrder).invoke({ productId: 'sku_42', quantity: 2 });
-  expect(created).toMatchObject({ id: 1, status: 'pending' });
-
-  // Path and search parameters are raw strings, coerced as they would be over HTTP.
-  const viewed = await app.get(viewOrder).invoke({ params: { orderId: '1' } });
-  expect(viewed.id).toBe(1);
+  const member = await app.get(inviteEndpoint).invoke({
+    params: { teamId: '0b9e2c4a-6f1d-4e8b-9a3c-5d7f1e2b8c60' },
+    input: { email: 'ada@example.com' },
+  });
+  expect(member).toMatchObject({ email: 'ada@example.com' });
 });
 ```
 
-`invoke()` takes the raw input, then the path and search parameters: see
-[its forms](../reference/endpoint.md#invoke). It resolves to the validated body, [typed from `output`](./type-safety.md#tests). For an endpoint
-with [several statuses](./responses.md#several-statuses) it resolves to an `EndpointResponse`,
-`{ status, body }`.
+- **Only that router's folder is loaded**: its endpoints and the routers under it, and none of
+  the endpoints of the routers above it. It answers HTTP requests too, at the URLs it has in the
+  whole app, with the middleware, guards and interceptors of every router above it.
+- **A router made with [`EndpointRouter.create()`](./routers.md#nested-routers) inherits
+  nothing**, so a test of one gives it nothing from the routers above it either.
+- **Replace a provider** with NestJS's `.overrideProvider()`, as in any test.
 
-An endpoint built with a router's `endpoint` builder carries the
-[router's context](./router-context.md) into such a test, its parent routers' included. List the
-providers their `inject` names in the testing module, and pass their path parameters to
-`invoke()` with the endpoint's own.
+## Testing an endpoint in isolation {#isolation}
+
+For larger applications, leave the routers out, and load the endpoint as a controller, so a
+test starts only what that endpoint needs. Nothing reaches it on its own: the testing module
+provides everything the endpoint and its routers inject, here what the `teams` and `members`
+routers gave it in the test above:
+
+```ts
+import { Test } from '@nestjs/testing';
+import { DbModule } from '../src/db/db.module.js';
+import inviteEndpoint from '../src/endpoints/teams/$teamId/members/invite.endpoint.js';
+import { Mailer } from '../src/mail/mailer.js';
+
+test('invites a member, and mails them', async () => {
+  const mailer = { sendInvite: vi.fn() };
+  const moduleRef = await Test.createTestingModule({
+    controllers: [inviteEndpoint],
+    imports: [DbModule],
+    providers: [{ provide: Mailer, useValue: mailer }],
+  }).compile();
+  const app = moduleRef.createNestApplication();
+  await app.init();
+
+  await app.get(inviteEndpoint).invoke({
+    params: { teamId: '0b9e2c4a-6f1d-4e8b-9a3c-5d7f1e2b8c60' },
+    input: { email: 'ada@example.com' },
+  });
+  expect(mailer.sendInvite).toHaveBeenCalledWith(
+    'ada@example.com',
+  );
+});
+```
+
+The endpoint keeps the `params` of its routers, so `invoke()` still validates the `teamId` the
+`$teamId` router declares. A provider left out fails the test as the app starts, naming it.

@@ -30,18 +30,14 @@ its full name: `client.shopRecipesCreate()`.
 | Value | Meaning |
 | --- | --- |
 | Left out, or `false` | The router adds nothing. Its endpoints sit in its parent's namespace. |
-| `true` | The router's `basePath` if it sets one, otherwise its folder's name, in a `router.ts`. A router with neither stops the app from starting: one created elsewhere, such as in `app.module.ts`, or in a folder that names a path parameter, such as `$projectId`. Give it a string. |
+| `true` | The router's `basePath` if it sets one, otherwise the name of its `router.ts`'s folder. |
 | A string | That exact name. |
-
-A namespace is a name: letters, digits, `-` and `_`, starting with a letter. A base path of
-several segments, such as `api/shop`, is not one, so a router with it takes a string.
 
 A folder with no `router.ts` is part of the URL but not of the namespace. Under a `shop`
 router with a namespace, `shop/catering/book.endpoint.ts` serves `/shop/catering/book` and is
 called as `client.shop.cateringBook()`.
 
-The `description` of a router that sets `namespace` becomes a comment on its object in the
-client, which your editor shows on hover.
+A router's `description` becomes a comment on its namespace's object in the client.
 
 ## How names are derived
 
@@ -59,13 +55,9 @@ client, which your editor shows on hover.
 | `shop/recipes/edit/$recipeId.endpoint.ts` | `client.shop.recipes.edit({ path: { recipeId } })` |
 | `shop/catering/book.endpoint.ts` | `client.shop.cateringBook()` |
 
-Two things follow from these rules:
-
-- **Give an endpoint file a name of its own in a namespaced folder.** A bare `endpoint.ts` in
-  `shop/recipes/` has the id `ShopRecipes`, which is the whole namespace, so it keeps its full
-  name: `client.shop.recipes.shopRecipes()`.
-- **Names must be unique.** Two operations that land on the same name stop codegen with a
-  message saying which. Rename the endpoint file or the namespace.
+**Give an endpoint file a name of its own in a namespaced folder.** A bare `endpoint.ts` in
+`shop/recipes/` has the id `ShopRecipes`, which is the whole namespace, so it keeps its full name:
+`client.shop.recipes.shopRecipes()`.
 
 ## A client per front end
 
@@ -75,7 +67,10 @@ One server can generate several clients, each limited to the top-level namespace
 await setupCodegen(app, {
   clients: [
     // The whole API, for other back-end services.
-    { type: 'axios', outputFile: process.cwd() + '/generated/backend.ts' },
+    {
+      type: 'axios',
+      outputFile: process.cwd() + '/generated/backend.ts',
+    },
 
     // One client per front end.
     {

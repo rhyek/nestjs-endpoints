@@ -17,6 +17,32 @@ Check, in order:
 
 If none of those appear, the library is not in play, and these pages don't apply.
 
+## How to write endpoints here
+
+Write every endpoint you add this way. See
+[Recommended architecture](../guide/architecture.md) for the reasons and examples.
+
+1. **The id of what an endpoint acts on is in its path:** a `$param` segment and `params`, never
+   a field of `input`. Several actions on one resource follow it after a `.`: `$orderId.cancel`.
+2. **What three or more endpoints in a folder share goes on a `router.ts` there, once:** their
+   path parameters (`context.params`), the providers and per-request values they inject
+   (`context.inject`, `context.injectOnRequest`), their guards, middleware and interceptors,
+   and their `namespace`. A nested folder's router is its parent's `child()`: it inherits the
+   context, providers and imports above it, and declares only what it adds. A router's guards,
+   middleware and interceptors act on every endpoint under it, at any depth. One or two
+   endpoints declare what they share themselves.
+3. **An endpoint holds its own logic.** Its handler does the work with what it injects directly
+   (the database, a queue, a mail client), with `properties`, `methods` and `lifecycle` for its
+   own state ([State and lifecycle](../guide/state-and-lifecycle.md)). Write a service only for
+   domain knowledge several endpoints need.
+4. **`POST` is the default.** Set `method: 'get'` for a health check, a URL a browser or another
+   system calls directly, or a response HTTP caches should hold. A read is `endpoint.query()`
+   whatever its method.
+5. **Each status an endpoint answers with is in its `output`,** described with
+   `.meta({ description })`.
+6. **Follow these even where the endpoints around yours don't.** Leave those as they are unless
+   you were asked to change them.
+
 ## Rules
 
 - **One file, one endpoint.** An endpoint file default-exports one `endpoint.query({...})` (a
@@ -30,7 +56,7 @@ If none of those appear, the library is not in play, and these pages don't apply
 - **ESM only.** The project has `"type": "module"`, and its relative imports end in `.js`.
 - **No bundling.** File-based routing reads each endpoint file on disk, so the app is built
   with `tsc` or `nest build`, never Webpack or a bundler.
-- **`query` and `params` values arrive as strings.** Read them with `z.coerce.number()`,
+- **`params` and `query` values arrive as strings.** Read them with `z.coerce.number()`,
   `z.coerce.date()` or `z.stringbool()`.
 - **A new endpoint file is served after the app restarts.** `nest start --watch` restarts by
   itself; with `node --watch`, `NestjsEndpoints.forRoot` needs `watch: true`. See
@@ -44,15 +70,22 @@ If none of those appear, the library is not in play, and these pages don't apply
 ## Add an endpoint
 
 1. Create `<router folder>/<segments>/<name>.endpoint.ts`. The path from the router's folder is
-   the URL: `orders/create.endpoint.ts` is `POST /orders/create`.
+   the URL: `orders/$orderId.cancel.endpoint.ts` is `POST /orders/:orderId/cancel`, and
+   `orders/create.endpoint.ts` is `POST /orders/create`.
 2. `export default endpoint.query({...})` for a read, `endpoint.mutation({...})` for a write,
-   with its `input`, `query`, `params` and `output` schemas and its `handler`. See
-   [Writing an endpoint](../guide/endpoints.md) and [Endpoint options](../reference/endpoint.md).
-3. Give it the providers it needs with `inject`, and list them in the `providers` of the router
+   with its `params`, `query`, `input` and `output` schemas and its `handler`. The `$orderId`
+   is declared in `params` (`z.object({ orderId: z.coerce.number() })`), unless a router above
+   declares it. See [Writing an endpoint](../guide/endpoints.md) and
+   [Endpoint options](../reference/endpoint.md).
+3. Give it what it needs with `inject`, and list each provider in the `providers` of the router
    that owns the folder. See [Dependency injection](../guide/dependency-injection.md).
 4. Restart the app if it doesn't restart by itself, and regenerate the client if the app has one.
 
-An endpoint is a `POST` unless it sets `method`. A `GET` takes no `input`: its request is `query`.
+## Serve a `GET`
+
+An endpoint is a `POST` unless it sets `method`. Set `method: 'get'` for a health check, a URL a
+browser or another system calls directly, or a response HTTP caches should hold. A `GET` takes no
+`input`: its request is `query`. See [HTTP method](../guide/endpoints.md#http-method).
 
 ## Change an endpoint's URL
 
@@ -73,9 +106,12 @@ it by itself, and its base path is the folder's name. Its `middleware`, `interce
 `guards` apply to every endpoint under it. See [Nested routers](../guide/routers.md#nested-routers)
 and [Middleware, interceptors and guards](../guide/routers.md#middleware-interceptors-and-guards).
 
+Add one once three endpoints in a folder share a path parameter, an injection, a guard, middleware or an interceptor.
+
 A value every endpoint of a router needs goes in the router's `context`: a provider in `inject`,
 the current user in `injectOnRequest`, and the path parameter of a `$param` folder in `params`.
-A provider the router's own lifecycle hooks or methods use goes in its top-level `inject`. A nested
+A provider the router's [own lifecycle hooks or methods](../guide/routers.md#own) use goes in its
+top-level `inject`. A nested
 router made with the parent's `child()` inherits them, with the parent's `providers` and
 `imports`: it lists only its own. See
 [Router context](../guide/router-context.md).
@@ -98,10 +134,12 @@ router made with the parent's `child()` inherits them, with the parent's `provid
   supertest. See [Over HTTP](../guide/testing.md#over-http).
 - **Through the client:** point a generated client at the test app. See
   [Through the generated client](../guide/testing.md#through-the-generated-client).
-- **One router alone,** without the app module: see
-  [Testing one router](../guide/testing.md#testing-one-router).
-- **The handler alone:** call it with `invoke()`. See
-  [Integration tests](../guide/testing.md#integration-tests).
+- **The handler, under its routers:** import the router of its folder alone, which brings
+  what the routers above it give, and call `invoke()`. No middleware, guards or interceptors
+  run. See [Invoking an endpoint directly](../guide/testing.md#invoke).
+- **The handler in isolation:** load the endpoint as a controller, provide everything it and
+  its routers inject, and call `invoke()`. See
+  [Testing an endpoint in isolation](../guide/testing.md#isolation).
 
 ## An error or a 404
 

@@ -23,7 +23,10 @@ import { NestjsEndpoints } from 'nestjs-endpoints';
 @Module({
   imports: [
     NestjsEndpoints.forRoot({
-      router: { rootDirectory: './endpoints', providers: [OrdersService] },
+      router: {
+        rootDirectory: './endpoints',
+        providers: [OrdersService],
+      },
     }),
   ],
 })
@@ -33,19 +36,16 @@ export class AppModule {}
 `rootDirectory` is the folder to look in, relative to the file that calls `forRoot()`. Without
 it, the router looks in the calling file's own folder.
 
-`forRoot` is called once per app. Every other router is made with
-`EndpointRouter.create()`, which takes the same [options](../reference/router.md#options):
-a [nested router](#nested-routers), or one created
+Every other router is made with `EndpointRouter.create()`, which takes the same
+[options](../reference/router.md#options): a [nested router](#nested-routers), or one created
 [inside a regular module](#inside-a-regular-module). A nested router that inherits its parent's
 [context](./router-context.md#child-routers) is made with the parent's `child()`.
 
 ## Nested routers
 
 A folder becomes a router of its own when it has a `router.ts` that default-exports one.
-The parent router finds it and imports it. Nothing is registered by hand.
-
-A `router.ts` that exports no router is not a router file: the app loads it, and its folder
-stays with the router above.
+The parent router finds it and imports it. Nothing is registered by hand. A `router.ts` that
+exports no router is an ordinary file, and its folder stays with the router above.
 
 ```
 src/
@@ -76,9 +76,8 @@ A nested router owns its folder: the parent doesn't look inside it. Its endpoint
 providers in the nested router's module, so a feature's services stay with the feature. One made
 with its parent's [`child()`](./router-context.md#providers) has the parent's providers too.
 
-`namespace` groups the router's operations in the generated client, and `description` documents
-that group: it becomes a comment on the router's [namespace](../clients/namespaces.md). A router
-takes a `description` only beside `namespace`.
+`namespace` groups the router's operations in the generated client, and `description` becomes a
+comment on that [namespace](../clients/namespaces.md).
 
 ## Base path
 
@@ -94,7 +93,8 @@ router is created:
 Pass `basePath` to set it yourself, or `''` to mount the router at the root:
 
 ```ts
-// src/blog/router.ts: the folder is `blog`, the routes are under /articles
+// src/blog/router.ts
+// The folder is `blog`, and the routes are under /articles.
 export default EndpointRouter.create({
   rootDirectory: 'endpoints',
   basePath: 'articles',
@@ -103,10 +103,9 @@ export default EndpointRouter.create({
 
 ## Middleware, interceptors and guards
 
-A router's `middleware`, `interceptors` and `guards` apply to every endpoint in its folder,
-nested routers included. They run from the outermost router in: a router's before those of the
-routers nested under it. The middleware of a router in a `$param` folder doesn't run for the URLs of
-the [names beside that folder](./file-based-routing.md#a-name-beside-a-parameter).
+A router's `middleware`, `interceptors` and `guards` apply to every endpoint in its folder, at
+any depth of nested routers. They run outermost router first: a router's before those of the
+routers nested under it.
 
 Plain NestJS has no such scope: a guard or an interceptor is either global (`APP_GUARD`,
 `APP_INTERCEPTOR`) or repeated on each controller. On a router you declare it once, for the
@@ -122,25 +121,63 @@ export default EndpointRouter.create({
   guards: [AdminGuard],
   interceptors: [AuditInterceptor],
   middleware: [
-    RequestIdMiddleware, // a NestMiddleware class
-    (_req: IncomingMessage, _res: ServerResponse, next: () => void) => {
+    // a NestMiddleware class
+    RequestIdMiddleware,
+    // or a function
+    (
+      _req: IncomingMessage,
+      _res: ServerResponse,
+      next: () => void,
+    ) => {
       next();
-    }, // or a function
-    { exclude: ['login'] }, // options, as the last entry: skips /admin/login
+    },
+    // options, as the last entry: skips /admin/login
+    { exclude: ['login'] },
   ],
 });
 ```
 
-A guard or interceptor passed as a class must be resolvable in the router's module: add it to
-the router's `providers`, or export it from a module the router imports.
-
-For a single endpoint, use its own [`decorators`](./dependency-injection.md#per-endpoint-decorators).
+For a single endpoint, use its own [`guards` and `interceptors`](./dependency-injection.md#per-endpoint-decorators),
+which run after those of its routers.
 
 ## Router context
 
 A router can also declare, in its `context`, what every handler under it receives: path
 parameters (`params`), providers (`inject`) and per-request values (`injectOnRequest`). A nested
 router made with `router.child()` inherits them from its parent. See [Router context](./router-context.md).
+
+## A router's own hooks and state {#own}
+
+A router takes `properties`, `methods` and `lifecycle`, as
+[an endpoint does](./state-and-lifecycle.md), for code that belongs to a whole folder: checking a
+connection before any of its endpoints serves a request, or closing one as the app stops.
+
+```ts twoslash
+// @filename: src/endpoints/reports/router.sample.ts
+import { EndpointRouter } from 'nestjs-endpoints';
+import { DbModule } from '../../db/db.module.js';
+import { DbService } from '../../db/db.service.js';
+import { products } from '../../db/schema.js';
+// ---cut---
+// src/endpoints/reports/router.ts
+export default EndpointRouter.create({
+  imports: [DbModule],
+  inject: { db: DbService },
+  properties: () => ({ ready: false }),
+  lifecycle: {
+    async onModuleInit() {
+      await this.db.select().from(products).limit(1);
+      this.ready = true;
+    },
+  },
+});
+```
+
+- **The router's top-level `inject` is its own**, for `this` in its hooks, methods and getters.
+  The endpoints under it get what its [`context`](./router-context.md) gives, not this.
+- **A router starts after the routers above it and before its own endpoints**, and stops in the
+  reverse order. What a parent router sets up in `onModuleInit` is there when its children's
+  hooks run.
 
 ## Inside a regular module
 
@@ -152,7 +189,10 @@ you want ordinary NestJS wiring around it:
   providers: [AuthService],
   exports: [AuthService],
   imports: [
-    EndpointRouter.create({ basePath: 'auth', providers: [AuthService] }),
+    EndpointRouter.create({
+      basePath: 'auth',
+      providers: [AuthService],
+    }),
   ],
 })
 export class AuthModule {}

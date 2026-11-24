@@ -11,15 +11,15 @@ import {
 import { GUARDS_METADATA, INTERCEPTORS_METADATA } from '@nestjs/common/constants';
 import { NamesBesideGuard } from './names-beside.guard';
 
-export type RouterGuard = Type<CanActivate> | CanActivate;
+export type Guard = Type<CanActivate> | CanActivate;
 
-export type RouterInterceptor = Type<NestInterceptor> | NestInterceptor;
+export type Interceptor = Type<NestInterceptor> | NestInterceptor;
 
 /**
  * The guards and interceptors of a router and of those above it, the outermost first: what a
  * router applies to its endpoints, and the routers made with its `child()` apply to theirs.
  */
-export type Lineage = { guards: RouterGuard[]; interceptors: RouterInterceptor[] };
+export type Lineage = { guards: Guard[]; interceptors: Interceptor[] };
 
 export const NO_LINEAGE: Lineage = { guards: [], interceptors: [] };
 

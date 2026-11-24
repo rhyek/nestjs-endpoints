@@ -8,24 +8,29 @@ An endpoint takes its dependencies in two maps, which correspond to the two plac
 controller receives them: its constructor, and its method's parameters.
 
 ```ts twoslash
-// @filename: src/endpoints/admin/refund.sample.ts
+// @filename: src/endpoints/orders/$orderId.refund.sample.ts
 import { decorated, endpoint, z } from 'nestjs-endpoints';
 import { CurrentUser, type User } from '../../auth/current-user.decorator.js';
 import { PaymentsService } from '../../payments/payments.service.js';
 // ---cut---
+// src/endpoints/orders/$orderId.refund.endpoint.ts
+//   →  POST /orders/:orderId/refund
 export default endpoint.mutation({
-  input: z.object({ orderId: z.number(), reason: z.string() }),
+  params: z.object({ orderId: z.coerce.number() }),
+  input: z.object({ reason: z.string() }),
   output: z.object({ refunded: z.boolean() }),
   // resolved once, as a controller's constructor arguments are
   inject: { payments: PaymentsService },
   // resolved on every request
   injectOnRequest: { user: decorated<User>(CurrentUser()) },
-  handler: ({ input, payments, user }) =>
-    payments.refund(input.orderId, input.reason, user.id),
+  handler: ({ params, input, payments, user }) =>
+    payments.refund(params.orderId, input.reason, user.id),
 });
 ```
 
-Each key becomes an argument of the handler, under the name you gave it, with its type.
+Inject what an endpoint works with directly: the database, a queue, a mail client. Write a
+service, as `PaymentsService` is here, for domain logic several endpoints share. See
+[When to write a service](./architecture.md#services).
 
 ## `inject`: providers
 
@@ -50,9 +55,8 @@ export default endpoint.query({
 });
 ```
 
-A provider must be resolvable in the module the endpoint lands in. Add it to the `providers` of
-the [router](./routers.md) that owns the endpoint, or export it from a module in that router's
-`imports`. A router made with another's `child()` has
+Register a provider in the `providers` of the [router](./routers.md) that owns the endpoint, or
+export it from a module in that router's `imports`. A router made with another's `child()` has
 [its parent's](./router-context.md#providers) too.
 
 ## `injectOnRequest`: per-request values
@@ -69,24 +73,29 @@ injectOnRequest: {
 }
 ```
 
-## Per-endpoint decorators
+## Per-endpoint guards, interceptors and decorators {#per-endpoint-decorators}
 
-`decorators` takes method decorators, applied to the endpoint's handler method. Use it for a
-guard, an interceptor or metadata that one endpoint needs:
+`guards` and `interceptors` take what `@UseGuards()` and `@UseInterceptors()` take, classes or
+instances, for one endpoint. `decorators` takes any other method decorator, applied to the
+endpoint's handler method, such as metadata a guard reads:
 
 ```ts
-import { UseGuards } from '@nestjs/common';
+import { SetMetadata } from '@nestjs/common';
 
 export default endpoint.mutation({
-  decorators: [UseGuards(AdminGuard)],
+  guards: [AdminGuard],
+  interceptors: [AuditInterceptor],
+  decorators: [SetMetadata('audit', 'refund')],
   // …
 });
 ```
+
+An endpoint's guards run after those of its routers, and its interceptors inside theirs.
 
 For anything a whole folder needs, declare it once on the
 [router](./routers.md#middleware-interceptors-and-guards).
 
 ## Router injections
 
-What every endpoint of a router needs can be declared once, in the router's `context`, with its
-`inject` and `injectOnRequest`. See [Router context](./router-context.md).
+What every endpoint of a router needs can be declared once, in the router's `context`. See
+[Router context](./router-context.md).

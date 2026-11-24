@@ -23,7 +23,9 @@ const client = createApiClient({
 });
 
 // or send through an instance of your own
-const instance = axios.create({ baseURL: 'https://api.example.com' });
+const instance = axios.create({
+  baseURL: 'https://api.example.com',
+});
 const sameClient = createApiClient(instance);
 ```
 
@@ -34,7 +36,8 @@ import { createApiClient } from './generated/axios-client.js';
 const client = createApiClient();
 declare const token: string;
 // ---cut---
-client.axios.defaults.headers.common.Authorization = `Bearer ${token}`;
+client.axios.defaults.headers.common.Authorization =
+  `Bearer ${token}`;
 ```
 
 ## Call an operation
@@ -58,8 +61,7 @@ const page = await client.orders.list({
 const order = await client.orders.view({ path: { orderId: 1 } });
 ```
 
-A call resolves to the response: `status`, `data`, `headers` and the rest. `data` is typed from
-the endpoint's `output`.
+A call resolves to the response, with `data` typed from the endpoint's `output`.
 
 ```ts twoslash
 import { createApiClient } from './generated/axios-client.js';
@@ -79,7 +81,9 @@ When the body is all you want, `.unwrap()` resolves to it alone:
 import { createApiClient } from './generated/axios-client.js';
 const client = createApiClient();
 // ---cut---
-const order = await client.orders.view({ path: { orderId: 1 } }).unwrap();
+const order = await client.orders
+  .view({ path: { orderId: 1 } })
+  .unwrap();
 ```
 
 ## Errors
@@ -120,8 +124,8 @@ if (result.error) {
 }
 ```
 
-A request that gets no response at all, such as when the server is unreachable, throws axios's
-own error.
+A request that gets no response at all, such as to an unreachable server, throws axios's own
+error.
 
 ## Per-call options
 
@@ -147,9 +151,7 @@ await client.orders.view({
 ## Headers and interceptors
 
 - **Set request headers on the axios instance**, `client.axios`, as defaults or in a request
-  interceptor. Endpoints declare no header parameters, so a call takes none of its own.
-- **Request interceptors apply to every call**, along with the instance's defaults (`baseURL`,
-  `headers`, `withCredentials`).
+  interceptor. Endpoints declare no header parameters.
 - **Read results and errors from the call, not from response interceptors.** The client decodes
   each response itself, so a response interceptor sees every status as a success, with the body
   not yet decoded.

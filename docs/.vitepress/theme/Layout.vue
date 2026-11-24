@@ -1,18 +1,17 @@
 <script setup>
 import { useData } from 'vitepress';
 import DefaultTheme from 'vitepress/theme';
-import ClientError from './home/ClientError.md';
 import CodeWindow from './home/CodeWindow.vue';
-import ContextEndpoint from './home/ContextEndpoint.md';
-import ContextRouter from './home/ContextRouter.md';
 import HomeHero from './home/HomeHero.vue';
 import HomeInstall from './home/HomeInstall.vue';
 import HomeRoutes from './home/HomeRoutes.vue';
 import HomeRow from './home/HomeRow.vue';
+import LineageChild from './home/LineageChild.md';
+import LineageEndpoint from './home/LineageEndpoint.md';
+import LineageParent from './home/LineageParent.md';
 import StillNest from './home/StillNest.md';
 import TypedClient from './home/TypedClient.md';
 import TypedHandler from './home/TypedHandler.md';
-import WrongResponse from './home/WrongResponse.md';
 import BenchmarkChart from './performance/BenchmarkChart.vue';
 import { headline } from './performance/results';
 
@@ -33,14 +32,27 @@ const { frontmatter } = useData();
         <HomeRow v-bind="frontmatter.types.handler">
           <TypedHandler />
         </HomeRow>
-        <HomeRow v-bind="frontmatter.types.response" flip>
-          <WrongResponse />
-        </HomeRow>
-        <HomeRow v-bind="frontmatter.types.client">
-          <ClientError />
-          <TypedClient />
+        <HomeRow v-bind="frontmatter.types.client" flip>
+          <div class="home-client">
+            <TypedClient />
+          </div>
         </HomeRow>
       </template>
+      <HomeRow v-if="frontmatter.context" v-bind="frontmatter.context.row">
+        <template #visual>
+          <div class="home-context">
+            <CodeWindow :file="frontmatter.context.files.parent">
+              <LineageParent />
+            </CodeWindow>
+            <CodeWindow :file="frontmatter.context.files.child">
+              <LineageChild />
+            </CodeWindow>
+            <CodeWindow :file="frontmatter.context.files.endpoint">
+              <LineageEndpoint />
+            </CodeWindow>
+          </div>
+        </template>
+      </HomeRow>
       <HomeRow v-if="frontmatter.nest" v-bind="frontmatter.nest" flip>
         <StillNest />
       </HomeRow>
@@ -52,18 +64,6 @@ const { frontmatter } = useData();
         </template>
       </HomeRow>
       <HomeRoutes v-if="frontmatter.routes" v-bind="frontmatter.routes" />
-      <HomeRow v-if="frontmatter.context" v-bind="frontmatter.context.row" flip>
-        <template #visual>
-          <div class="home-context">
-            <CodeWindow :file="frontmatter.context.files.router">
-              <ContextRouter />
-            </CodeWindow>
-            <CodeWindow :file="frontmatter.context.files.endpoint">
-              <ContextEndpoint />
-            </CodeWindow>
-          </div>
-        </template>
-      </HomeRow>
       <h2 v-if="frontmatter.featuresTitle" class="home-section home-title home-features-title">
         {{ frontmatter.featuresTitle }}
       </h2>
@@ -79,10 +79,18 @@ const { frontmatter } = useData();
   padding-bottom: 24px;
 }
 
-/* The router's file over the endpoint's that it types. */
+/* A router's file, over its child's, over the endpoint's that both type. */
 .home-context {
   display: grid;
   gap: 16px;
+}
+
+/*
+ * Twoslash leaves room under a sample for a completion list, as if the list opened on its last
+ * line. This one opens four lines up, inside the code, so it needs only what is left over.
+ */
+.home-client :deep(pre) {
+  padding-bottom: 48px !important;
 }
 
 .home-benchmark {

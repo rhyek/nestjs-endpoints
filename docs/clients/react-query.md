@@ -8,8 +8,7 @@ The React Query client is the [axios client](./axios.md) with a typed
 [TanStack Query](https://tanstack.com/query) hook beside every operation. An
 `endpoint.query()` gets a query hook and an `endpoint.mutation()` a mutation hook.
 
-Generate it with [`setupCodegen`](./codegen.md), with `type: 'react-query'`. It needs
-`@tanstack/react-query` 5.82 or later.
+Generate it with [`setupCodegen`](./codegen.md), with `type: 'react-query'`.
 
 ## Provide the client
 
@@ -22,12 +21,16 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ApiClientProvider, createApiClient } from './generated/react-query-client.js';
 
 const queryClient = new QueryClient();
-export const api = createApiClient({ baseURL: 'https://api.example.com' });
+export const api = createApiClient({
+  baseURL: 'https://api.example.com',
+});
 
 export function Providers({ children }: { children: ReactNode }) {
   return (
     <QueryClientProvider client={queryClient}>
-      <ApiClientProvider client={api}>{children}</ApiClientProvider>
+      <ApiClientProvider client={api}>
+        {children}
+      </ApiClientProvider>
     </QueryClientProvider>
   );
 }
@@ -48,7 +51,10 @@ export function Orders() {
   const client = useApiClient();
 
   // endpoint.query()  →  a query hook
-  const orders = client.orders.useList({ query: { page: 1 }, body: {} });
+  const orders = client.orders.useList({
+    query: { page: 1 },
+    body: {},
+  });
   // endpoint.mutation()  →  a mutation hook
   const cancel = client.orders.useCancel();
 
@@ -57,7 +63,11 @@ export function Orders() {
       {orders.data?.map((order) => (
         <li key={order.id}>
           #{order.id} is {order.status}
-          <button onClick={() => cancel.mutate({ path: { orderId: order.id } })}>
+          <button
+            onClick={() =>
+              cancel.mutate({ path: { orderId: order.id } })
+            }
+          >
             Cancel
           </button>
         </li>
@@ -72,7 +82,6 @@ export function Orders() {
   [whole response](./axios.md#call-an-operation).
 - **A hook's `error` is a [`ResponseError`](./axios.md#errors)**: read `error.status` and
   `error.data`.
-- **`useApiClient()` must be called under `<ApiClientProvider>`.** It throws otherwise.
 
 ### Options
 
@@ -88,19 +97,22 @@ const client = useApiClient();
 
 const order = client.orders.useView(
   { path: { orderId: orderId ?? 0 } },
-  { query: { enabled: orderId !== undefined, staleTime: 30_000 } },
+  {
+    query: { enabled: orderId !== undefined, staleTime: 30_000 },
+  },
 );
 
 const create = client.orders.useCreate({
-  mutation: { onSuccess: (created) => notify(`Order ${created.id} placed`) },
+  mutation: {
+    onSuccess: (created) => notify(`Order ${created.id} placed`),
+  },
 });
 ```
 
 ## Outside React
 
 Each operation's request function also carries what TanStack Query needs where a hook can't run,
-such as a route loader. These are bound to the client instance they came from, with its base URL
-and interceptors:
+such as a route loader. They are bound to the client instance they came from:
 
 | Property | On | What it is |
 | --- | --- | --- |
@@ -109,10 +121,8 @@ and interceptors:
 | `mutationOptions(config?)` | Mutations | Options for `useMutation`. |
 | `mutationKey()` | Mutations | The mutation's key. |
 
-`request` is the same `{ path, query, body }` object the call takes. An operation without
-request data takes none.
-
-Use the instance you gave `<ApiClientProvider>`:
+`request` is the same `{ path, query, body }` object the call takes. Use the instance you gave
+`<ApiClientProvider>`:
 
 ```tsx twoslash
 import type { QueryClient } from '@tanstack/react-query';
@@ -120,8 +130,13 @@ import { createApiClient } from './generated/react-query-client.js';
 const api = createApiClient();
 // ---cut---
 // A route loader: no React, no hooks.
-export const loader = (queryClient: QueryClient, orderId: number) =>
-  queryClient.ensureQueryData(api.orders.view.queryOptions({ path: { orderId } }));
+export const loader = (
+  queryClient: QueryClient,
+  orderId: number,
+) =>
+  queryClient.ensureQueryData(
+    api.orders.view.queryOptions({ path: { orderId } }),
+  );
 ```
 
 Inside a component, they compose with TanStack Query's own hooks:
@@ -137,7 +152,10 @@ const create = useMutation({
   ...client.orders.create.mutationOptions(),
   onSuccess: () =>
     queryClient.invalidateQueries({
-      queryKey: client.orders.list.queryKey({ query: { page: 1 }, body: {} }),
+      queryKey: client.orders.list.queryKey({
+        query: { page: 1 },
+        body: {},
+      }),
     }),
 });
 
@@ -146,20 +164,24 @@ create.mutate({ body: { productId: 'sku_42', quantity: 2 } });
 
 ### Query keys
 
-A query's key is `[{ url, params? }, query?, body?]`. `url` is the path the app serves the
-endpoint at, with its `:param` segments, and `params` the path parameters. The hook and
-`queryOptions` use the same key.
+A query's key is `[{ url, params? }, query?, body?]`: `url` is the endpoint's path, with its
+`:param` segments, and `params` the path parameters. The hook and `queryOptions` share it.
 
 `invalidateQueries` matches keys by prefix, so the URL alone covers every cached page and filter
 of an operation:
 
 ```ts
 // every cached call of /orders/list
-queryClient.invalidateQueries({ queryKey: [{ url: '/orders/list' }] });
+queryClient.invalidateQueries({
+  queryKey: [{ url: '/orders/list' }],
+});
 
 // one of them
 queryClient.invalidateQueries({
-  queryKey: client.orders.list.queryKey({ query: { page: 2 }, body: {} }),
+  queryKey: client.orders.list.queryKey({
+    query: { page: 2 },
+    body: {},
+  }),
 });
 ```
 
@@ -169,8 +191,8 @@ Each operation that takes input carries it as JSON Schema, for a form to read:
 
 | Property | On | What it is |
 | --- | --- | --- |
-| `schemas.input` | Operations that declare `input` | The body, as JSON Schema. |
 | `schemas.query` | Operations that declare `query` with properties | The search parameters, as JSON Schema. |
+| `schemas.input` | Operations that declare `input` | The body, as JSON Schema. |
 
 ```tsx twoslash
 import { useApiClient } from './generated/react-query-client.js';
@@ -186,7 +208,6 @@ request type, so a form library can infer a form's values from the schema alone.
 ## Plugin options
 
 A client's `options` in [`setupCodegen`](./codegen.md#set-it-up) are passed to
-[`@kubb/plugin-react-query`](https://kubb.dev/extensions/kubb-labs/plugin-react-query/options),
-which generates the hooks. The endpoint's builder decides an operation's kind, so
-`query.methods` and `mutation.methods` are ignored. nestjs-endpoints sets `client`, `hooks`,
-`output` and `group` itself.
+[`@kubb/plugin-react-query`](https://kubb.dev/extensions/kubb-labs/plugin-react-query/options).
+nestjs-endpoints ignores `query.methods` and `mutation.methods`, since the endpoint's builder
+decides an operation's kind, and sets `client`, `hooks`, `output` and `group` itself.

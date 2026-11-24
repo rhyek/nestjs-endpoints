@@ -28,3 +28,6 @@ packages/nestjs-endpoints/README.md
 packages/nestjs-endpoints/LICENSE
 # The agent eval's transcripts (maintenance/scripts/agent-eval): they hold this machine's paths
 maintenance/agent-runs/
+
+# Backed-up local files (secrets), a link into Dropbox
+/.local

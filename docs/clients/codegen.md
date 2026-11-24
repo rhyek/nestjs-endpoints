@@ -11,7 +11,9 @@ an [axios](./axios.md) client, a [React Query](./react-query.md) client, or seve
 // @noErrors
 import { createApiClient } from './generated/axios-client.js';
 // ---cut---
-const client = createApiClient({ baseURL: 'https://api.example.com' });
+const client = createApiClient({
+  baseURL: 'https://api.example.com',
+});
 
 const { data: order } = await client.orders.
 //                                          ^|
@@ -49,7 +51,8 @@ async function bootstrap() {
       },
       {
         type: 'react-query',
-        outputFile: process.cwd() + '/../web/src/generated/react-query-client.tsx',
+        outputFile:
+          process.cwd() + '/../web/src/generated/react-query.tsx',
       },
     ],
   });
@@ -64,14 +67,13 @@ Each entry of `clients` writes one client:
 | Option | |
 | --- | --- |
 | `type` | `'axios'` or `'react-query'`. |
-| `outputFile` | Where to write the client. It must have an extension, `.ts` or `.tsx`. |
+| `outputFile` | Where to write the client: a `.ts` or `.tsx` file. |
 | `namespaces` | Limit the client to these top-level [namespaces](./namespaces.md#a-client-per-front-end). Leave it out for every operation. |
 | `options` | React Query only: options for [`@kubb/plugin-react-query`](https://kubb.dev/extensions/kubb-labs/plugin-react-query/options), such as query keys. |
 
-`forceGenerate: true`, beside `clients`, regenerates every client on each run.
-
-`setupCodegen` only generates clients. An app that never calls it has all its endpoints, routers
-and OpenAPI metadata.
+`forceGenerate: true`, beside `clients`, regenerates every client on each run. Otherwise a client
+is rewritten only when what it is generated from changes, such as an endpoint's schema or the
+client's own options.
 
 ## What is written
 
@@ -95,24 +97,16 @@ The file exports:
 | `InputSchema`, the type of an operation's [input schemas](./react-query.md#input-schemas) | | ✓ |
 | Each operation's types: `OrdersCreateInput`, `OrdersCreateOutput`, … | ✓ | ✓ |
 
-## When a client is regenerated
-
-A client is rewritten only when what it is generated from changes, such as an endpoint's
-schema or the client's own options. A restart that changes no schema changes no client.
-
 ## Where to run it
-
-Codegen runs while the app starts, so it needs the app to be created. Two setups are common.
 
 ### In `main.ts`
 
-Call `setupCodegen` before `app.listen()`, as in [Set it up](#set-it-up). The client is
-regenerated on every restart of the dev server, so the front end follows the API as you edit it.
+As in [Set it up](#set-it-up): the client follows the API on every restart of the dev server.
 
 ### In a script of its own
 
-A script such as `src/codegen.ts` creates the app without starting the server, writes the
-clients, and closes the app. Run it as a build or CI step, so the server itself does no codegen:
+A script creates the app without starting the server, writes the clients, and closes the app.
+Run it as a build or CI step:
 
 ```ts
 // src/codegen.ts
@@ -123,14 +117,19 @@ import { AppModule } from './app.module.js';
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
   await setupCodegen(app, {
-    clients: [{ type: 'axios', outputFile: process.cwd() + '/generated/axios-client.ts' }],
+    clients: [
+      {
+        type: 'axios',
+        outputFile: process.cwd() + '/generated/axios-client.ts',
+      },
+    ],
   });
   await app.close();
 }
 void bootstrap();
 ```
 
-`nest build` compiles it with the rest of `src/`, so a script in `package.json` builds and runs it:
+`nest build` compiles it with the rest of `src/`:
 
 ```jsonc
 // package.json
@@ -152,12 +151,15 @@ Each operation takes one object that groups its request by where it goes:
 | `input` | `body` |
 
 ```ts
-await client.orders.list({ query: { page: 2 }, body: { status: 'pending' } });
+await client.orders.list({
+  query: { page: 2 },
+  body: { status: 'pending' },
+});
 await client.orders.view({ path: { orderId: 1 } });
 ```
 
-An operation's name comes from the endpoint's URL and its router's namespace. See
-[Namespaces](./namespaces.md#how-names-are-derived).
+An operation's name comes from the endpoint's URL and its router's
+[namespace](./namespaces.md#how-names-are-derived).
 
 ## What a client covers
 
