@@ -113,7 +113,11 @@ the current user in `injectOnRequest`, and the path parameter of a `$param` fold
 A provider the router's [own lifecycle hooks or methods](../guide/routers.md#own) use goes in its
 top-level `inject`. A nested
 router made with the parent's `child()` inherits them, with the parent's `providers` and
-`imports`: it lists only its own. See
+`imports`: it lists only its own. A router's guards and interceptors are one instance for every
+endpoint under it, made with that router's providers. A router that lists one of its parent's
+guards, interceptors or providers again gets an instance of its own, and so does an endpoint
+that lists one of its routers' guards or interceptors; such a guard runs twice, the parent's
+first. See [What flows down](../guide/what-flows-down.md) and
 [Router context](../guide/router-context.md).
 
 ## Regenerate and call the client

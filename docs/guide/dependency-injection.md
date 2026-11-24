@@ -57,7 +57,7 @@ export default endpoint.query({
 
 Register a provider in the `providers` of the [router](./routers.md) that owns the endpoint, or
 export it from a module in that router's `imports`. A router made with another's `child()` has
-[its parent's](./router-context.md#providers) too.
+[its parent's](./what-flows-down.md#context) too.
 
 ## `injectOnRequest`: per-request values
 

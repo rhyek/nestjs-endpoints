@@ -104,7 +104,7 @@ routers' or the endpoint's own. Values from `injectOnRequest` come from a reques
 `undefined`: test a handler that needs one over HTTP.
 
 Take an API whose `teams` folder has three levels of routers, each made with its parent's
-[`child()`](./router-context.md#child-routers):
+[`child()`](./what-flows-down.md):
 
 ::: code-group
 

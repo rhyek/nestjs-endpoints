@@ -81,47 +81,92 @@ function variantsOf(path: string): Segment[][] {
   });
 }
 
+/** Routes, as a tree of the segments they read a URL by, each segment kept with its routes. */
+export type RouteTree = {
+  /** Where a route has a value: a parameter, or text beside one. */
+  value?: RouteTree;
+  /** Where a route has a name, by the name in lower case: each spelling, with its routes. */
+  names: Map<string, { tree: RouteTree; spellings: Map<string, Set<unknown>> }>;
+};
+
 /**
- * Whether two segments read a URL alike: the same text, or a value. A route whose segment
- * has a name where the other's has a parameter is on its side of the URLs from there on.
+ * The tree of `routes`, each a path and what it is the route of. Two routes are on one branch
+ * as far as they read a URL alike: the same text, or a value. A wildcard ends a branch, as no
+ * route is beside one.
  */
-function alike(a: Segment, b: Segment): boolean {
-  if (a.kind === 'literal' || b.kind === 'literal') {
-    return (
-      a.kind === 'literal' && b.kind === 'literal' && a.text.toLowerCase() === b.text.toLowerCase()
-    );
+export function routeTree(routes: Iterable<readonly [owner: unknown, path: string]>): RouteTree {
+  const root: RouteTree = { names: new Map() };
+  for (const [owner, path] of routes) {
+    for (const segments of variantsOf(path)) {
+      let tree = root;
+      for (const segment of segments) {
+        if (segment.kind === 'wildcard') {
+          break;
+        }
+        if (segment.kind !== 'literal') {
+          tree = tree.value ??= { names: new Map() };
+          continue;
+        }
+        const key = segment.text.toLowerCase();
+        let name = tree.names.get(key);
+        if (!name) {
+          name = { tree: { names: new Map() }, spellings: new Map() };
+          tree.names.set(key, name);
+        }
+        const owners = name.spellings.get(segment.text) ?? new Set();
+        name.spellings.set(segment.text, owners.add(owner));
+        tree = name.tree;
+      }
+    }
   }
-  return a.kind !== 'wildcard' && b.kind !== 'wildcard';
+  return root;
 }
 
-/** The names that `others` have at `at`, where `segments` has a parameter, alike above it. */
-function namesAt(segments: Segment[], at: number, others: Segment[][]): string[] {
-  return others.flatMap((other) => {
-    const there = other[at];
-    return there?.kind === 'literal' &&
-      segments.slice(0, at).every((segment, i) => alike(segment, other[i]!))
-      ? [there.text]
-      : [];
-  });
+/** What tells the routes left out of a lookup: none, unless told. */
+type LeftOut = (owner: unknown) => boolean;
+
+const noneLeftOut: LeftOut = () => false;
+
+/**
+ * The names that the routes of `others` have at `at`, where `segments` has a parameter, alike
+ * above it: but those of the routes `leftOut` tells.
+ */
+function namesAt(segments: Segment[], at: number, others: RouteTree, leftOut: LeftOut): string[] {
+  let tree: RouteTree | undefined = others;
+  for (const segment of segments.slice(0, at)) {
+    if (segment.kind === 'wildcard') {
+      return [];
+    }
+    tree =
+      segment.kind === 'literal' ? tree.names.get(segment.text.toLowerCase())?.tree : tree.value;
+    if (!tree) {
+      return [];
+    }
+  }
+  return [...tree.names.values()].flatMap(({ spellings }) =>
+    [...spellings]
+      .filter(([, owners]) => [...owners].some((owner) => !leftOut(owner)))
+      .map(([text]) => text),
+  );
 }
 
 /**
- * The names beside each parameter of `paths`, in the routes of `others`: the values it does
- * not take. `/lanes/:id/view` beside `/lanes/list` and `/lanes/extra/list` does not take
- * `list` or `extra` as `id`.
+ * The names beside each parameter of `paths`, in the routes of `others` but those `leftOut`
+ * tells: the values it does not take. `/lanes/:id/view` beside `/lanes/list` and
+ * `/lanes/extra/list` does not take `list` or `extra` as `id`.
  */
 export function namesBeside(
   paths: readonly string[],
-  others: readonly string[],
+  others: RouteTree,
+  leftOut: LeftOut = noneLeftOut,
 ): Map<string, Set<string>> {
-  const theirs = others.flatMap(variantsOf);
   const names = new Map<string, Set<string>>();
   for (const segments of paths.flatMap(variantsOf)) {
     segments.forEach((segment, at) => {
       if (segment.kind !== 'param') {
         return;
       }
-      for (const name of namesAt(segments, at, theirs)) {
+      for (const name of namesAt(segments, at, others, leftOut)) {
         names.set(segment.name, (names.get(segment.name) ?? new Set()).add(name));
       }
     });
@@ -137,29 +182,36 @@ export function caseSensitiveOf(adapter: object): boolean {
   return matching.getRouteMatchingOptions?.()?.caseSensitive ?? true;
 }
 
-/** The routes of an app: the paths of each of its controllers'. */
-export type AppRoutes = ReadonlyMap<Type, readonly string[]>;
+/** The routes of an app: the paths of each of its controllers', and their tree. */
+export type AppRoutes = {
+  paths: ReadonlyMap<Type, readonly string[]>;
+  tree: RouteTree;
+};
+
+/** The routes of each app, read once: an app has all its controllers before it starts. */
+const routesOfApps = new WeakMap<ModulesContainer, AppRoutes>();
 
 /** The routes of the app of `modules`. */
 export function appRoutes(modules: ModulesContainer): AppRoutes {
-  const controllers = [...modules.values()]
-    .flatMap((module) => [...module.controllers.values()])
-    .map(({ metatype }) => metatype as Type | null)
-    .filter((cls): cls is Type => cls !== null);
-  return new Map(controllers.map((cls) => [cls, routesOf(cls).map(({ path }) => path)]));
-}
-
-/** The paths of the routes of an app, but those of the controllers `leftOut` tells. */
-export function routesBut(routes: AppRoutes, leftOut: (cls: Type) => boolean): string[] {
-  return [...routes].flatMap(([cls, paths]) => (leftOut(cls) ? [] : paths));
+  let routes = routesOfApps.get(modules);
+  if (!routes) {
+    const controllers = [...modules.values()]
+      .flatMap((module) => [...module.controllers.values()])
+      .map(({ metatype }) => metatype as Type | null)
+      .filter((cls): cls is Type => cls !== null);
+    const paths = new Map(controllers.map((cls) => [cls, routesOf(cls).map(({ path }) => path)]));
+    const tree = routeTree(
+      [...paths].flatMap(([cls, own]) => own.map((path) => [cls, path] as const)),
+    );
+    routes = { paths, tree };
+    routesOfApps.set(modules, routes);
+  }
+  return routes;
 }
 
 /** The names beside each path parameter of an endpoint, in the other routes of the app. */
-export function endpointNamesBeside(cls: Type, routes: AppRoutes) {
-  return namesBeside(
-    routes.get(cls) ?? [],
-    routesBut(routes, (other) => other === cls),
-  );
+export function endpointNamesBeside(cls: Type, { paths, tree }: AppRoutes) {
+  return namesBeside(paths.get(cls) ?? [], tree, (owner) => owner === cls);
 }
 
 /** Where an app serves a router's pattern, and how its adapter's router reads case. */
@@ -182,15 +234,15 @@ const regExpText = (text: string) => text.replace(/[.*+?^${}()|[\]\\/]/g, '\\$&'
  */
 export function namedRequest(
   basePath: string,
-  others: readonly string[],
+  others: RouteTree,
   { prefix, versionPaths, caseSensitive }: Served,
+  leftOut: LeftOut = noneLeftOut,
 ): ((path: string) => boolean) | undefined {
   const [segments] = variantsOf(trimSlashes(basePath));
   if (!segments) {
     return undefined;
   }
   const read = (value: string) => (caseSensitive ? value : value.toLowerCase());
-  const theirs = others.flatMap(variantsOf);
   // The names beside each parameter, by the group of the expression that reads it.
   const names = new Map<number, Set<string>>();
   let group = 0;
@@ -203,7 +255,7 @@ export function namedRequest(
         return '[^/]+';
       }
       group++;
-      const found = namesAt(segments, at, theirs);
+      const found = namesAt(segments, at, others, leftOut);
       if (found.length > 0) {
         names.set(group, new Set(found.map(read)));
       }
@@ -267,7 +319,7 @@ export function warnOfRouteOrder(
   if (!orderSensitive || config.getRouteResolutionStrategy() === 'specificity') {
     return;
   }
-  const named = [...routes]
+  const named = [...routes.paths]
     .filter(([cls]) => Reflect.hasMetadata('endpoints:path', cls))
     .filter(([cls]) => endpointNamesBeside(cls, routes).size > 0)
     .flatMap(([, paths]) => paths.map((path) => `/${path}`));

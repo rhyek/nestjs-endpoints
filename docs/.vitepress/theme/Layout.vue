@@ -10,6 +10,7 @@ import LineageChild from './home/LineageChild.md';
 import LineageEndpoint from './home/LineageEndpoint.md';
 import LineageParent from './home/LineageParent.md';
 import StillNest from './home/StillNest.md';
+import TestIt from './home/TestIt.md';
 import TypedClient from './home/TypedClient.md';
 import TypedHandler from './home/TypedHandler.md';
 import BenchmarkChart from './performance/BenchmarkChart.vue';
@@ -53,10 +54,13 @@ const { frontmatter } = useData();
           </div>
         </template>
       </HomeRow>
-      <HomeRow v-if="frontmatter.nest" v-bind="frontmatter.nest" flip>
+      <HomeRow v-if="frontmatter.testing" v-bind="frontmatter.testing" flip>
+        <TestIt />
+      </HomeRow>
+      <HomeRow v-if="frontmatter.nest" v-bind="frontmatter.nest">
         <StillNest />
       </HomeRow>
-      <HomeRow v-if="frontmatter.performance" v-bind="frontmatter.performance">
+      <HomeRow v-if="frontmatter.performance" v-bind="frontmatter.performance" flip>
         <template #visual>
           <div class="home-benchmark">
             <BenchmarkChart :only="headline" />

@@ -18,7 +18,6 @@ added without the decorator is unguarded. A router declares them once, for every
 import { EndpointRouter } from 'nestjs-endpoints';
 
 export default EndpointRouter.create({
-  providers: [AdminGuard],
   guards: [AdminGuard],
   interceptors: [AuditInterceptor],
   middleware: [RequestIdMiddleware],

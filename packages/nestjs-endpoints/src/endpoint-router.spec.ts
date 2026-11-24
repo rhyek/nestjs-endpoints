@@ -1505,7 +1505,7 @@ describe('a lifecycle hook on what NestJS makes for each request', () => {
     await app.close();
   });
 
-  test('fails the app too when a guard of its router is what is made for each request', async () => {
+  test('is called when a guard of its router is made for each request: the endpoint is not', async () => {
     class PerRequestGuard implements CanActivate {
       constructor(readonly perRequest: PerRequest) {}
 
@@ -1519,16 +1519,19 @@ describe('a lifecycle hook on what NestJS makes for each request', () => {
       providers: [PerRequest],
       guards: [PerRequestGuard],
     });
+    let initialized = 0;
     const Hooked = router.endpoint.query({
       path: 'per-request/guarded',
       lifecycle: {
-        onModuleInit() {},
+        onModuleInit() {
+          initialized++;
+        },
       },
       handler: () => null,
     });
-    await expect(start(router)).rejects.toThrow(
-      /declares onModuleInit, but NestJS makes it for each request.* a guard, interceptor, pipe or filter that applies to it, depends on a request-scoped provider/,
-    );
+    const app = await start(router);
+    expect(initialized).toBe(1);
+    await app.close();
   });
 
   test('is not asked of a router with none, which starts with its properties and methods', async () => {

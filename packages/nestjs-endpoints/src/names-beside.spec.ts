@@ -1,10 +1,15 @@
-import { namedRequest, namesBeside, type Served } from './names-beside';
+import { namedRequest, namesBeside as namesIn, routeTree, type Served } from './names-beside';
+
+/** The tree of `paths`, each the route of itself. */
+const tree = (paths: string[]) => routeTree(paths.map((path) => [path, path]));
+
+const namesBeside = (paths: string[], others: string[]) => namesIn(paths, tree(others));
 
 const plain: Served = { prefix: '', versionPaths: [], caseSensitive: true };
 
 /** Whether the middleware of a router at `basePath` skips each of `paths`, beside `others`. */
 function skips(basePath: string, others: string[], paths: string[], served = plain) {
-  const named = namedRequest(basePath, others, served);
+  const named = namedRequest(basePath, tree(others), served);
   return Object.fromEntries(paths.map((path) => [path, named?.(path) ?? false]));
 }
 
@@ -43,17 +48,21 @@ describe('what a router skips its middleware for: a URL with a name beside a par
 
   test('is none for a base path with no parameter, or no name beside it', () => {
     expect(
-      namedRequest('venues', ['/venues/list', '/venues/:venueId/view'], plain),
+      namedRequest('venues', tree(['/venues/list', '/venues/:venueId/view']), plain),
     ).toBeUndefined();
-    expect(namedRequest('', ['/venues/list'], plain)).toBeUndefined();
+    expect(namedRequest('', tree(['/venues/list']), plain)).toBeUndefined();
     expect(
-      namedRequest('venues/:venueId', ['/places/events/list', '/venues', '/other', '/'], plain),
+      namedRequest(
+        'venues/:venueId',
+        tree(['/places/events/list', '/venues', '/other', '/']),
+        plain,
+      ),
     ).toBeUndefined();
   });
 
   test('is none for a route with a parameter or a wildcard there too: it is no name', () => {
     expect(
-      namedRequest('venues/:venueId', ['/venues/:placeId/view', '/venues/*rest'], plain),
+      namedRequest('venues/:venueId', tree(['/venues/:placeId/view', '/venues/*rest']), plain),
     ).toBeUndefined();
   });
 
@@ -90,7 +99,7 @@ describe('what a router skips its middleware for: a URL with a name beside a par
     expect(skips('lanes/:slug', ['/lanes/extra/:id'], ['/lanes/extra/list'])).toEqual({
       '/lanes/extra/list': true,
     });
-    expect(namedRequest('lanes/extra/:id', ['/lanes/:slug/list'], plain)).toBeUndefined();
+    expect(namedRequest('lanes/extra/:id', tree(['/lanes/:slug/list']), plain)).toBeUndefined();
   });
 
   test('reads a part that may be left out, with a slash in it, as each URL it gives', () => {
@@ -202,6 +211,17 @@ describe('the values a parameter does not take: the names beside it', () => {
   test('take a parameter in quotes by its name, and one in a part that may be left out', () => {
     expect(namesBeside(['/lanes{/:"lane id"}'], ['/lanes/list'])).toEqual(
       new Map([['lane id', new Set(['list'])]]),
+    );
+  });
+
+  test('leave out the names of the routes they are told to, but one another route spells too', () => {
+    const others = routeTree([
+      ['own', '/lanes/list'],
+      ['own', '/lanes/extra/x'],
+      ['other', '/lanes/extra/y'],
+    ]);
+    expect(namesIn(['/lanes/:id'], others, (owner) => owner === 'own')).toEqual(
+      new Map([['id', new Set(['extra'])]]),
     );
   });
 });

@@ -49,7 +49,7 @@ The returned promise also has:
 | Property | |
 | --- | --- |
 | `endpoint` | The router's own `endpoint.query()` and `endpoint.mutation()` builders, which give the endpoints built with them the router's [context](../guide/router-context.md). |
-| `child()` | Creates a [child router](../guide/router-context.md#child-routers): a nested router that inherits this one's context, and its `providers` and `imports`. It takes the same [options](#options) and returns what `create()` returns. |
+| `child()` | Creates a [child router](../guide/what-flows-down.md): a nested router that inherits this one's context, and its `providers` and `imports`. It takes the same [options](#options) and returns what `create()` returns. |
 
 ## Options
 
@@ -61,16 +61,16 @@ The returned promise also has:
 | `description` | `string` | Documents the router's namespace: a comment on it in the generated clients. |
 | `endpoints` | array of endpoints, or a function returning endpoints and `import()`s | Endpoints [registered by hand](../guide/explicit-paths.md#on-a-router). They get the router's `basePath`. |
 | `middleware` | array of `NestMiddleware` classes and functions | Middleware for every endpoint under the router. Its last entry may be `{ exclude: string[] }`, with paths relative to `basePath`. |
-| `interceptors` | array of interceptor classes or instances | Interceptors for every endpoint under the router. |
-| `guards` | array of guard classes or instances | Guards for every endpoint under the router. |
+| `interceptors` | array of interceptor classes or instances | Interceptors for every endpoint under the router: one instance of each, made with the router's providers and imports. See [What flows down](../guide/what-flows-down.md#instances). |
+| `guards` | array of guard classes or instances | Guards for every endpoint under the router, as `interceptors`. |
 | `context` | `{ params, inject, injectOnRequest }`, each optional | What every endpoint built with the router's `endpoint` receives, and every router made with its `child()` passes on, under what each declares itself. See [Router context](../guide/router-context.md). |
 | `context.params` | a plain `z.object()` | [Path parameters](../guide/router-context.md#path-parameters) of those endpoints. Each key is a `:param` in every one of their URLs. |
 | `context.inject` | object of provider classes or `decorated<T>()` | Providers for those endpoints, as the [endpoint option](./endpoint.md#options) of the same name. |
 | `context.injectOnRequest` | object of `decorated<T>()` | Per-request values for those endpoints, as the endpoint option of the same name. |
 | `inject` | object of provider classes or `decorated<T>()` | Providers for the router's own instance: on [`this`](./endpoint.md#this) in its `lifecycle` hooks, `methods` and the getters of its `properties`. Its endpoints and the routers under it don't get them. |
-| `imports`, `providers` | as in `@Module()` | The router's own, which every router made with its [`child()`](../guide/router-context.md#providers) has too. |
+| `imports`, `providers` | as in `@Module()` | The router's own, which every router made with its [`child()`](../guide/what-flows-down.md#context) has too. |
 | `properties`, `methods` | as the [endpoint options](./endpoint.md#options) of the same names | Properties and methods of the router's instance, read from `this`. They are the router's own: its endpoints and the routers under it do not have them. |
-| `lifecycle` | object of functions: `onModuleInit`, `onApplicationBootstrap`, `onModuleDestroy`, `beforeApplicationShutdown`, `onApplicationShutdown` | [Lifecycle hooks](https://docs.nestjs.com/fundamentals/lifecycle-events), called as a module's are. A router starts after the routers above it and before its own endpoints, and stops in the reverse order. Written as a method, a hook has on [`this`](./endpoint.md#this) what the router's own `inject` gives, with its `properties` and `methods`. |
+| `lifecycle` | object of functions: `onModuleInit`, `onApplicationBootstrap`, `onModuleDestroy`, `beforeApplicationShutdown`, `onApplicationShutdown` | [Lifecycle hooks](https://docs.nestjs.com/fundamentals/lifecycle-events), called as a module's are, [before those of what is under the router](../guide/what-flows-down.md#lifecycle) at startup and after them at shutdown. Written as a method, a hook has on [`this`](./endpoint.md#this) what the router's own `inject` gives, with its `properties` and `methods`. |
 
 How a router finds endpoint files and builds their URLs is in
 [File-based routing](../guide/file-based-routing.md), and how it finds nested routers in

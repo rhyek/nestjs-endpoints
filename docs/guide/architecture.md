@@ -95,7 +95,7 @@ export default EndpointRouter.create({
 });
 ```
 
-Each router below it is its parent's [`child()`](./router-context.md#child-routers), and adds
+Each router below it is its parent's [`child()`](./what-flows-down.md), and adds
 its parameter, and a guard where it needs one:
 
 ```ts twoslash
@@ -162,17 +162,10 @@ export default router.endpoint.mutation({
 
 Down the tree:
 
-- **Context accrues through every `child()`.** An endpoint has the `params`, `inject` and
-  `injectOnRequest` of every router above it, and the most specific declaration of a key wins:
-  an endpoint's over its router's, a child's over its parent's. See
-  [Router context](./router-context.md).
-- **So do providers and imports.** A child router uses its parent's, as the same instances, and
-  lists only its own.
-- **Guards, middleware and interceptors act on every endpoint under their router**, at any
-  depth, from the outermost router in: a task endpoint runs `SignedInGuard`, then
-  `ProjectMemberGuard`. That holds for a nested router made with `EndpointRouter.create()` too,
-  which starts a context of its own. See
-  [Middleware, interceptors and guards](./routers.md#middleware-interceptors-and-guards).
+- **What a router has reaches everything under it**: its context, its providers and imports,
+  and its guards, middleware and interceptors, which run from the outermost router in. A task
+  endpoint runs `SignedInGuard`, then `ProjectMemberGuard`. See
+  [What flows down](./what-flows-down.md).
 - **[`namespace`](../clients/namespaces.md)** groups the endpoints under the router in the
   generated client: `client.projects.view(...)`.
 - **A provider a router itself uses**, in its own lifecycle hooks or methods, goes in its
@@ -330,7 +323,7 @@ they are until you set out to change them. To rework a whole API, coding agents 
 | The id of what an endpoint acts on | A `$param` file or folder, and [`params`](./file-based-routing.md#path-parameters) |
 | Several actions on one resource | [A `.` after the parameter](./file-based-routing.md#how-a-path-is-built): `$orderId.cancel` |
 | A parameter, an injection, a guard or middleware three endpoints share | A `router.ts`, with [`context`](./router-context.md) |
-| A nested folder that shares its parent's context and providers | [`child()`](./router-context.md#child-routers) |
+| A nested folder that shares its parent's context and providers | [`child()`](./what-flows-down.md) |
 | The current user, or another per-request value | [`injectOnRequest`](./dependency-injection.md#injectonrequest-per-request-values) with `decorated()` |
 | An endpoint's own helpers and state | [`methods` and `properties`](./state-and-lifecycle.md), on `this` |
 | Setup or teardown | [`lifecycle`](./state-and-lifecycle.md#lifecycle-hooks), on an endpoint or [a router](./routers.md#own) |

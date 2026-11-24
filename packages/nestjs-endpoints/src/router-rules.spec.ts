@@ -386,7 +386,7 @@ describe('a lifecycle hook, and what NestJS makes for each request', () => {
     ).rejects.toThrow(failure);
   });
 
-  test("fails where an interceptor of the endpoint's router depends on a request-scoped provider", async () => {
+  test("starts where an interceptor of the endpoint's router depends on a request-scoped provider", async () => {
     class PerRequestInterceptor implements NestInterceptor {
       constructor(readonly perRequest: PerRequest) {}
 
@@ -395,9 +395,9 @@ describe('a lifecycle hook, and what NestJS makes for each request', () => {
       }
     }
     Inject(PerRequest)(PerRequestInterceptor, undefined, 0);
-    await expect(start(hookedEndpoint({ interceptors: [PerRequestInterceptor] }))).rejects.toThrow(
-      failure,
-    );
+    await expect(
+      start(hookedEndpoint({ interceptors: [PerRequestInterceptor] })).then((app) => app.close()),
+    ).resolves.toBeUndefined();
   });
 
   test("fails where a guard of the endpoint's own does", async () => {

@@ -98,8 +98,9 @@ from `injectOnRequest`. TypeScript types `this` under `strict` or `noImplicitThi
 ## An endpoint made for each request
 
 NestJS makes an endpoint again for each request when it, or a guard, interceptor, pipe or filter
-that applies to it, depends on a request-scoped provider. Its `properties` are then made for
-each request too, so they hold nothing between requests.
+of its own or of the app's, depends on a request-scoped provider. Its `properties` are then made
+for each request too, so they hold nothing between requests. A router's guard or interceptor
+that does is made for each request itself, and the endpoints under it once.
 
 ## On a router
 

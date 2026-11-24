@@ -10,7 +10,7 @@ import {
   VersioningType,
 } from '@nestjs/common';
 import type { ApplicationConfig, HttpAdapterHost, ModulesContainer } from '@nestjs/core';
-import { type AppRoutes, caseSensitiveOf, namedRequest, routesBut } from './names-beside';
+import { type AppRoutes, caseSensitiveOf, namedRequest } from './names-beside';
 import { isUnder, routesOf, underPattern, unversionedVersion } from './route-paths';
 import { trimSlashes } from './url-params';
 
@@ -173,9 +173,10 @@ export function applyRouterMiddleware(
   // its middleware skips them.
   const prefix = trimSlashes(config.getGlobalPrefix());
   const versionPrefix = uri?.prefix !== undefined ? uri.prefix || '' : 'v';
+  const inSubtree = new Set<unknown>(endpoints);
   const named = namedRequest(
     basePath,
-    routesBut(routes, (cls) => endpoints.includes(cls)),
+    routes.tree,
     {
       prefix: prefix && `/${prefix}`,
       versionPaths: versions.map((v) =>
@@ -183,6 +184,7 @@ export function applyRouterMiddleware(
       ),
       caseSensitive: caseSensitiveOf(adapter),
     },
+    (cls) => inSubtree.has(cls),
   );
   const skipsNames = named
     ? (request: unknown) => named(adapter.getRequestUrl(request).split('?')[0]!)

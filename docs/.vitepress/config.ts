@@ -192,6 +192,7 @@ export default defineConfig({
         items: [
           { text: 'File-based routing', link: '/guide/file-based-routing' },
           { text: 'Routers', link: '/guide/routers' },
+          { text: 'What flows down', link: '/guide/what-flows-down' },
           { text: 'Router context', link: '/guide/router-context' },
           { text: 'Explicit paths', link: '/guide/explicit-paths' },
         ],
@@ -268,9 +269,10 @@ export default defineConfig({
   },
 
   markdown: {
-    // `<Endpoint>` is a word in a sentence (theme/Endpoint.vue). A component's tag is otherwise
-    // a block wherever it starts a line, which would end the paragraph the word is in.
-    component: { inlineTags: ['Endpoint'] },
+    // `<Endpoint>` and `<Owner>` are words in a sentence (theme/Endpoint.vue,
+    // theme/flows/Owner.vue). A component's tag is otherwise a block wherever it starts a
+    // line, which would end the paragraph the word is in.
+    component: { inlineTags: ['Endpoint', 'Owner'] },
     codeTransformers: [
       transformerTwoslash({
         twoslashOptions: { vfsRoot: snippets, compilerOptions },

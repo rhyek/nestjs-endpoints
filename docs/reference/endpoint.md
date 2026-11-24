@@ -86,7 +86,8 @@ endpoint's `properties` and `methods`. What a request gives (`params`, `query`, 
 even the `properties` function. TypeScript types `this` under `strict` or `noImplicitThis`.
 
 An endpoint that depends on a request-scoped provider, itself or through a guard, interceptor,
-pipe or filter, is made for each request, and its `properties` with it.
+pipe or filter of its own or of the app's, is made for each request, and its `properties` with
+it. Its routers' guards and interceptors don't count.
 
 ## Behavior
 

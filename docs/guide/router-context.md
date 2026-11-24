@@ -133,23 +133,8 @@ to keep it everywhere.
 
 ## Child routers
 
-`router.child()` creates a router nested under another, as the `$projectId` router above is under
-the `projects` one. The child's endpoints receive the parent's context and the child's own, and
-context accrues through every level: the endpoints of a child's child have the context of both
-routers above them.
-
-A child's `router.ts` sits in a folder under its parent's, where the parent
-[finds it](./routers.md#nested-routers). A nested router made with `EndpointRouter.create()`
-doesn't inherit its parent's context: it starts its own.
-
-### Providers
-
-A child router has its parent's `providers` and `imports`, as the same instances, so it lists
-only its own: the `$projectId` router above lists none. Its endpoints, guards, interceptors,
-middleware and providers can depend on what its parents provide.
-
-A provider the child lists again in its own `providers` is a second instance, which the child and
-the routers under it use.
+A router made with its parent's `child()` has its parent's context too, through every level. See
+[What flows down](./what-flows-down.md#context).
 
 ## When two levels declare the same key
 

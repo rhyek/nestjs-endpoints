@@ -365,12 +365,18 @@ export function createLazily(
     capturedStore: moduleAls.getStore(),
   };
   const context = mergeContext(parent?.context ?? {}, ownContext(made.at, params));
-  const providers = sharedProviders(callsiteFile, params, parent?.providers);
+  // Its guards and interceptors are among its providers: one instance of each.
+  const { lineage, providers: checks } = lineageOf(parent?.lineage ?? NO_LINEAGE, params);
+  const providers = sharedProviders(
+    callsiteFile,
+    { imports: params?.imports, providers: [...(params?.providers ?? []), ...checks] },
+    parent?.providers,
+  );
   const router: Router = {
     file: callsiteFile,
     context,
     providers,
-    lineage: lineageOf(parent?.lineage ?? NO_LINEAGE, params),
+    lineage,
     instance: routerInstance(made, providers),
   };
   return Object.assign(new LazyPromise(() => registerRouter(made, router)), routerMembers(router));
@@ -706,6 +712,6 @@ async function registerRouter(made: MadeWith, router: Router): Promise<DynamicMo
       ...before,
       ...nestedModules,
     ],
-    providers: [...(params?.providers ?? []), ...module.providers],
+    providers: [...shared.own, ...module.providers],
   } as DynamicModule;
 }

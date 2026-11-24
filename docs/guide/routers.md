@@ -38,8 +38,8 @@ it, the router looks in the calling file's own folder.
 
 Every other router is made with `EndpointRouter.create()`, which takes the same
 [options](../reference/router.md#options): a [nested router](#nested-routers), or one created
-[inside a regular module](#inside-a-regular-module). A nested router that inherits its parent's
-[context](./router-context.md#child-routers) is made with the parent's `child()`.
+[inside a regular module](#inside-a-regular-module). A nested router that inherits from its
+parent is made with the parent's `child()`: see [What flows down](./what-flows-down.md).
 
 ## Nested routers
 
@@ -73,8 +73,7 @@ export default EndpointRouter.create({
 ```
 
 A nested router owns its folder: the parent doesn't look inside it. Its endpoints resolve their
-providers in the nested router's module, so a feature's services stay with the feature. One made
-with its parent's [`child()`](./router-context.md#providers) has the parent's providers too.
+providers in the nested router's module, so a feature's services stay with the feature.
 
 `namespace` groups the router's operations in the generated client, and `description` becomes a
 comment on that [namespace](../clients/namespaces.md).
@@ -104,8 +103,8 @@ export default EndpointRouter.create({
 ## Middleware, interceptors and guards
 
 A router's `middleware`, `interceptors` and `guards` apply to every endpoint in its folder, at
-any depth of nested routers. They run outermost router first: a router's before those of the
-routers nested under it.
+any depth of nested routers. [What flows down](./what-flows-down.md#guards) shows the order
+they run in.
 
 Plain NestJS has no such scope: a guard or an interceptor is either global (`APP_GUARD`,
 `APP_INTERCEPTOR`) or repeated on each controller. On a router you declare it once, for the
@@ -117,7 +116,6 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 import { EndpointRouter } from 'nestjs-endpoints';
 
 export default EndpointRouter.create({
-  providers: [AdminGuard],
   guards: [AdminGuard],
   interceptors: [AuditInterceptor],
   middleware: [
@@ -143,8 +141,8 @@ which run after those of its routers.
 ## Router context
 
 A router can also declare, in its `context`, what every handler under it receives: path
-parameters (`params`), providers (`inject`) and per-request values (`injectOnRequest`). A nested
-router made with `router.child()` inherits them from its parent. See [Router context](./router-context.md).
+parameters (`params`), providers (`inject`) and per-request values (`injectOnRequest`). See
+[Router context](./router-context.md).
 
 ## A router's own hooks and state {#own}
 
@@ -175,9 +173,8 @@ export default EndpointRouter.create({
 
 - **The router's top-level `inject` is its own**, for `this` in its hooks, methods and getters.
   The endpoints under it get what its [`context`](./router-context.md) gives, not this.
-- **A router starts after the routers above it and before its own endpoints**, and stops in the
-  reverse order. What a parent router sets up in `onModuleInit` is there when its children's
-  hooks run.
+- **A router starts before the routers and endpoints under it**, and stops after them. See
+  [What flows down](./what-flows-down.md#lifecycle).
 
 ## Inside a regular module
 

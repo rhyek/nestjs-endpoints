@@ -32,6 +32,8 @@ export function importInto(to: DynamicModule, module: DynamicModule | undefined)
  * A router's `providers` and `imports`, as the routers made with its `child()` have them.
  */
 export type SharedProviders = {
+  /** The providers of the router, wherever it has them. */
+  own: Provider[];
   /** Set by the first `child()`: the router then has its providers in `module()`. */
   wanted: boolean;
   /**
@@ -73,6 +75,7 @@ export function sharedProviders(
   const imports = options?.imports ?? [];
   let module: DynamicModule | undefined;
   const shared: SharedProviders = {
+    own: providers,
     wanted: false,
     module: () => {
       if (!module) {

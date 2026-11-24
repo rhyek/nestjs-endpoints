@@ -64,6 +64,14 @@ context:
     child: src/endpoints/teams/$teamId/router.ts
     endpoint: src/endpoints/teams/$teamId/members/find.endpoint.ts
 
+testing:
+  eyebrow: Testing
+  title: Test it.
+  details: Import the router of an endpoint's folder into NestJS's testing module, and call the endpoint with <code>invoke()</code>. It calls the handler directly, skipping HTTP, guards and middleware. Your schemas still validate what goes in and what comes out.
+  file: src/endpoints/teams/$teamId/members/find.spec.ts
+  linkText: Testing
+  link: /guide/testing#invoke
+
 nest:
   eyebrow: NestJS
   title: It's still NestJS.

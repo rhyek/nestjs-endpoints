@@ -5,11 +5,12 @@
 ### Features
 
 - **A router declares the path parameters of its folder in `context.params`**, and every endpoint built with its `endpoint` receives them, validated and typed. See [Router context](docs/guide/router-context.md#path-parameters).
-- **`router.child()` creates a nested router that inherits its parent's `context`, `providers` and `imports`**, through every level. See [Child routers](docs/guide/router-context.md#child-routers).
+- **`router.child()` creates a nested router that inherits its parent's `context`, `providers` and `imports`**, through every level. See [What flows down](docs/guide/what-flows-down.md).
 - **An endpoint may declare a key its router injects, and its own wins.**
 - **A router file can be named `router.ts`**, and `router.module.ts` keeps working. See [Routers](docs/guide/routers.md#nested-routers).
 - **Endpoints and routers take NestJS's lifecycle hooks in `lifecycle`**, such as `lifecycle: { onModuleInit() {} }`, and a router starts after the routers above it. See [Endpoint options](docs/reference/endpoint.md#options).
 - **A child router loads by itself in a test with everything the routers above it give**, and none of their endpoints. See [Testing](docs/guide/testing.md).
+- **A router's guards and interceptors are one instance for every endpoint under it**, made with what that router provides, and a router that lists one again has its own. See [What flows down](docs/guide/what-flows-down.md).
 - **Endpoints take `guards` and `interceptors`**, which run after those of their routers. See [Endpoint options](docs/reference/endpoint.md#options).
 - **Endpoints and routers declare `properties` and `methods`, and a handler, method or hook written as a method reads them, and what is injected, from `this`.** See [`this`](docs/reference/endpoint.md#this).
 - **A router's `inject` is for its own lifecycle hooks and methods**, and its endpoints get what its `context` gives. See [Router options](docs/reference/router.md#options).
@@ -17,6 +18,7 @@
 
 ### Fixes
 
+- **A router's guard or interceptor that depends on a request-scoped provider no longer makes the endpoints under it for each request**, so their lifecycle hooks run.
 - **A router file in a `$param` folder gets the path parameter in its base path**, as in `/clinics/:clinicId`.
 - **`invoke()` can leave out `params` that have no required key**, as it can `query`.
 - **A router's middleware runs for an endpoint at the router's own base path**, as an `endpoint.ts` in its folder.
@@ -25,6 +27,7 @@
 
 ### Breaking changes
 
+- **A router's guards and interceptors are made with that router's providers and imports**, not those of the routers under it. One that injects what only a router under it provides fails at startup: provide it on the router that lists the guard.
 - **`invoke()` takes one object, `{ params, query, input }`, each key optional.** Move the input under `input`: `invoke(body, { params })` becomes `invoke({ params, input: body })`. See [`invoke()`](docs/reference/endpoint.md#invoke).
 - **A router's `endpointConfig` is renamed `context`**, which takes `params` too. Rename the key. See [Router context](docs/guide/router-context.md).
 - **`EndpointRouterModule` is renamed `EndpointRouter`**, and the deprecated `EndpointsRouterModule` and `register()` are removed. Rename the import, and call `create()`.
@@ -62,6 +65,7 @@
 
 ### Fixes
 
+- **A router's guard or interceptor that depends on a request-scoped provider no longer makes the endpoints under it for each request**, so their lifecycle hooks run.
 - **File-based routing now works when the project path contains a space**, and on Windows.
 
 ### Breaking changes
