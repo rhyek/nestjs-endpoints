@@ -54,7 +54,7 @@ function rootOf(modules: ModulesContainer): RootOptions | undefined {
   const routers = valuesOf(TOP_LEVEL_ROUTER).length;
   if (roots.length === 0 && routers > 1) {
     throw new Error(
-      `nestjs-endpoints: this app has ${routers} routers and no root. Add NestjsEndpoints.forRoot({ router: { … } }) to its root module; further routers stay as EndpointRouterModule.create().`,
+      `nestjs-endpoints: this app has ${routers} routers and no root. Add NestjsEndpoints.forRoot({ router: { … } }) to its root module; further routers stay as EndpointRouter.create().`,
     );
   }
   return roots[0];

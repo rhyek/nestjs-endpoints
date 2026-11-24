@@ -8,8 +8,8 @@ export default endpoint.query({
     status: z.enum(['pending', 'paid', 'cancelled']).optional(),
   }),
   // ...
-  handler: ({ input, query }) => {
-    //        ^?
+  handler: ({ query, input }) => {
+    //               ^?
     // ...
   },
 });

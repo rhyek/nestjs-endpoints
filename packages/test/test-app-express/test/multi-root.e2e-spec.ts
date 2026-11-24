@@ -1,16 +1,12 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import request from 'supertest';
 import { AppModule } from '../src/app.module';
-import { createApp } from './create-app';
+import { appWith } from './app-with';
 import { openApiDocument } from './openapi-document';
 
 describe('multi-root + folder-inferred basePath', () => {
   async function setup() {
-    const moduleFixture: TestingModule = await Test.createTestingModule({
-      imports: [AppModule],
-    }).compile();
-    const { app } = await createApp(moduleFixture);
-    app.useLogger(false);
+    const { app } = await appWith([AppModule]);
     return { app, req: request(app.getHttpServer()) };
   }
 
@@ -34,7 +30,7 @@ describe('multi-root + folder-inferred basePath', () => {
     }
   });
 
-  test('nested router module with endpoint.ts + create.endpoint.ts', async () => {
+  test('nested router with endpoint.ts + create.endpoint.ts', async () => {
     // `shop/recipes/` is a nested router. Inside it:
     //   - `endpoint.ts`         → /shop/recipes       (folder path, no leaf)
     //   - `create.endpoint.ts`  → /shop/recipes/create

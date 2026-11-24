@@ -1,19 +1,9 @@
 export { z } from 'zod';
-export {
-  endpoint,
-  decorated,
-  schema,
-  EndpointResponse,
-  type EndpointBuilder,
-  type EndpointBuilders,
-} from './endpoint-fn';
+export { endpoint, type EndpointBuilder, type EndpointBuilders } from './endpoint-fn';
+export { EndpointResponse } from './endpoint-response';
+export { decorated } from './injections';
 export { ZodValidationException, ZodSerializationException } from './exceptions';
-export * from './helpers';
+export { ApiParams, ApiQueries } from './helpers';
 export { setupCodegen } from './codegen/setup';
-export {
-  EndpointRouterModule,
-  // eslint-disable-next-line typescript/no-deprecated -- the alias itself, still exported
-  EndpointsRouterModule,
-  type EndpointRouter,
-} from './endpoint-router.module';
+export { EndpointRouter, type EndpointRouterOptions } from './endpoint-router';
 export { NestjsEndpoints, type NestjsEndpointsOptions } from './nestjs-endpoints';

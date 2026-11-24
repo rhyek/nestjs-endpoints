@@ -13,6 +13,7 @@ import { OptionalParamsPage } from '../src/OptionalParamsPage';
 import { SearchPage } from '../src/SearchPage';
 import { UserFindPage } from '../src/UserFindPage';
 import { UserPage } from '../src/UserPage';
+import { VenuePage } from '../src/VenuePage';
 
 function SpreadGreet() {
   const api = useApiClient();
@@ -108,6 +109,15 @@ describe('Client', () => {
     await vitest.waitFor(async () => {
       expect(await screen.findByTestId('user-find')).toHaveTextContent('No such user');
     });
+  });
+
+  test('a query takes the path params its router declares', async () => {
+    render(
+      <App>
+        <VenuePage venueId="3f2b8c1e-4d5a-4b6c-8d7e-9f0a1b2c3d4e" />
+      </App>,
+    );
+    expect(await screen.findByTestId('venue')).toHaveTextContent('venue 3f2b8c1e');
   });
 
   test('a spread client still carries its context through ApiClientProvider', async () => {

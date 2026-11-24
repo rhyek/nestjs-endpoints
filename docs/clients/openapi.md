@@ -19,7 +19,10 @@ import { AppModule } from './app.module.js';
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
-  const config = new DocumentBuilder().setTitle('Shop API').setOpenAPIVersion('3.1.1').build();
+  const config = new DocumentBuilder()
+    .setTitle('Shop API')
+    .setOpenAPIVersion('3.1.1')
+    .build();
   const document = SwaggerModule.createDocument(app, config);
   SwaggerModule.setup('docs', app, document);
 
@@ -32,16 +35,16 @@ void bootstrap();
   no OpenAPI metadata.
 - **Set the version to 3.1**, as the endpoints' schemas are.
 - **A `standardSchemaConverter` of your own** passed to `createDocument` must return `undefined`
-  for a vendor it doesn't know. The endpoints' schemas have the vendor `nestjs-endpoints`.
+  for the endpoints' schemas, whose vendor is `nestjs-endpoints`.
 
 ## What an endpoint contributes
 
 | In the document | From |
 | --- | --- |
 | The operation's id | Its URL in PascalCase, without `:param` segments: `UserCreate` |
-| Its request body | `input`, as the component `UserCreateInput` |
-| Its query and path parameters | One per property of `query` and `params` |
-| Its responses | `output`, as `UserCreateOutput`, or `UserCreate400Output` for another status |
+| Its path and query parameters | One per property of `params` and `query`, each described by its `.meta({ description })` |
+| Its request body | `input`, as the component `UserCreateInput`, described by its `.meta({ description })` |
+| Its responses | `output`, as `UserCreateOutput`, or `UserCreate400Output` for another status, each described by its schema's `.meta({ description })` |
 | Its summary and tags | `summary`, and `tags` added to one tag from its router |
 
 The router's tag is its [namespace](./namespaces.md), joined with `/`, such as `shop/recipes`.
@@ -55,8 +58,7 @@ A schema with a `.meta({ id })` is a component under that id. See
 ## Your own generator
 
 Most endpoints are `POST`s, so the HTTP method doesn't say which are reads. For a generator run
-against the document, such as Kubb, orval or one for another language, each operation carries
-two extensions:
+against the document, such as Kubb or orval, each operation carries two extensions:
 
 | Extension | Value |
 | --- | --- |

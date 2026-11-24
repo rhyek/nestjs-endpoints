@@ -13,7 +13,11 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { parseArgs } from 'node:util';
-import { renderRules, renderSkill } from '../../../packages/nestjs-endpoints/dist/agent-files.js';
+import {
+  renderRules,
+  renderSkill,
+  skillFile,
+} from '../../../packages/nestjs-endpoints/dist/agent-files.js';
 import { segments } from './guard.ts';
 
 const repo = path.join(import.meta.dirname, '../../..');
@@ -125,12 +129,148 @@ export default endpoint.mutation({
   };
 }
 
+/**
+ * An API the way one tends to be written without guidance: every id in a request body, no
+ * `params`, one router at the root, and a service behind every handler. Seven endpoints over
+ * projects and their tasks, three of them on a task.
+ */
+function rudimentary(): Record<string, string> {
+  const files: Record<string, string> = {
+    ...app('projects-api', 'orders'),
+    'src/app.module.ts': `import { Module } from '@nestjs/common';
+import { NestjsEndpoints } from 'nestjs-endpoints';
+import { ProjectsService } from './endpoints/projects/projects.service.js';
+
+@Module({
+  imports: [
+    NestjsEndpoints.forRoot({
+      router: { rootDirectory: './endpoints', providers: [ProjectsService] },
+    }),
+  ],
+})
+export class AppModule {}
+`,
+    'src/endpoints/projects/projects.service.ts': `import { Injectable, NotFoundException } from '@nestjs/common';
+
+export type Task = { id: number; title: string; done: boolean };
+export type Project = { id: string; name: string; tasks: Task[] };
+
+@Injectable()
+export class ProjectsService {
+  private readonly projects = new Map<string, Project>();
+
+  list() {
+    return [...this.projects.values()].map(({ id, name }) => ({ id, name }));
+  }
+
+  create(name: string) {
+    const project = { id: crypto.randomUUID(), name, tasks: [] };
+    this.projects.set(project.id, project);
+    return { id: project.id, name };
+  }
+
+  view(projectId: string) {
+    const project = this.projects.get(projectId);
+    if (!project) {
+      throw new NotFoundException();
+    }
+    return project;
+  }
+
+  rename(projectId: string, name: string) {
+    this.view(projectId).name = name;
+    return { id: projectId, name };
+  }
+
+  listTasks(projectId: string) {
+    return this.view(projectId).tasks;
+  }
+
+  createTask(projectId: string, title: string) {
+    const tasks = this.view(projectId).tasks;
+    const task = { id: tasks.length + 1, title, done: false };
+    tasks.push(task);
+    return task;
+  }
+
+  completeTask(projectId: string, taskId: number) {
+    const task = this.view(projectId).tasks.find((one) => one.id === taskId);
+    if (!task) {
+      throw new NotFoundException();
+    }
+    task.done = true;
+    return task;
+  }
+}
+`,
+  };
+  delete files['src/endpoints/orders/orders.service.ts'];
+  delete files['src/endpoints/orders/list.endpoint.ts'];
+  delete files['src/endpoints/orders/create.endpoint.ts'];
+  const project = 'z.object({ id: z.string(), name: z.string() })';
+  const task = 'z.object({ id: z.number(), title: z.string(), done: z.boolean() })';
+  const endpoints: [string, 'query' | 'mutation', string, string, string][] = [
+    ['list', 'query', '', `z.array(${project})`, 'projects.list()'],
+    ['create', 'mutation', '{ name: z.string() }', project, 'projects.create(input.name)'],
+    ['view', 'query', '{ projectId: z.string() }', `${project}.extend({ tasks: z.array(${task}) })`, 'projects.view(input.projectId)'],
+    ['rename', 'mutation', '{ projectId: z.string(), name: z.string() }', project, 'projects.rename(input.projectId, input.name)'],
+    ['tasks/list', 'query', '{ projectId: z.string() }', `z.array(${task})`, 'projects.listTasks(input.projectId)'],
+    ['tasks/create', 'mutation', '{ projectId: z.string(), title: z.string() }', task, 'projects.createTask(input.projectId, input.title)'],
+    ['tasks/complete', 'mutation', '{ projectId: z.string(), taskId: z.number() }', task, 'projects.completeTask(input.projectId, input.taskId)'],
+  ]; // oxfmt-ignore
+  for (const [name, kind, input, output, call] of endpoints) {
+    const up = name.includes('/') ? '../' : './';
+    files[`src/endpoints/projects/${name}.endpoint.ts`] =
+      `import { endpoint, z } from 'nestjs-endpoints';
+import { ProjectsService } from '${up}projects.service.js';
+
+export default endpoint.${kind}({
+${input ? `  input: z.object(${input}),\n` : ''}  output: ${output},
+  inject: { projects: ProjectsService },
+  handler: (${input ? '{ input, projects }' : '{ projects }'}) => ${call},
+});
+`;
+  }
+  return files;
+}
+
+/** A file the agent tried to write: its path from the repo's root, and what it held. */
+interface Written {
+  path: string;
+  content: string;
+}
+
 /** A task: what a person would type, naming neither the library nor its docs. */
 interface Task {
   prompt: string;
   /** The `llms.txt` the agent should read, from the repo's root: the copy that API installed. */
   docs: string;
+  /**
+   * Whether what the agent tried to write follows the recommended architecture. A task with
+   * one lets the run go on past its first write, and is graded on every write it tried.
+   */
+  wrote?: (files: Written[]) => boolean;
 }
+
+const isEndpoint = (file: Written) => /(^|\/)([^/]*\.)?endpoint\.ts$/.test(file.path);
+/** An endpoint file whose path has each `$param`. */
+const hasInPath = (file: Written, names: string[]) =>
+  isEndpoint(file) && names.every((name) => file.path.includes(`$${name}`));
+/** A file that takes none of `names` in its body. */
+const noneInInput = (file: Written, names: string[]) =>
+  !names.some((name) =>
+    new RegExp(`input:\\s*z\\.object\\(\\{[^}]*\\b${name}\\b`).test(file.content),
+  );
+/** An endpoint file whose path has each `$param`, that declares `params`, and takes none in its body. */
+const inPath =
+  (...names: string[]) =>
+  (files: Written[]) =>
+    files.some(
+      (file) =>
+        hasInPath(file, names) && file.content.includes('params:') && noneInInput(file, names),
+    );
+/** The files `rudimentary()` seeds: editing one of them is not adding one. */
+const seeded = rudimentary();
 
 /**
  * A layout: a repo as a package manager leaves it. `files` are its own files; `copies` are where
@@ -159,10 +299,53 @@ const layouts: Record<string, Layout> = {
       'add-endpoint': {
         prompt: 'Add an endpoint that returns one order by its id.',
         docs: 'node_modules/nestjs-endpoints/docs/llms.txt',
+        wrote: inPath('orderId'),
       },
       'query-param': {
         prompt: 'Let the orders list take a page number in its query string.',
         docs: 'node_modules/nestjs-endpoints/docs/llms.txt',
+      },
+    },
+  },
+  // One API written without guidance (`rudimentary()`), graded on what the agent writes: whether
+  // a new endpoint follows the recommended architecture where its neighbours don't.
+  rudimentary: {
+    files: rudimentary(),
+    copies: { 'node_modules/nestjs-endpoints': '3.1.0' },
+    links: {},
+    tasks: {
+      'archive-project': {
+        prompt: 'Add an endpoint that archives a project.',
+        docs: 'node_modules/nestjs-endpoints/docs/llms.txt',
+        // A new service fails it; the seeded one holds the projects, so editing it doesn't.
+        wrote: (files) =>
+          inPath('projectId')(files) &&
+          !files.some((file) => file.path.endsWith('.service.ts') && !(file.path in seeded)),
+      },
+      'rename-task': {
+        prompt: 'Add an endpoint that renames a task in a project.',
+        docs: 'node_modules/nestjs-endpoints/docs/llms.txt',
+        // Both ids in its path and neither in its body, with `params` declared by the endpoint
+        // or by a router it wrote in a folder above it.
+        wrote: (files) =>
+          files.some(
+            (file) =>
+              hasInPath(file, ['projectId', 'taskId']) &&
+              noneInInput(file, ['projectId', 'taskId']) &&
+              (file.content.includes('params:') ||
+                files.some(
+                  (router) =>
+                    /(^|\/)router\.ts$/.test(router.path) &&
+                    file.path.startsWith(router.path.replace(/router\.ts$/, '')) &&
+                    router.content.includes('params'),
+                )),
+          ),
+      },
+      'health-check': {
+        prompt: 'Add a health check endpoint the load balancer can call.',
+        docs: 'node_modules/nestjs-endpoints/docs/llms.txt',
+        wrote: (files) =>
+          files.some((file) => isEndpoint(file) && /method:\s*['"]get['"]/.test(file.content)),
       },
     },
   },
@@ -226,7 +409,11 @@ const SKILL = '.claude/skills/nestjs-endpoints/SKILL.md';
 
 /** What each setup puts in the repo: the agent files as the postinstall writes them, or one of them. */
 const setups: Record<string, (version: string) => Record<string, string>> = {
-  installed: (version) => ({ [RULES]: renderRules(version), [SKILL]: renderSkill(version) }),
+  installed: (version) => ({
+    [RULES]: renderRules(version),
+    [SKILL]: renderSkill(version),
+    [skillFile('nestjs-endpoints-refactor')]: renderSkill(version, 'nestjs-endpoints-refactor'),
+  }),
   skill: (version) => ({ [SKILL]: renderSkill(version) }),
   rules: (version) => ({ [RULES]: renderRules(version) }),
 };
@@ -290,6 +477,8 @@ interface Step {
   tool: string;
   /** A Bash command, a file path, or a skill's name. */
   text: string;
+  /** What a Write puts in its file, or an Edit's new text. */
+  content: string;
 }
 
 function stepsOf(file: string): Step[] {
@@ -306,7 +495,17 @@ function stepsOf(file: string): Step[] {
       if (part?.type === 'tool_use') {
         const input = part.input ?? {};
         const text = input.command ?? input.file_path ?? input.skill ?? input.pattern ?? '';
-        steps.push({ tool: part.name ?? '', text: typeof text === 'string' ? text : '' });
+        const content =
+          input.content ??
+          input.new_string ??
+          (Array.isArray(input.edits)
+            ? input.edits.map((edit: { new_string?: string }) => edit.new_string ?? '').join('\n')
+            : '');
+        steps.push({
+          tool: part.name ?? '',
+          text: typeof text === 'string' ? text : '',
+          content: typeof content === 'string' ? content : '',
+        });
       }
     }
   }
@@ -314,6 +513,16 @@ function stepsOf(file: string): Step[] {
 }
 
 const ACTS = /^(Write|Edit|MultiEdit)$/;
+
+/** Every file the steps tried to write, by its path from the repo's root. */
+function writesOf(root: string, steps: Step[]): Written[] {
+  return steps
+    .filter((step) => ACTS.test(step.tool))
+    .map((step) => ({
+      path: path.relative(root, path.resolve(root, step.text)).split(path.sep).join('/'),
+      content: step.content,
+    }));
+}
 
 interface Job {
   layout: string;
@@ -390,6 +599,7 @@ function runJob(work: string, job: Job, oauth: string): Promise<string> {
       stdio: ['ignore', 'pipe', 'pipe'],
     },
   );
+  const gradesWrites = layouts[job.layout]!.tasks[job.task]!.wrote !== undefined;
   return new Promise((resolve) => {
     let stopped = 'exit';
     let buffer = '';
@@ -404,8 +614,8 @@ function runJob(work: string, job: Job, oauth: string): Promise<string> {
       out.write(chunk);
       buffer += chunk.toString('utf8');
       // What the agent read before it acted is what is graded: once it tries to write a file,
-      // the run has said what it can.
-      if (/"name":"(Write|Edit|MultiEdit)"/.test(buffer)) {
+      // the run has said what it can. A task graded on what it writes runs to its end instead.
+      if (!gradesWrites && /"name":"(Write|Edit|MultiEdit)"/.test(buffer)) {
         setTimeout(() => stop('acted'), 3000);
       }
       buffer = buffer.slice(buffer.lastIndexOf('\n') + 1);
@@ -433,7 +643,14 @@ interface Grade {
   /** Read another copy's `llms.txt` before its API's own, or instead of it. */
   wrongFirst: boolean;
   playbook: boolean;
+  /** Read the Recommended architecture page of that copy, before it acted. */
+  architecture: boolean;
   acted: boolean;
+  /**
+   * What it tried to write follows the recommended architecture: `null` for a task not graded
+   * on it, or a run that tried to write no endpoint file.
+   */
+  wroteRight: boolean | null;
 }
 
 /** The real path of a file a step names, from the repo's root, or `null` when there is none. */
@@ -478,7 +695,9 @@ function grade(work: string, job: Job): Grade {
   const steps = stepsOf(job.file);
   const firstAct = steps.findIndex((step) => ACTS.test(step.tool));
   const before = firstAct === -1 ? steps : steps.slice(0, firstAct);
-  const expected = real(root, layouts[job.layout]!.tasks[job.task]!.docs);
+  const task = layouts[job.layout]!.tasks[job.task]!;
+  const written = writesOf(root, steps);
+  const expected = real(root, task.docs);
   const read = before.flatMap((step) => readsOf(root, step)).map((file) => real(root, file));
   const llms = read.filter(
     (file): file is string => file?.endsWith(`${path.sep}llms.txt`) ?? false,
@@ -495,7 +714,14 @@ function grade(work: string, job: Job): Grade {
     playbook: read.some(
       (file) => file !== null && file === path.join(path.dirname(expected!), 'ai/playbook.md'),
     ),
+    architecture: read.some(
+      (file) =>
+        file !== null && file === path.join(path.dirname(expected!), 'guide/architecture.md'),
+    ),
     acted: firstAct !== -1,
+    // A run that tried no endpoint file, say one whose refused edit to a service ended it, wrote
+    // nothing to grade.
+    wroteRight: task.wrote && written.some(isEndpoint) ? task.wrote(written) : null,
   };
 }
 
@@ -518,15 +744,32 @@ function jobsIn(outDir: string): Job[] {
 
 function report(work: string, outDir: string): void {
   const rows = jobsIn(outDir).map((job) => ({ ...job, ...grade(work, job) }));
-  const keys = ['skill', 'resolved', 'rightDocs', 'wrongFirst', 'playbook', 'acted'] as const;
+  const keys = [
+    'skill',
+    'resolved',
+    'rightDocs',
+    'wrongFirst',
+    'playbook',
+    'architecture',
+    'acted',
+  ] as const;
   const lines = [
-    '| Layout | Setup | Task | Runs | Loaded the skill | Ran the resolve command | Read its API’s llms.txt | Read another copy’s first | Read the playbook | Went on to write |',
-    '| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |',
+    '| Layout | Setup | Task | Runs | Loaded the skill | Ran the resolve command | Read its API’s llms.txt | Read another copy’s first | Read the playbook | Read the architecture page | Went on to write | Wrote it the recommended way | Wrote nothing |',
+    '| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |',
   ];
   const groups = Map.groupBy(rows, (row) => `${row.layout}|${row.setup}|${row.task}`);
   for (const [group, runs] of [...groups].toSorted(([a], [b]) => a.localeCompare(b))) {
     const counts = keys.map((key) => `${runs.filter((run) => run[key]).length}/${runs.length}`);
-    lines.push(`| ${group.split('|').join(' | ')} | ${runs.length} | ${counts.join(' | ')} |`);
+    // Over the runs that wrote something, for a task graded on it.
+    const gradesWrites = layouts[runs[0]!.layout]!.tasks[runs[0]!.task]!.wrote !== undefined;
+    const wrote = runs.filter((run) => run.wroteRight !== null);
+    const right = gradesWrites
+      ? `${wrote.filter((run) => run.wroteRight).length}/${wrote.length}`
+      : '–';
+    const nothing = gradesWrites ? `${runs.length - wrote.length}` : '–';
+    lines.push(
+      `| ${group.split('|').join(' | ')} | ${runs.length} | ${counts.join(' | ')} | ${right} | ${nothing} |`,
+    );
   }
   fs.writeFileSync(path.join(outDir, 'report.md'), `${lines.join('\n')}\n`);
   fs.writeFileSync(path.join(outDir, 'results.json'), `${JSON.stringify(rows, null, 2)}\n`);

@@ -77,14 +77,13 @@ h1 {
   gap: 10px;
 }
 
-/* The tile is nearly the dark page's own color, so a short, even shadow keeps its shape there. Its
-   radius is the tile's own, 15 of 64. */
+/* The tile is nearly the dark page's own color, so a short, even shadow keeps its shape there. It is
+   a drop-shadow, which follows the tile's own corners; a border-radius here would clip them. */
 .icon {
   flex: none;
   width: 34px;
   height: 34px;
-  border-radius: 23.4%;
-  box-shadow: 0 0 5px rgb(0 0 0 / 0.4);
+  filter: drop-shadow(0 0 2.5px rgb(0 0 0 / 0.4));
 }
 
 .name {

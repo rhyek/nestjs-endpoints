@@ -1,5 +1,5 @@
 ---
-description: How nestjs-endpoints tells a coding agent about itself - the rules file and skill it installs, and llms.txt on the site and inside the npm package.
+description: How nestjs-endpoints tells a coding agent about itself - the rules file and skills it installs, and llms.txt on the site and inside the npm package.
 ---
 
 # Built for agents
@@ -14,16 +14,17 @@ how they work in the version you have installed. The package gives it both.
 
 ## The agent files
 
-Installing nestjs-endpoints writes two files into your repository:
+Installing nestjs-endpoints writes three files into your repository:
 
-| File                                       | Read by                                                              |
-| ------------------------------------------ | -------------------------------------------------------------------- |
-| `.claude/rules/nestjs-endpoints.md`        | Claude Code, at the start of every session.                          |
-| `.claude/skills/nestjs-endpoints/SKILL.md` | Agents that load skills. Also copied into `.agents/` and `.cursor/` where those folders exist. |
+| File                                                | Read by                                                              |
+| --------------------------------------------------- | -------------------------------------------------------------------- |
+| `.claude/rules/nestjs-endpoints.md`                 | Claude Code, at the start of every session.                          |
+| `.claude/skills/nestjs-endpoints/SKILL.md`          | Agents that load skills.                                             |
+| `.claude/skills/nestjs-endpoints-refactor/SKILL.md` | You, as `/nestjs-endpoints-refactor`: it reworks the API to the [recommended architecture](../guide/architecture.md), and shows its plan before it edits. Claude Code never starts it on its own. |
 
-Both are a few lines that say what nestjs-endpoints does here and point at the
-[index](#llms-txt) inside the installed package, so an agent reads the page it needs, for the
-version you have. Commit them, so everyone working in the repository has them.
+The skills are also copied into `.agents/` and `.cursor/` where those folders exist. The rules
+file and the first skill point an agent at the [index](#llms-txt) inside the installed package,
+so it reads the page it needs, for the version you have. Commit them.
 
 - **They are written in a git checkout only.** An install in CI, or with no checkout, such as
   in a Docker build, writes nothing.
@@ -37,24 +38,22 @@ version you have. Commit them, so everyone working in the repository has them.
     nestjs-endpoints: true
   ```
 
-  Set it to `false` to have neither file. pnpm 11 and later stop the install until the package
-  is listed. pnpm can also link the skill from the package itself (`pnpm approve`); where it
-  has, nestjs-endpoints writes no copy of its own.
+  Set it to `false` to have none of the files.
 - **With bun, trust the package:** `"trustedDependencies": ["nestjs-endpoints"]` in your
   `package.json`.
 - **To skip them** with npm or yarn, install with `NESTJS_ENDPOINTS_SKIP_AGENT_FILES=1`.
-- **Each API reads the docs of the version it installed.** The files have an agent find them
-  from the API's directory with `node -p "require.resolve('nestjs-endpoints/docs/llms.txt')"`,
-  so they are found wherever the package manager put the package, in a monorepo too. Where they
-  can't be found, the files point at
+- **Each API reads the docs of the version it installed**, found from its directory, in a
+  monorepo too. Where they can't be found, the files point at
   [nestjs-endpoints.dev/llms.txt](https://nestjs-endpoints.dev/llms.txt).
 - **For agents that read `AGENTS.md`**, add the same lines to it:
 
   ```md
-  This repo's HTTP APIs are built with nestjs-endpoints. Before you add, change, move or test an
-  endpoint or a router, or generate or call a client, read the `llms.txt` of the version the API
-  installed (`node -p "require.resolve('nestjs-endpoints/docs/llms.txt')"` from its directory),
-  then the page it names for the task.
+  This repo's HTTP APIs are built with nestjs-endpoints. Before you
+  add, change, move or test an endpoint or a router, or generate or
+  call a client, read the `llms.txt` of the version the API
+  installed, from its directory:
+  `node -p "require.resolve('nestjs-endpoints/docs/llms.txt')"`.
+  Then read the page it names for the task.
   ```
 
 ## `llms.txt`
@@ -78,9 +77,5 @@ node_modules/nestjs-endpoints/docs/clients/…
 
 That copy matches the installed version, works offline, and is what the
 [agent files](#the-agent-files) point at. The index opens by sending an agent to the
-[playbook](./playbook.md), which has the rules and a recipe for each task.
-
-## For the agent
-
-The [agent playbook](./playbook.md) is the page written for the agent itself: short recipes for
-the tasks above.
+[agent playbook](./playbook.md), the page written for the agent itself, with the rules and a
+recipe for each task.

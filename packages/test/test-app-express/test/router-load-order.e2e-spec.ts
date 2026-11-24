@@ -2,18 +2,13 @@
 // the app module and outside any router, as it is when a spec imports
 // something of a nested router before the app.
 import '../src/shop/category/router.module';
-import { Test } from '@nestjs/testing';
 import request from 'supertest';
 import { AppModule } from '../src/app.module';
-import { createApp } from './create-app';
+import { appWith } from './app-with';
 import { openApiDocument } from './openapi-document';
 
 test('a nested router evaluated before its parent still mounts under it', async () => {
-  const moduleFixture = await Test.createTestingModule({
-    imports: [AppModule],
-  }).compile();
-  const { app } = await createApp(moduleFixture);
-  app.useLogger(false);
+  const { app } = await appWith([AppModule]);
   try {
     await request(app.getHttpServer()).post('/shop/category/list').expect(200);
     const document = openApiDocument(app);

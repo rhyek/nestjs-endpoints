@@ -1,3 +1,3 @@
-import { EndpointRouterModule } from '../../../../../src/endpoint-router.module';
+import { EndpointRouter } from '../../../../../src/endpoint-router';
 
-export default EndpointRouterModule.create({});
+export default EndpointRouter.create({});

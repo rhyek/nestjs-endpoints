@@ -192,7 +192,7 @@ export function describeRouting(runtime: Runtime) {
     });
 
     // What someone does to add a part to an API, with the app running: a folder, an endpoint
-    // file in it, then a router module to give it a namespace. Each step is served, and is in
+    // file in it, then a `router.ts` to give it a namespace. Each step is served, and is in
     // the client the app generates when it starts.
     describe(`a new endpoint folder, while it runs under ${runtime.watch.name}`, () => {
       let app: Started;
@@ -228,9 +228,9 @@ export function describeRouting(runtime: Runtime) {
         );
       });
 
-      test('nests it in the client once the folder has a router module with a namespace', async () => {
+      test('nests it in the client once the folder has a `router.ts` with a namespace', async () => {
         await until(
-          () => project.addRouterModule('shop'),
+          () => project.addRouter('shop'),
           async () => {
             expect(await project.generatedClient()).toMatch(
               /^\s+shop: \{\n\s+e: bindClient\(_ops\.shopE, _client\),$/m,

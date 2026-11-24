@@ -27,6 +27,7 @@ import SecuredRouterModule from './secured/router.module';
 import ShopRouterModule from './shop/router.module';
 import TeamRouterModule from './team/router.module';
 import { VanillaController } from './vanilla.controller';
+import VenuesRouterModule from './venues/router';
 import WorkspaceRouterModule from './workspace/router.module';
 
 @Injectable()
@@ -70,6 +71,7 @@ export class ZodErrorInterceptor implements NestInterceptor {
     SecuredRouterModule,
     WorkspaceRouterModule,
     TeamRouterModule,
+    VenuesRouterModule,
     UserListModule,
   ],
   providers: [

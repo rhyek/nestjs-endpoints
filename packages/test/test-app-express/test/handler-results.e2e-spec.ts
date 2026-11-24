@@ -1,8 +1,7 @@
 import { Module } from '@nestjs/common';
-import { Test } from '@nestjs/testing';
 import { endpoint, z } from 'nestjs-endpoints';
 import request from 'supertest';
-import { createApp } from './create-app';
+import { appWith } from './app-with';
 
 // What each kind of value a handler returns is sent as, on every adapter.
 const results: Record<string, { handler: () => unknown; type: RegExp; text: string }> = {
@@ -45,9 +44,7 @@ const results: Record<string, { handler: () => unknown; type: RegExp; text: stri
 class ResultsModule {}
 
 test('a handler result is sent as JSON unless it is a string', async () => {
-  const fixture = await Test.createTestingModule({ imports: [ResultsModule] }).compile();
-  const { app } = await createApp(fixture);
-  app.useLogger(false);
+  const { app } = await appWith([ResultsModule]);
   try {
     const req = request(app.getHttpServer());
     for (const [name, { type, text }] of Object.entries(results)) {

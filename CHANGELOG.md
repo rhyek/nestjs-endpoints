@@ -1,5 +1,51 @@
 # Changelog
 
+## 3.1.0
+
+### Features
+
+- **A router declares the path parameters of its folder in `context.params`**, and every endpoint built with its `endpoint` receives them, validated and typed. See [Router context](docs/guide/router-context.md#path-parameters).
+- **`router.child()` creates a nested router that inherits its parent's `context`, `providers` and `imports`**, through every level. See [What flows down](docs/guide/what-flows-down.md).
+- **An endpoint may declare a key its router injects, and its own wins.**
+- **A router file can be named `router.ts`**, and `router.module.ts` keeps working. See [Routers](docs/guide/routers.md#nested-routers).
+- **Endpoints and routers take NestJS's lifecycle hooks in `lifecycle`**, such as `lifecycle: { onModuleInit() {} }`, and a router starts after the routers above it. See [Endpoint options](docs/reference/endpoint.md#options).
+- **A child router loads by itself in a test with everything the routers above it give**, and none of their endpoints. See [Testing](docs/guide/testing.md).
+- **A router's guards and interceptors are one instance for every endpoint under it**, made with what that router provides, and a router that lists one again has its own. See [What flows down](docs/guide/what-flows-down.md).
+- **Endpoints take `guards` and `interceptors`**, which run after those of their routers. See [Endpoint options](docs/reference/endpoint.md#options).
+- **Endpoints and routers declare `properties` and `methods`, and a handler, method or hook written as a method reads them, and what is injected, from `this`.** See [`this`](docs/reference/endpoint.md#this).
+- **A router's `inject` is for its own lifecycle hooks and methods**, and its endpoints get what its `context` gives. See [Router options](docs/reference/router.md#options).
+- **The docs recommend an architecture, and a `/nestjs-endpoints-refactor` skill reworks an API to it.** See [Recommended architecture](docs/guide/architecture.md).
+
+### Fixes
+
+- **A router's guard or interceptor that depends on a request-scoped provider no longer makes the endpoints under it for each request**, so their lifecycle hooks run.
+- **A router file in a `$param` folder gets the path parameter in its base path**, as in `/clinics/:clinicId`.
+- **`invoke()` can leave out `params` that have no required key**, as it can `query`.
+- **A router's middleware runs for an endpoint at the router's own base path**, as an `endpoint.ts` in its folder.
+- **An endpoint whose `path` has a wildcard, or text beside a parameter as in `files/:name.json`, gets the right OpenAPI path, operation name and path parameters.**
+- **A router's middleware runs for its endpoints that have a version of their own**, and its `exclude` works, in an app with versions in its URLs.
+
+### Breaking changes
+
+- **A router's guards and interceptors are made with that router's providers and imports**, not those of the routers under it. One that injects what only a router under it provides fails at startup: provide it on the router that lists the guard.
+- **`invoke()` takes one object, `{ params, query, input }`, each key optional.** Move the input under `input`: `invoke(body, { params })` becomes `invoke({ params, input: body })`. See [`invoke()`](docs/reference/endpoint.md#invoke).
+- **A router's `endpointConfig` is renamed `context`**, which takes `params` too. Rename the key. See [Router context](docs/guide/router-context.md).
+- **`EndpointRouterModule` is renamed `EndpointRouter`**, and the deprecated `EndpointsRouterModule` and `register()` are removed. Rename the import, and call `create()`.
+- **`getHttpPathPascalName`, `getEndpointHttpPath`, `getCallsiteFile` and `moduleAls` are not exported**: they were the library's internals.
+- **`schema()` is removed: a schema's `.meta({ description })` describes its response in the OpenAPI document**, as in `201: created.meta({ description: 'Created' })`, and an `input`'s describes the request body. See [Responses](docs/guide/responses.md#several-statuses).
+- **Routers have no `exports`.** Provide what another module needs in a module, and import it in both.
+- **A router file is one that exports a router.** Import a module that a `router.module.ts` default-exports where the app needs it.
+- **A router's `endpoints` refuses an entry that is not an endpoint.** Remove it, or list a controller in a module's `controllers`.
+- **A namespace is a name: letters, digits, `-` and `_`, starting with a letter.** A router whose `namespace: true` finds none, or one that isn't a name, stops the app from starting: give `namespace` a string.
+- **A router's `description` needs `namespace` on the same router.** Add `namespace`, or remove the description.
+- **An `inject` key cannot be named `handler`, `invoke`, `configure` or as a lifecycle hook.** Rename the key.
+- **An endpoint cannot declare one key in both `inject` and `injectOnRequest`**, as a router cannot. Remove it from one of them.
+- **An endpoint whose `params` declare a key its URL lacks stops the app from starting.** Remove the key, or add it to the URL.
+- **A nested router's guards and interceptors run after those of the routers above it.**
+- **Two router files in one folder that both export a router stop the app from starting**, as `a.router.module.ts` beside `b.router.module.ts`. Keep one of them.
+- **A path parameter doesn't take the name of a route beside it as its value**: `/recipes/featured/view` is a 404 beside `recipes/featured`. On Express, create the app with `routeResolutionStrategy: 'specificity'`. See [Path parameters](docs/guide/file-based-routing.md#a-name-beside-a-parameter).
+- **A router created in a file named `router.ts` takes its folder's name as base path, and is found by the router of a folder above it**, as one in a `router.module.ts` is. Set `basePath`, or rename the file, to keep its routes where they were.
+
 ## 3.0.0
 
 ### Features
@@ -8,7 +54,7 @@
 - **Endpoints declare search parameters with `query`, on any method**, and react-query operations carry them as `schemas.query`. See [Queries and mutations](docs/guide/endpoints.md).
 - **A router's `namespace` nests its endpoints in the generated clients**, as `client.shop.recipes.create(...)` next to `client.shop.recipes.useCreate()`. See [Namespaces](docs/clients/namespaces.md).
 - **A client's `namespaces` limits it to those top-level namespaces**, so one app can generate a narrower client for each front end. See [Per-client namespace filter](docs/clients/namespaces.md#a-client-per-front-end).
-- **A router module declares `inject` and `injectOnRequest` once for its endpoints**, in `endpointConfig`. See [Shared injections](docs/guide/routers.md#shared-injections).
+- **A router module declares `inject` and `injectOnRequest` once for its endpoints**, in `endpointConfig`. See [Router context](docs/guide/router-context.md).
 - **Each react-query client operation carries its `queryOptions` / `queryKey` or `mutationOptions` / `mutationKey`, bound to the client instance**, so route loaders can use `queryClient.ensureQueryData(...)` outside React. See [react-query](docs/clients/react-query.md).
 - **Generated clients make their requests with Kubb's own axios client**: each exports `ResponseError` and `isResponseError`, and a call's `.unwrap()` resolves to the body alone. See [Codegen](docs/clients/codegen.md).
 - **Endpoints handle up to 10% more requests per second.**
@@ -19,6 +65,7 @@
 
 ### Fixes
 
+- **A router's guard or interceptor that depends on a request-scoped provider no longer makes the endpoints under it for each request**, so their lifecycle hooks run.
 - **File-based routing now works when the project path contains a space**, and on Windows.
 
 ### Breaking changes

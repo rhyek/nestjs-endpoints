@@ -1,5 +1,5 @@
-import { createVirtualFileSystem } from 'typescript/unstable/fs';
-import { API } from 'typescript/unstable/sync';
+import { createFileSystem } from 'typescript/fs';
+import { API } from 'typescript/sync';
 import { describe, expect, test } from 'vitest';
 import { z } from 'zod';
 import type { EndpointDescriptor } from '../../descriptors';
@@ -37,14 +37,14 @@ const ref = (name: string) => ({ $ref: `#/components/schemas/${name}` });
 function syntaxErrors(source: string): string[] {
   const config = '/virtual/tsconfig.json';
   const file = '/virtual/schemas.ts';
-  const api = new API({
-    fs: createVirtualFileSystem({
-      [config]: JSON.stringify({ files: [file] }),
-      [file]: source,
-    }),
-  });
+  const api = new API();
+  const fileSystem = createFileSystem([
+    [config, JSON.stringify({ files: [file] })],
+    [file, source],
+  ]);
   try {
-    const { program } = api.updateSnapshot({ openProjects: [config] }).getProject(config)!;
+    const snapshot = api.createSnapshot({ fileSystem, openProjects: [config] });
+    const { program } = snapshot.getConfiguredProject(config)!;
     return program.getSyntacticDiagnostics(file).map((d) => d.text);
   } finally {
     api.close();
@@ -334,11 +334,11 @@ describe('buildSchemasModuleSource', () => {
       {
         operationId: 'Greet',
         schemas: {
-          input: { type: 'object' },
           query: {
             type: 'object',
             properties: { name: { type: 'string' } },
           },
+          input: { type: 'object' },
         },
       },
     ],
@@ -350,7 +350,7 @@ describe('buildSchemasModuleSource', () => {
       `export const authLogin: { input: InputSchema<NonNullable<AuthLoginOptions['body']>> } =`,
     );
     expect(source).toContain(
-      `export const greet: { input: InputSchema<NonNullable<GreetOptions['body']>>; query: InputSchema<NonNullable<GreetOptions['query']>> } =`,
+      `export const greet: { query: InputSchema<NonNullable<GreetOptions['query']>>; input: InputSchema<NonNullable<GreetOptions['body']>> } =`,
     );
     expect(source).toContain(`export type InputSchema<T> = {`);
     expect(source).toContain(`import type { AuthLoginOptions, GreetOptions } from './types';`);

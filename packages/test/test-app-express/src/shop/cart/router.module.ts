@@ -1,7 +1,7 @@
-import { EndpointsRouterModule } from 'nestjs-endpoints';
+import { EndpointRouter } from 'nestjs-endpoints';
 import { CartService } from './cart.service';
 
-export default EndpointsRouterModule.register({
+export default EndpointRouter.create({
   rootDirectory: 'endpoints',
   providers: [CartService],
   // Nested namespace under 'shop' → chain becomes ['shop', 'cart'].

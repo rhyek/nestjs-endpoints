@@ -1,17 +1,13 @@
-import { Test } from '@nestjs/testing';
 import request from 'supertest';
 import { AppModule } from '../src/app.module';
-import { createApp } from './create-app';
+import { appWith } from './app-with';
 import { openApiDocument } from './openapi-document';
 
 // `setupCodegen` writes client SDKs, and nothing else depends on it. This spec builds the app
 // from its module alone, as every spec here does, and never calls it: the endpoints still have
 // their validation, their injected providers and their OpenAPI metadata.
 describe('an app that never calls setupCodegen', () => {
-  async function setup() {
-    const moduleFixture = await Test.createTestingModule({ imports: [AppModule] }).compile();
-    return createApp(moduleFixture);
-  }
+  const setup = () => appWith([AppModule]);
 
   test('serves its endpoints, with validation and injected providers', async () => {
     const { app } = await setup();

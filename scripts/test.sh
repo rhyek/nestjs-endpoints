@@ -71,15 +71,27 @@ start_server() {
   return 1
 }
 
+# Vitest's options for a suite whose tests count toward the repository's number of tests, which
+# the docs' home page shows: a JSON report beside the usual output, which `record_count` reads.
+REPORTS=$(mktemp -d)
+report() {
+  echo --reporter=default --reporter=json "--outputFile.json=$REPORTS/$1.json"
+}
+record_count() {
+  node "$root/scripts/record-test-count.ts" "$1" "$REPORTS/$1.json"
+}
+
 run_suite() {
   case "$1" in
     unit)
       pnpm --filter nestjs-endpoints run tscheck
-      pnpm --filter nestjs-endpoints test run
+      pnpm --filter nestjs-endpoints test run $(report unit)
+      record_count unit
       ;;
     express)
       codegen_and_check express
-      pnpm --filter test-app-express run test:e2e --no-cache
+      pnpm --filter test-app-express run test:e2e --no-cache $(report express)
+      record_count express
       ;;
     fastify | node)
       mirror_express "$1"
@@ -92,12 +104,14 @@ run_suite() {
       codegen_and_check express
       pnpm --filter test-react-query-client run tscheck
       start_server
-      pnpm --filter test-react-query-client test run
+      pnpm --filter test-react-query-client test run $(report react-query)
       stop_server
+      record_count react-query
       ;;
     example)
       pnpm --dir "$root/examples/file-based-routing" run tscheck
-      pnpm --dir "$root/examples/file-based-routing" test
+      pnpm --dir "$root/examples/file-based-routing" test $(report example)
+      record_count example
       ;;
     *)
       echo "Unknown suite: $1 (one of: ${ALL_SUITES[*]})" >&2

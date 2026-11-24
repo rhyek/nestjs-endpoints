@@ -6,7 +6,7 @@ request arriving at it, the grey arrow.
 | File | What it is | Used by |
 | --- | --- | --- |
 | `logo.svg` | The icon. | The site's home page, beside the name; the source of the touch icon and the link preview. |
-| `logo-small.svg` | The icon for small sizes: its arrow drawn thicker. | The site's browser tab and nav bar; the source of the favicon. |
+| `logo-small.svg` | The icon for small sizes: its arrow drawn thicker, its head thinner than the stem, and the mark scaled to 88% about the tile's center for more room to the edge. | The site's browser tab and nav bar; the source of the favicon. |
 | `site/favicon-32.png` | 32 px, from `logo-small.svg`. | The browser tab, where it can't take an SVG. |
 | `site/apple-touch-icon.png` | 180 px, square, from `logo.svg`. | An iPhone's home-screen bookmark, which rounds it. |
 | `site/og-image.png` | 512 px, square, from `logo.svg`. | A link's preview (Slack, X, …), which rounds it. |
@@ -16,6 +16,9 @@ request arriving at it, the grey arrow.
 - **The mark is centered in the tile:** its left and right margins are equal, and so are its top
   and bottom ones.
 - **The arrow is as far from the row above it as from the route.**
+- **The tile's corners are a circular arc:** `rx` 13 in `logo.svg`, 15 in `logo-small.svg`.
+- **The shadow is the site's**, not the file's: `filter: drop-shadow()` on the `<img>`, which follows
+  the tile's shape (a `border-radius` on the `<img>` would clip it to a circular arc instead).
 - **Colors:** the tile `#18181b`, the rows `#e4e4e7`, the route `#f0456c`, the arrow `#94a3b8`.
 
 A change to the icon is a change to both SVGs and to the three PNGs, in the same change.
@@ -32,11 +35,11 @@ home page's hero (`docs/.vitepress/theme/home/HomeHero.vue`) imports `logo.svg` 
 ## Rendering the PNGs
 
 With `rsvg-convert` (librsvg). The touch icon and the preview are rendered from `logo.svg` with
-the tile's corners squared, by removing `rx="15"` from the tile's `<rect>` in a copy:
+the tile's corners squared, by removing `rx="13"` from the tile's `<rect>` in a copy:
 
 ```bash
 rsvg-convert -w 32 -h 32 logo/logo-small.svg -o logo/site/favicon-32.png
-sed 's/rx="15" fill="#18181b"/fill="#18181b"/' logo/logo.svg > /tmp/logo-square.svg
+sed 's/rx="13" fill="#18181b"/fill="#18181b"/' logo/logo.svg > /tmp/logo-square.svg
 rsvg-convert -w 180 -h 180 /tmp/logo-square.svg -o logo/site/apple-touch-icon.png
 rsvg-convert -w 512 -h 512 /tmp/logo-square.svg -o logo/site/og-image.png
 ```

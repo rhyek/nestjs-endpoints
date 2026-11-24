@@ -1,8 +1,8 @@
-import { EndpointsRouterModule } from 'nestjs-endpoints';
+import { EndpointRouter } from 'nestjs-endpoints';
 import { createManualRecipeEndpoint } from './create.endpoint';
 import { RecipesRepository } from './repository.service';
 
-export const RecipesManualEndpointsRouterModule = EndpointsRouterModule.register({
+export const RecipesManualEndpointsRouterModule = EndpointRouter.create({
   providers: [RecipesRepository],
   basePath: 'recipes-manual-1',
   endpoints: [createManualRecipeEndpoint],

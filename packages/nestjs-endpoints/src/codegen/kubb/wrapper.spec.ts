@@ -1,5 +1,5 @@
-import { createVirtualFileSystem } from 'typescript/unstable/fs';
-import { API } from 'typescript/unstable/sync';
+import { createFileSystem } from 'typescript/fs';
+import { API } from 'typescript/sync';
 import { describe, expect, test } from 'vitest';
 import type { EndpointDescriptor } from '../../descriptors';
 import type { SharedSchemas } from '../../shared-schemas';
@@ -84,14 +84,14 @@ const entry = (key: string) => new RegExp(`^\\s*${key}: (.*),$`, 'm').exec(sourc
 function syntaxErrors(source: string): string[] {
   const config = '/virtual/tsconfig.json';
   const file = '/virtual/react-query-client.tsx';
-  const api = new API({
-    fs: createVirtualFileSystem({
-      [config]: JSON.stringify({ compilerOptions: { jsx: 'preserve' }, files: [file] }),
-      [file]: source,
-    }),
-  });
+  const api = new API();
+  const fileSystem = createFileSystem([
+    [config, JSON.stringify({ compilerOptions: { jsx: 'preserve' }, files: [file] })],
+    [file, source],
+  ]);
   try {
-    const { program } = api.updateSnapshot({ openProjects: [config] }).getProject(config)!;
+    const snapshot = api.createSnapshot({ fileSystem, openProjects: [config] });
+    const { program } = snapshot.getConfiguredProject(config)!;
     return program.getSyntacticDiagnostics(file).map((d) => d.text);
   } finally {
     api.close();

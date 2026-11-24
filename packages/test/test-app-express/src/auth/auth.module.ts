@@ -1,12 +1,12 @@
 import { Module } from '@nestjs/common';
-import { EndpointsRouterModule } from 'nestjs-endpoints';
+import { EndpointRouter } from 'nestjs-endpoints';
 import { AuthService } from './auth.service';
 
 @Module({
   providers: [AuthService],
   exports: [AuthService],
   imports: [
-    EndpointsRouterModule.register({
+    EndpointRouter.create({
       basePath: 'auth',
       providers: [AuthService],
     }),

@@ -38,12 +38,11 @@ send only what `output` names. A return value that fails `output` is answered `5
 
 ## Several statuses
 
-Give `output` a schema per status code, and return `response(status, body)`. The status must be
-one `output` declares, and the body is type-checked against that status's schema.
+Give `output` a schema per status code, and return `response(status, body)`:
 
 ```ts twoslash
 // @filename: src/endpoints/appointments/create.sample.ts
-import { endpoint, schema, z } from 'nestjs-endpoints';
+import { endpoint, z } from 'nestjs-endpoints';
 declare class AppointmentsService {
   hasConflict(date: Date): Promise<boolean>;
   create(userId: number, date: Date): Promise<{ id: number; address: string }>;
@@ -55,7 +54,7 @@ export default endpoint.mutation({
     date: z.coerce.date(),
   }),
   output: {
-    201: schema(z.object({ id: z.number(), address: z.string() }), {
+    201: z.object({ id: z.number(), address: z.string() }).meta({
       description: 'Appointment created',
     }),
     409: z.object({
@@ -71,23 +70,25 @@ export default endpoint.mutation({
         errorCode: 'APPOINTMENT_CONFLICT',
       });
     }
-    return response(201, await appointments.create(input.userId, input.date));
+    return response(
+      201,
+      await appointments.create(input.userId, input.date),
+    );
   },
 });
 ```
 
-`schema()` attaches a description to one status, for an
-[OpenAPI document](../clients/openapi.md). In the generated client, a status outside the 2xx range is thrown as a
-[`ResponseError`](../clients/axios.md#errors).
+A schema's `.meta({ description })` describes its status's response in an
+[OpenAPI document](../clients/openapi.md). In the generated client, a status outside the 2xx
+range is thrown as a [`ResponseError`](../clients/axios.md#errors).
 
 For failures that aren't part of an endpoint's documented responses, throw
 [NestJS's HTTP exceptions](./nestjs.md#errors).
 
 ## Transforms in output schemas
 
-The generated clients are typed from what an `output` schema produces, and a `.transform()` runs
-code that can't be read for it. Use `.overwrite()` for a transform that keeps the type, or say what the
-transform produces with `.meta()`:
+A `.transform()` in an `output` schema hides what it produces from the generated clients. Use
+`.overwrite()` for a transform that keeps the type, or say what it produces with `.meta()`:
 
 ```ts
 // the same type in and out

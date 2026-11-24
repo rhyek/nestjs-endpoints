@@ -8,8 +8,12 @@ import {
   renderSkill,
   RULES_FILE,
   SKILL_FILE,
+  SKILLS,
+  skillFile,
   syncAgentFiles,
 } from './agent-files';
+
+const REFACTOR_FILE = skillFile('nestjs-endpoints-refactor');
 
 let root: string;
 let installed: string;
@@ -17,7 +21,9 @@ let installed: string;
 beforeEach(() => {
   root = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'ne-agent-files-')));
   installed = path.join(root, 'node_modules', 'nestjs-endpoints');
-  fs.mkdirSync(path.join(installed, 'skills', 'nestjs-endpoints'), { recursive: true });
+  for (const name of SKILLS) {
+    fs.mkdirSync(path.join(installed, 'skills', name), { recursive: true });
+  }
 });
 
 afterEach(() => {
@@ -45,11 +51,31 @@ describe('rendering', () => {
     expect(lines[2]).toBe('name: nestjs-endpoints');
   });
 
+  test('the refactor skill keeps its frontmatter on line 1, with the banner inside it', () => {
+    const lines = renderSkill('1.2.3', 'nestjs-endpoints-refactor').split('\n');
+    expect(lines[0]).toBe('---');
+    expect(lines[1]).toMatch(/^# nestjs-endpoints-refactor skill v1\.2\.3 sha256:[0-9a-f]{64} /);
+    expect(lines[2]).toBe('name: nestjs-endpoints-refactor');
+  });
+
+  // A rewrite of a whole API is never something an agent starts on its own.
+  test('the refactor skill runs only when invoked', () => {
+    expect(renderSkill('1.2.3', 'nestjs-endpoints-refactor')).toMatch(
+      /^disable-model-invocation: true$/m,
+    );
+  });
+
   // The Agent Skills spec allows 1,024 characters; Claude Code's listing cuts at 1,536.
-  test("the skill's description fits in 1024 characters", () => {
-    const description = /^description: (.*)$/m.exec(renderSkill('1.2.3'))?.[1];
+  test.each(SKILLS)("the %s skill's description fits in 1024 characters", (name) => {
+    const description = /^description: (.*)$/m.exec(renderSkill('1.2.3', name))?.[1];
     expect(description).toBeDefined();
     expect(description!.length).toBeLessThanOrEqual(1024);
+  });
+
+  test('the refactor skill finds the docs by resolving them, and names the architecture page', () => {
+    const text = renderSkill('1.2.3', 'nestjs-endpoints-refactor');
+    expect(text).toContain(`node -p "require.resolve('nestjs-endpoints/docs/llms.txt')"`);
+    expect(text).toContain('guide/architecture.md');
   });
 
   test.each([
@@ -106,10 +132,11 @@ test.each([
 });
 
 describe('syncAgentFiles', () => {
-  test('writes the rules file and the skill into a repo that has neither', () => {
-    expect(sync('1.0.0')).toEqual([RULES_FILE, SKILL_FILE]);
+  test('writes the rules file and both skills into a repo that has none of them', () => {
+    expect(sync('1.0.0')).toEqual([RULES_FILE, SKILL_FILE, REFACTOR_FILE]);
     expect(read(RULES_FILE)).toBe(renderRules('1.0.0'));
     expect(read(SKILL_FILE)).toBe(renderSkill('1.0.0'));
+    expect(read(REFACTOR_FILE)).toBe(renderSkill('1.0.0', 'nestjs-endpoints-refactor'));
   });
 
   test('changes nothing when the files are current', () => {
@@ -119,9 +146,10 @@ describe('syncAgentFiles', () => {
 
   test('rewrites the files an older version wrote', () => {
     sync('1.0.0');
-    expect(sync('1.1.0')).toEqual([RULES_FILE, SKILL_FILE]);
+    expect(sync('1.1.0')).toEqual([RULES_FILE, SKILL_FILE, REFACTOR_FILE]);
     expect(read(RULES_FILE)).toBe(renderRules('1.1.0'));
     expect(read(SKILL_FILE)).toBe(renderSkill('1.1.0'));
+    expect(read(REFACTOR_FILE)).toBe(renderSkill('1.1.0', 'nestjs-endpoints-refactor'));
   });
 
   test('leaves alone a file a newer version wrote', () => {
@@ -133,22 +161,46 @@ describe('syncAgentFiles', () => {
   test('leaves alone a file someone edited, and keeps the other current', () => {
     sync('1.0.0');
     fs.appendFileSync(at(RULES_FILE), 'Our own line.\n');
-    expect(sync('1.1.0')).toEqual([SKILL_FILE]);
+    expect(sync('1.1.0')).toEqual([SKILL_FILE, REFACTOR_FILE]);
     expect(read(RULES_FILE)).toBe(`${renderRules('1.0.0')}Our own line.\n`);
   });
 
   test('leaves alone a file of the same name that the package did not write', () => {
     fs.mkdirSync(path.dirname(at(SKILL_FILE)), { recursive: true });
     fs.writeFileSync(at(SKILL_FILE), '---\nname: nestjs-endpoints\n---\nOur own skill.\n');
-    expect(sync('1.0.0')).toEqual([RULES_FILE]);
+    expect(sync('1.0.0')).toEqual([RULES_FILE, REFACTOR_FILE]);
     expect(read(SKILL_FILE)).toBe('---\nname: nestjs-endpoints\n---\nOur own skill.\n');
   });
 
-  test('copies the skill into .agents/ and .cursor/ where those folders exist', () => {
+  // Each skill's banner names it, so one skill's file is never taken for the other's.
+  test("leaves alone the first skill's file where the refactor skill goes", () => {
+    fs.mkdirSync(path.dirname(at(REFACTOR_FILE)), { recursive: true });
+    fs.writeFileSync(at(REFACTOR_FILE), renderSkill('0.1.0'));
+    expect(sync('1.0.0')).toEqual([RULES_FILE, SKILL_FILE]);
+    expect(read(REFACTOR_FILE)).toBe(renderSkill('0.1.0'));
+  });
+
+  test('leaves alone a refactor skill of the same name that the package did not write', () => {
+    const own = '---\nname: nestjs-endpoints-refactor\n---\nOur own refactor.\n';
+    fs.mkdirSync(path.dirname(at(REFACTOR_FILE)), { recursive: true });
+    fs.writeFileSync(at(REFACTOR_FILE), own);
+    expect(sync('1.0.0')).toEqual([RULES_FILE, SKILL_FILE]);
+    expect(read(REFACTOR_FILE)).toBe(own);
+  });
+
+  test('copies both skills into .agents/ and .cursor/ where those folders exist', () => {
     fs.mkdirSync(at('.cursor'));
     const cursorSkill = path.join('.cursor', 'skills', 'nestjs-endpoints', 'SKILL.md');
-    expect(sync('1.0.0')).toEqual([RULES_FILE, SKILL_FILE, cursorSkill]);
+    const cursorRefactor = path.join('.cursor', 'skills', 'nestjs-endpoints-refactor', 'SKILL.md');
+    expect(sync('1.0.0')).toEqual([
+      RULES_FILE,
+      SKILL_FILE,
+      cursorSkill,
+      REFACTOR_FILE,
+      cursorRefactor,
+    ]);
     expect(read(cursorSkill)).toBe(renderSkill('1.0.0'));
+    expect(read(cursorRefactor)).toBe(renderSkill('1.0.0', 'nestjs-endpoints-refactor'));
     expect(fs.existsSync(at('.agents'))).toBe(false);
   });
 
@@ -162,21 +214,45 @@ describe('syncAgentFiles', () => {
     });
 
     test('writes no copy of its own', () => {
-      expect(sync('1.0.0')).toEqual([RULES_FILE]);
+      sync('1.0.0');
       expect(fs.existsSync(at(SKILL_FILE))).toBe(false);
+    });
+
+    test('writes the refactor skill when pnpm linked only the first', () => {
+      expect(sync('1.0.0')).toEqual([RULES_FILE, REFACTOR_FILE]);
+    });
+
+    test("removes the refactor skill's own copy where pnpm linked it", () => {
+      fs.symlinkSync(
+        path.join(installed, 'skills', 'nestjs-endpoints-refactor'),
+        at('.claude/skills/pnpm-nestjs-endpoints-nestjs-endpoints-refactor'),
+      );
+      fs.mkdirSync(path.dirname(at(REFACTOR_FILE)), { recursive: true });
+      fs.writeFileSync(at(REFACTOR_FILE), renderSkill('1.0.0', 'nestjs-endpoints-refactor'));
+      expect(sync('1.0.0')).toEqual([RULES_FILE, REFACTOR_FILE]);
+      expect(fs.existsSync(path.dirname(at(REFACTOR_FILE)))).toBe(false);
+    });
+
+    test('writes neither skill where pnpm linked both', () => {
+      fs.symlinkSync(
+        path.join(installed, 'skills', 'nestjs-endpoints-refactor'),
+        at('.claude/skills/pnpm-nestjs-endpoints-nestjs-endpoints-refactor'),
+      );
+      expect(sync('1.0.0')).toEqual([RULES_FILE]);
+      expect(fs.existsSync(at(REFACTOR_FILE))).toBe(false);
     });
 
     test("removes its own copy, if nobody edited it, so the skill isn't listed twice", () => {
       fs.mkdirSync(path.dirname(at(SKILL_FILE)), { recursive: true });
       fs.writeFileSync(at(SKILL_FILE), renderSkill('1.0.0'));
-      expect(sync('1.0.0')).toEqual([RULES_FILE, SKILL_FILE]);
+      expect(sync('1.0.0')).toEqual([RULES_FILE, SKILL_FILE, REFACTOR_FILE]);
       expect(fs.existsSync(path.dirname(at(SKILL_FILE)))).toBe(false);
     });
 
     test('keeps its own copy when someone edited it', () => {
       fs.mkdirSync(path.dirname(at(SKILL_FILE)), { recursive: true });
       fs.writeFileSync(at(SKILL_FILE), `${renderSkill('1.0.0')}Edited.\n`);
-      expect(sync('1.0.0')).toEqual([RULES_FILE]);
+      expect(sync('1.0.0')).toEqual([RULES_FILE, REFACTOR_FILE]);
       expect(fs.existsSync(at(SKILL_FILE))).toBe(true);
     });
   });

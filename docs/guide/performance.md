@@ -70,7 +70,8 @@ The rest of the pipeline is the same in both. A pipe or an interceptor your app 
 
 ### What each step costs
 
-Each step's share of what the three cost a controller together, to the nearest 5%:
+Each step's share of what the three cost a controller together, measured by taking it out of the
+controller app, to the nearest 5%:
 
 | | `GET` | `POST` |
 | --- | --- | --- |
@@ -79,12 +80,9 @@ Each step's share of what the three cost a controller together, to the nearest 5
 | **The pipe on each parameter** | **20%** | **15%** |
 | **Removing prototype keys** | **10%** | **20%** |
 
-- **The interceptor is most of it.** About half the whole is NestJS running an interceptor
-  through RxJS at all, even one that only calls `next.handle()`.
-- **A pipe is a chain of async calls**, five for each parameter.
-- **Removing prototype keys is a safety step of the schema pipe**, counted on its own. An
-  endpoint leaves those keys to Zod: a `z.object()` drops them, a `z.looseObject()` or a
-  `z.record()` keeps `prototype` and `constructor`, and `z.any()` keeps all three.
+- **Removing prototype keys is a safety step of the schema pipe.** An endpoint leaves those keys
+  to Zod: a `z.object()` drops them, a `z.looseObject()` or a `z.record()` keeps `prototype` and
+  `constructor`, and `z.any()` keeps all three.
 - **The validation is not what is slow.** A controller that calls the same Zod schemas in its
   handler, with no pipe and no interceptor, is about as fast as an <Endpoint>endpoint</Endpoint>.
 
@@ -100,13 +98,6 @@ above.
 
 ## How it was measured
 
-- **Where:** {{ measuredOn }}. Each app runs its production build on one CPU core.
-- **Load:** 64 keep-alive connections, each sending as fast as the app answers.
-- **Rounds:** six ten-second rounds for each app after a warm-up, each in a new server process,
-  with the apps taking turns.
-- **The steps:** each is the controller app with that step taken out.
-
-The apps and the scripts are in the repository's
-[`benchmarks`](https://github.com/rhyek/nestjs-endpoints/tree/main/benchmarks) folder:
-`pnpm bench` for the numbers, and `pnpm bench:breakdown` for the steps and what a request
-creates.
+Measured on {{ measuredOn }}. Each app ran its production build on one CPU core, under 64
+keep-alive connections sending as fast as it answered. The apps are in the repository's
+[`benchmarks`](https://github.com/rhyek/nestjs-endpoints/tree/main/benchmarks) folder.

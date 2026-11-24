@@ -39,7 +39,7 @@ describe('recipes endpoints', () => {
     const create = app.get(createRecipeEndpoint);
     const list = app.get(listRecipesEndpoint);
 
-    const created = await create.invoke({ name: 'Pizza' });
+    const created = await create.invoke({ input: { name: 'Pizza' } });
     expect(created).toEqual({ id: 1, name: 'Pizza' });
 
     await expect(list.invoke()).resolves.toEqual([
@@ -54,17 +54,17 @@ describe('recipes endpoints', () => {
     const view = app.get(viewRecipeEndpoint);
     const edit = app.get(editRecipeEndpoint);
 
-    const { id } = await create.invoke({ name: 'Pizza' });
+    const { id } = await create.invoke({ input: { name: 'Pizza' } });
 
-    // `invoke` accepts the params object as its second argument; values
-    // round-trip through the same Zod schema as live HTTP calls so
-    // strings get coerced to numbers.
+    // `invoke` takes the path params under `params`; values round-trip
+    // through the same Zod schema as live HTTP calls, so strings get
+    // coerced to numbers.
     await expect(
       view.invoke({ params: { recipeId: String(id) } }),
     ).resolves.toEqual({ id, name: 'Pizza' });
 
     await expect(
-      edit.invoke({ name: 'Margherita' }, { params: { recipeId: id } }),
+      edit.invoke({ params: { recipeId: id }, input: { name: 'Margherita' } }),
     ).resolves.toEqual({ id, name: 'Margherita' });
 
     await app.close();

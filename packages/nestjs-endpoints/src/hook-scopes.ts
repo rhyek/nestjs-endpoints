@@ -1,0 +1,59 @@
+import type { Provider, Type } from '@nestjs/common';
+import { ModulesContainer } from '@nestjs/core';
+
+const HOOKS_METADATA_KEY = 'endpoints:hooks';
+
+type DeclaredHooks = { hooks: readonly string[]; by: string };
+
+/**
+ * Notes on the class of an endpoint or of a router's module the lifecycle hooks it
+ * declares. `by` names it in an error: "the endpoint of <file>".
+ */
+export function declaresHooks(cls: Type, hooks: readonly string[], by: string): void {
+  if (hooks.length > 0) {
+    Reflect.defineMetadata(HOOKS_METADATA_KEY, { hooks, by } satisfies DeclaredHooks, cls);
+  }
+}
+
+/**
+ * NestJS calls lifecycle hooks only on what it makes once. An endpoint or a router's module
+ * it makes for each request, because it or an enhancer of it depends on a request-scoped
+ * provider, would never have a hook it declares run, with nothing to say so. This fails in
+ * its place, for every such class of the app, or for `only`.
+ */
+export function assertHooksAreCalled(modules: ModulesContainer, only?: Type): void {
+  for (const module of modules.values()) {
+    const own = module.providers.get(module.metatype);
+    for (const wrapper of [...(own ? [own] : []), ...module.controllers.values()]) {
+      const cls: unknown = wrapper.metatype;
+      if (typeof cls !== 'function' || (only && cls !== only)) {
+        continue;
+      }
+      const declared = Reflect.getMetadata(HOOKS_METADATA_KEY, cls) as DeclaredHooks | undefined;
+      // What NestJS itself asks before it calls a hook.
+      if (declared && !wrapper.isDependencyTreeStatic()) {
+        const hooks = new Intl.ListFormat('en').format(declared.hooks);
+        throw new Error(
+          `nestjs-endpoints: ${declared.by} declares ${hooks}, but NestJS makes it for each ` +
+            'request, and calls lifecycle hooks only on what it makes once. It is made for ' +
+            'each request because it, or a guard, interceptor, pipe or filter that applies ' +
+            'to it, depends on a request-scoped provider. Do what the hooks do in a ' +
+            'provider that is not request-scoped.',
+        );
+      }
+    }
+  }
+}
+
+/**
+ * A provider of every router and of the app's root, which checks the whole app as it
+ * initializes: by then NestJS knows what each instance depends on. An app with neither is
+ * checked by each endpoint, when it is made.
+ */
+export const hooksAreCalled: Provider = {
+  provide: Symbol('nestjs-endpoints:hooks-are-called'),
+  inject: [ModulesContainer],
+  useFactory: (modules: ModulesContainer) => ({
+    onModuleInit: () => assertHooksAreCalled(modules),
+  }),
+};

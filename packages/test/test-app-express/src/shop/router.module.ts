@@ -1,7 +1,7 @@
-import { EndpointsRouterModule } from 'nestjs-endpoints';
+import { EndpointRouter } from 'nestjs-endpoints';
 import { ShopService } from './shop.service';
 
-export default EndpointsRouterModule.register({
+export default EndpointRouter.create({
   // Multi-root: 'endpoints' holds this router's own endpoint files;
   // 'category', 'cart', and 'recipes' each contain their own
   // `router.module.ts` and are auto-discovered as nested routers.

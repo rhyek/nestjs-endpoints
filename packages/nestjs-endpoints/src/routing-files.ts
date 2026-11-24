@@ -4,7 +4,17 @@ import { sourceGoneFilter } from './compiled-source';
 
 const endpointFileRegex = /\bendpoint\.(js|ts|mjs|mts)$/;
 
-export const routerModuleFileRegex = /\brouter\.module\.(js|ts|mjs|mts)$/;
+/** A router's file, by its name: `router.ts`, or `router.module.ts`. */
+export const routerFileRegex = /(^router|\brouter\.module)\.(js|ts|mjs|mts)$/;
+
+/**
+ * Which of a folder's router-named files is asked about first: `router.ts`, then
+ * `router.module.ts`, then one named as `shop.router.module.ts`.
+ */
+function routerNameRank(file: string): number {
+  const name = stripExtension(path.basename(file));
+  return name === 'router' ? 0 : name === 'router.module' ? 1 : 2;
+}
 
 /**
  * Most preferred first. When two files share a stem (`a.endpoint.ts` beside a
@@ -13,7 +23,12 @@ export const routerModuleFileRegex = /\brouter\.module\.(js|ts|mjs|mts)$/;
 const SOURCE_EXTENSIONS = ['.ts', '.mts', '.js', '.mjs'];
 
 function isRoutingFile(name: string): boolean {
-  return endpointFileRegex.test(name) || routerModuleFileRegex.test(name);
+  return endpointFileRegex.test(name) || routerFileRegex.test(name);
+}
+
+/** A file as an error message names it: from the working directory. */
+export function shown(file: string): string {
+  return path.relative(process.cwd(), file);
 }
 
 export function stripExtension(file: string): string {
@@ -78,27 +93,54 @@ function listRoutingEntries(dir: string): [name: string, isDirectory: boolean][]
  * source tree under a TypeScript loader or Vitest, the compiled output
  * otherwise. A compiled file whose source file was deleted is left out.
  *
- * A folder that contains a router-module file is a nested router, at any
- * depth: its router module is listed, and the folder is not walked further.
- * The only exception is `routerFile`'s own folder, which a `rootDirectory`
- * entry may name: a router does not register itself.
+ * A folder with a router file that exports a router, which `exportsRouter`
+ * tells, is a nested router, at any depth: its router file is listed, and the
+ * folder is not walked further. A file with a router file's name that exports
+ * none is no router file, and its folder is walked as any other. The only
+ * exception is `routerFile`'s own folder, which a `rootDirectory` entry may
+ * name: a router does not register itself, and no other file there is its.
+ *
+ * The files of a folder are asked about in turn, `router.ts` first (see
+ * `routerNameRank`), until one is a router; those after it are not loaded. Of
+ * two with the same rank, both are asked about, and both being routers fails.
+ * The files no router is taken from are `passedOver`.
+ *
+ * `mayBeRouter` is told every file that has the name, before any is asked
+ * about: a nested router that registers while this walk waits finds itself
+ * named.
  */
-export function findRouterFiles(directories: readonly string[], routerFile: string) {
+export async function findRouterFiles(
+  directories: readonly string[],
+  routerFile: string,
+  exportsRouter: (file: string) => Promise<boolean>,
+  mayBeRouter: (file: string) => void = () => {},
+) {
   const endpointFiles = new Set<string>();
   const nestedRouterModuleFiles = new Set<string>();
+  const passedOver = new Set<string>();
   const isSourceGone = sourceGoneFilter(routerFile);
+  type Entries = ReturnType<typeof listRoutingEntries>;
+  /** The folders with a file that may be a router's, each to be asked about. */
+  const undecided: { dir: string; entries: Entries; named: string[] }[] = [];
   const walk = (dir: string) => {
     const entries = listRoutingEntries(dir).filter(
       ([name, isDirectory]) => isDirectory || !isSourceGone(path.join(dir, name)),
     );
-    const nested = entries.find(([name]) => routerModuleFileRegex.test(name));
-    if (nested) {
-      const file = path.join(dir, nested[0]);
-      if (!isSameModule(file, routerFile)) {
-        nestedRouterModuleFiles.add(file);
-        return;
+    const named = entries
+      .filter(([name, isDirectory]) => !isDirectory && routerFileRegex.test(name))
+      .map(([name]) => path.join(dir, name));
+    if (named.some((file) => !isSameModule(file, routerFile))) {
+      for (const file of named) {
+        if (!isSameModule(file, routerFile)) {
+          mayBeRouter(file);
+        }
       }
+      undecided.push({ dir, entries, named });
+    } else {
+      walkInto(dir, entries);
     }
+  };
+  const walkInto = (dir: string, entries: Entries) => {
     for (const [name, isDirectory] of entries) {
       const file = path.join(dir, name);
       if (isDirectory) {
@@ -111,7 +153,44 @@ export function findRouterFiles(directories: readonly string[], routerFile: stri
   for (const dir of directories) {
     walk(dir);
   }
-  return { endpointFiles, nestedRouterModuleFiles };
+  for (let folder = undecided.shift(); folder; folder = undecided.shift()) {
+    const routers: string[] = [];
+    const own = folder.named.find((file) => isSameModule(file, routerFile));
+    if (own) {
+      routers.push(own);
+    }
+    const ranks = [...new Set(folder.named.map(routerNameRank))].sort((a, b) => a - b);
+    for (const rank of own ? [] : ranks) {
+      for (const file of folder.named.filter((f) => routerNameRank(f) === rank)) {
+        if (await exportsRouter(file)) {
+          routers.push(file);
+        }
+      }
+      if (routers.length > 0) {
+        break;
+      }
+    }
+    for (const file of folder.named) {
+      if (!routers.includes(file)) {
+        passedOver.add(file);
+      }
+    }
+    if (routers.length > 1) {
+      throw new Error(
+        `${shown(folder.dir)} has both ${routers.map((file) => path.basename(file)).join(' and ')}. ` +
+          'A folder has one router file: keep one of them. If one is left from a build, ' +
+          "delete the build's output folder.",
+      );
+    }
+    const [router] = routers;
+    if (router && !isSameModule(router, routerFile)) {
+      nestedRouterModuleFiles.add(router);
+    } else {
+      // No router's but the one walking: a folder as any other.
+      walkInto(folder.dir, folder.entries);
+    }
+  }
+  return { endpointFiles, nestedRouterModuleFiles, passedOver };
 }
 
 /**

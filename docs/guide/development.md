@@ -17,8 +17,6 @@ files you add, rename or delete, so that:
 npx nest start --watch
 ```
 
-Nothing else is needed.
-
 ## With Node and a TypeScript loader
 
 ::: code-group

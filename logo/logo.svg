@@ -1,8 +1,9 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
   <!-- nestjs-endpoints: a folder tree whose last row is a route, with a request arriving at it. The mark is centered in the tile, and the arrow is as far from the row above as from the route. -->
-  <rect width="64" height="64" rx="15" fill="#18181b"/>
+  <rect width="64" height="64" rx="13" fill="#18181b"/>
   <rect x="10.8" y="10.51" width="27.7" height="8.08" rx="4.04" fill="#e4e4e7"/>
   <rect x="20.03" y="25.51" width="27.7" height="8.08" rx="4.04" fill="#e4e4e7"/>
   <rect x="30.32" y="40.51" width="26.63" height="8.08" rx="4.04" fill="#f0456c"/>
-  <path d="M9.64 44.55 H22.34 M16.57 38.2 L22.91 44.55 L16.57 50.9" fill="none" stroke="#94a3b8" stroke-width="5.19" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M9.64 44.55 H22.34" fill="none" stroke="#94a3b8" stroke-width="5.19" stroke-linecap="round"/>
+  <path d="M16.57 38.2 L22.91 44.55 L16.57 50.9" fill="none" stroke="#94a3b8" stroke-width="4.7" stroke-linecap="round" stroke-linejoin="round"/>
 </svg>

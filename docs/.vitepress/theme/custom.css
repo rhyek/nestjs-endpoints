@@ -136,3 +136,8 @@
 .twoslash .twoslash-query-line .twoslash-popup-container {
   margin-bottom: 0.6em;
 }
+
+/* The icon in the navigation bar gets the home page icon's shadow, scaled to its size. */
+.VPNavBarTitle .logo {
+  filter: drop-shadow(0 0 1.5px rgb(0 0 0 / 0.4));
+}

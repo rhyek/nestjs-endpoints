@@ -1,6 +1,6 @@
 import { endpoint, z } from 'nestjs-endpoints';
 
-// No router.module.ts at `catering/`, so this endpoint inherits the
+// No router.ts at `catering/`, so this endpoint inherits the
 // parent shop router's namespace chain. `catering` contributes to the
 // URL (/shop/catering/book) but not to the SDK tree — the generated
 // hook lands at `client.shop.useCateringBook()`.

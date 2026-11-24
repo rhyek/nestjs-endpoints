@@ -71,6 +71,34 @@ export default endpoint.query({
 });
 `;
 
+// Endpoints with an output map, one of its statuses described, and a router's `params`, which no
+// route serves: the project's build emits their declarations as it does those of its endpoint
+// files, and fails on a type it cannot name from outside the package.
+const declaredSource = `import { EndpointRouter, endpoint, z } from 'nestjs-endpoints';
+
+export const created = endpoint.mutation({
+  path: 'declared/created',
+  input: z.object({ name: z.string() }),
+  output: {
+    201: z.object({ id: z.number() }).meta({ description: 'Created' }),
+    409: z.object({ message: z.string() }),
+  },
+  handler: ({ input, response }) =>
+    input.name ? response(201, { id: 1 }) : response(409, { message: 'taken' }),
+});
+
+export const router = EndpointRouter.create({
+  basePath: 'declared',
+  context: { params: z.object({ id: z.coerce.number() }) },
+});
+
+export const viewed = router.endpoint.query({
+  path: ':id/view',
+  output: z.object({ id: z.number() }),
+  handler: ({ params }) => ({ id: params.id }),
+});
+`;
+
 // What Getting started adds to the app module. `watch` is the app's own choice: the specs turn
 // it on through the environment, for the runtimes that need it.
 const routerImports = `import { NestjsEndpoints } from 'nestjs-endpoints';
@@ -136,14 +164,12 @@ function lastServed(output: string): Served | undefined {
   return ROUTES.filter((route) => statuses[route] === 200);
 }
 
-// A router module for a folder of endpoints, which gives them a namespace in the generated
-// client. A nested router is a module of its own, so it provides what its endpoints inject.
-const routerModuleSource = (
-  depth: number,
-) => `import { EndpointRouterModule } from 'nestjs-endpoints';
+// A router for a folder of endpoints, which gives them a namespace in the generated client.
+// A nested router is a module of its own, so it provides what its endpoints inject.
+const routerSource = (depth: number) => `import { EndpointRouter } from 'nestjs-endpoints';
 import { Clock, HealthService } from '${'../'.repeat(depth)}health.service.js';
 
-export default EndpointRouterModule.create({
+export default EndpointRouter.create({
   namespace: true,
   providers: [Clock, HealthService],
 });
@@ -167,7 +193,7 @@ export type NestProject = Awaited<ReturnType<typeof createNestProject>>;
 
 /**
  * Makes the project in a temporary directory: `nest new`, then nestjs-endpoints installed and
- * set up in the app module. It has no endpoint files yet.
+ * set up in the app module. It has no endpoint files yet, only `src/declared.ts`.
  */
 export async function createNestProject(prefix: string) {
   const directory = await createInstalledProject(prefix);
@@ -228,6 +254,7 @@ export async function createNestProject(prefix: string) {
   );
   await writeFile(path.join(directory, 'src/health.service.ts'), healthServiceSource);
   await writeFile(path.join(directory, 'src/main.ts'), mainSource);
+  await writeFile(path.join(directory, 'src/declared.ts'), declaredSource);
 
   const endpointFile = (route: string) =>
     path.join(directory, `src/endpoints/${route}.endpoint.ts`);
@@ -294,11 +321,11 @@ export async function createNestProject(prefix: string) {
     /** The package's `postinstall`, run in the project. */
     postinstall,
 
-    /** Gives the folder `src/endpoints/<folder>` a router module with a namespace. */
-    async addRouterModule(folder: string) {
-      const file = path.join(directory, 'src/endpoints', folder, 'router.module.ts');
+    /** Gives the folder `src/endpoints/<folder>` a `router.ts`, with a namespace. */
+    async addRouter(folder: string) {
+      const file = path.join(directory, 'src/endpoints', folder, 'router.ts');
       await mkdir(path.dirname(file), { recursive: true });
-      await writeFile(file, routerModuleSource(folder.split('/').length + 1));
+      await writeFile(file, routerSource(folder.split('/').length + 1));
     },
 
     /** The client the app generated when it last started with `CODEGEN` set, if it has. */

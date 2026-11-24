@@ -93,8 +93,10 @@ are in what you leave out, and in what the compiler can check:
 
 ## What you get
 
-- **One file per endpoint**: its schemas, its handler and what it injects, the
-  [REPR pattern](https://www.apitemplatepack.com/docs/introduction/repr-pattern/).
+- **One file per endpoint**: its request, its response and the work between them, the
+  [REPR pattern](https://www.apitemplatepack.com/docs/introduction/repr-pattern/). The handler
+  does the work with what it injects, the database included; a service is for domain logic
+  several endpoints share. See [Recommended architecture](./architecture.md).
 - **[Types](./type-safety.md) and validation from the schemas**, for requests and responses.
 - **[File-based routing](./file-based-routing.md)**, and [routers](./routers.md) that give a
   folder its own providers and guards, [which NestJS can't](./improvements.md).
@@ -106,7 +108,7 @@ It leaves NestJS alone: an <Endpoint>endpoint</Endpoint> is a controller class. 
 
 ## What it asks of you
 
-It is opinionated in a few places, and they are worth knowing before you start:
+It is opinionated in a few places:
 
 - **Endpoints are `POST`s with a JSON body, unless you say otherwise.** The API reads as a set of
   operations (`/orders/create`, `/orders/list`) more than as REST resources. An endpoint that

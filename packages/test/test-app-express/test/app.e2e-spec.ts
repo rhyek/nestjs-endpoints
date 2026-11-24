@@ -628,13 +628,13 @@ describe('api', { concurrent: true }, () => {
     expect(validationExceptionSpy).toHaveBeenCalledTimes(2);
   });
 
-  test('nested endpoints router module: recipes create works', async () => {
+  test('nested endpoints router: recipes create works', async () => {
     const { req } = await setup();
     await req.post('/recipes/create').send({ name: 'Pizza' }).expect(200, { id: 1, name: 'Pizza' });
     await req.post('/recipes/create').send({ name: 'Pasta' }).expect(200, { id: 2, name: 'Pasta' });
   });
 
-  test('manual endpoints router module: recipes-manual-1 create works', async () => {
+  test('manual endpoints router: recipes-manual-1 create works', async () => {
     const { req } = await setup();
     await req
       .post('/recipes-manual-1/create')
@@ -646,7 +646,7 @@ describe('api', { concurrent: true }, () => {
       .expect(200, { id: 2, name: 'Pasta', manual: true });
   });
 
-  test('nested endpoints router module: recipes create input validation throws', async () => {
+  test('nested endpoints router: recipes create input validation throws', async () => {
     const { req, validationExceptionSpy, serializationExceptionSpy } = await setup();
     await req
       .post('/recipes/create')
