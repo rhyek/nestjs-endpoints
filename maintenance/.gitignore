@@ -1,0 +1,4 @@
+docs/superpowers/
+# The agent eval's transcripts (maintenance/scripts/agent-eval): they hold this machine's paths
+agent-runs/
+marketing/
