@@ -1,7 +1,10 @@
 import {
   ArgumentsHost,
+  BadRequestException,
   CallHandler,
+  CanActivate,
   Catch,
+  ConflictException,
   ExecutionContext,
   Injectable,
   NestInterceptor,
@@ -702,6 +705,50 @@ test('a request without a body reads as `{}`, unless the input accepts `undefine
     const req = request(app.getHttpServer());
     await req.post('/no-body/all-optional').expect(200, { a: 'x' });
     await req.post('/no-body/optional').expect(200, { given: false });
+  } finally {
+    await app.close();
+  }
+});
+
+test("an HTTP exception's errorCode reaches the client, thrown by a handler or a guard", async () => {
+  @Injectable()
+  class TakenGuard implements CanActivate {
+    canActivate(): boolean {
+      throw new ConflictException('Taken', { errorCode: 'TAKEN' });
+    }
+  }
+  const weakPassword = endpoint.mutation({
+    path: '/error-code/handler',
+    input: z.object({ password: z.string() }),
+    output: z.object({ ok: z.boolean() }),
+    handler: () => {
+      throw new BadRequestException('Password is too weak', { errorCode: 'WEAK_PASSWORD' });
+    },
+  });
+  const guarded = endpoint.query({
+    path: '/error-code/guard',
+    guards: [TakenGuard],
+    handler: () => null,
+  });
+  const moduleFixture = await Test.createTestingModule({
+    controllers: [weakPassword, guarded],
+  }).compile();
+  const { app } = await createApp(moduleFixture);
+  app.useLogger(false);
+  try {
+    const req = request(app.getHttpServer());
+    await req.post('/error-code/handler').send({ password: 'x' }).expect(400, {
+      message: 'Password is too weak',
+      error: 'Bad Request',
+      statusCode: 400,
+      errorCode: 'WEAK_PASSWORD',
+    });
+    await req.post('/error-code/guard').expect(409, {
+      message: 'Taken',
+      error: 'Conflict',
+      statusCode: 409,
+      errorCode: 'TAKEN',
+    });
   } finally {
     await app.close();
   }
