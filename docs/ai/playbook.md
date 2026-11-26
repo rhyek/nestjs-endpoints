@@ -135,7 +135,9 @@ first. See [What flows down](../guide/what-flows-down.md) and
 ## Test an endpoint
 
 - **Over HTTP:** start the app with `Test.createTestingModule`, and send requests with
-  supertest. See [Over HTTP](../guide/testing.md#over-http).
+  supertest. See [Over HTTP](../guide/testing.md#over-http). Replace a router's or an
+  endpoint's guard or interceptor with `.overrideGuard()` or `.overrideInterceptor()`, as in
+  plain NestJS.
 - **Through the client:** point a generated client at the test app. See
   [Through the generated client](../guide/testing.md#through-the-generated-client).
 - **The handler, under its routers:** import the router of its folder alone, which brings

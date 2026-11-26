@@ -1,5 +1,11 @@
 # Changelog
 
+## 3.1.1
+
+### Fixes
+
+- **A test can replace a router's guards and interceptors with NestJS's `overrideGuard()` and `overrideInterceptor()`.** See [Testing](docs/guide/testing.md#over-http).
+
 ## 3.1.0
 
 ### Features
