@@ -372,6 +372,11 @@ export function createLazily(
     { imports: params?.imports, providers: [...(params?.providers ?? []), ...checks] },
     parent?.providers,
   );
+  // In a module apart from its endpoints: one of its endpoints that lists one again has an
+  // instance of its own, which NestJS makes in the endpoint's module by the same class.
+  if (checks.length) {
+    providers.wanted = true;
+  }
   const router: Router = {
     file: callsiteFile,
     context,

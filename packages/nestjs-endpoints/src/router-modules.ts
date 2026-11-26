@@ -34,7 +34,10 @@ export function importInto(to: DynamicModule, module: DynamicModule | undefined)
 export type SharedProviders = {
   /** The providers of the router, wherever it has them. */
   own: Provider[];
-  /** Set by the first `child()`: the router then has its providers in `module()`. */
+  /**
+   * Set by the first `child()`, or for guards or interceptors of its own: the router then has
+   * its providers in `module()`.
+   */
   wanted: boolean;
   /**
    * The router's own module, once it has registered with its providers in it, as a router

@@ -6,7 +6,8 @@ import { appWith } from './app-with';
 // The checkpoints tree: `checkpoints` has providers, a guard, a guard made for each request
 // and an interceptor; `gate`, made with its child(), provides a badge of its own; `inner`,
 // made with that one's child(), lists the provider, the guard and the interceptor again;
-// `annex` is made with create().
+// `leaf`, made with the child() of `checkpoints`, lists the guard and the interceptor again
+// and has no router under it; `annex` is made with create().
 describe('the providers, guards and interceptors of a router', () => {
   let app: INestApplication;
   beforeAll(async () => {
@@ -24,6 +25,7 @@ describe('the providers, guards and interceptors of a router', () => {
   const inner = () => seen('/checkpoints/gate/inner/seen');
   const annex = () => seen('/checkpoints/annex/seen');
   const own = () => seen('/checkpoints/gate/own');
+  const leaf = () => seen('/checkpoints/leaf/own');
   const guards = ({ checks }: Seen) => checks.filter((check) => check.startsWith('guard '));
   const interceptors = ({ checks }: Seen) =>
     checks.filter((check) => check.startsWith('interceptor '));
@@ -88,6 +90,22 @@ describe('the providers, guards and interceptors of a router', () => {
         ...interceptors(seenTop),
         expect.stringMatching(/^interceptor \d+ of gate$/),
       ]);
+    });
+
+    test('a guard and an interceptor, by an endpoint of a router with no router under it that lists them too', async () => {
+      const [above] = guards(await top());
+      const seenLeaf = await leaf();
+      const [, router, endpoint] = guards(seenLeaf);
+      expect(guards(seenLeaf)).toEqual([
+        above,
+        expect.stringMatching(/^guard \d+ of leaf$/),
+        expect.stringMatching(/^guard \d+ of leaf$/),
+      ]);
+      expect(endpoint).not.toBe(router);
+      const [, routerInterceptor, endpointInterceptor] = interceptors(seenLeaf);
+      expect(routerInterceptor).toMatch(/^interceptor \d+ of leaf$/);
+      expect(endpointInterceptor).toMatch(/^interceptor \d+ of leaf$/);
+      expect(endpointInterceptor).not.toBe(routerInterceptor);
     });
   });
 });

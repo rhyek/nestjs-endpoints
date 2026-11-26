@@ -54,7 +54,7 @@ test('creates an order', async () => {
 });
 ```
 
-Replace a provider with NestJS's own testing API:
+Replace a provider, a guard or an interceptor with NestJS's own testing API:
 
 ```ts
 const moduleRef = await Test.createTestingModule({
@@ -62,8 +62,13 @@ const moduleRef = await Test.createTestingModule({
 })
   .overrideProvider(OrdersService)
   .useValue(fakeOrders)
+  .overrideGuard(SignedInGuard)
+  .useValue({ canActivate: () => true })
   .compile();
 ```
+
+A router's guard or interceptor is replaced for every endpoint under it, and wherever a router
+or an endpoint lists it again.
 
 ## Through the generated client
 

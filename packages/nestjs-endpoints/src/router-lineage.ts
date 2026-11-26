@@ -18,7 +18,7 @@ import {
   INTERCEPTORS_METADATA,
   SCOPE_OPTIONS_METADATA,
 } from '@nestjs/common/constants';
-import { ContextIdFactory, ModuleRef } from '@nestjs/core';
+import { ContextIdFactory, ModuleRef, ModulesContainer } from '@nestjs/core';
 import { REQUEST_CONTEXT_ID } from '@nestjs/core/router/request/request-constants';
 import { NamesBesideGuard } from './names-beside.guard';
 
@@ -36,31 +36,39 @@ export const NO_LINEAGE: Lineage = { guards: [], interceptors: [] };
 
 /**
  * The lineage of a router: its parent's, then its own guards and interceptors. And the
- * providers that make its own, which go where its providers are: each is one instance, for
+ * provider that makes its own, which goes where its providers are: each is one instance, for
  * every endpoint under it.
+ *
+ * That provider lists them as NestJS's `@UseGuards()` and `@UseInterceptors()` do, so NestJS
+ * makes each as an injectable of its module, by its class: what a test's `overrideGuard()` and
+ * `overrideInterceptor()` replace.
  */
 export function lineageOf(
   parent: Lineage,
   own: Partial<Lineage> | undefined,
 ): { lineage: Lineage; providers: Provider[] } {
-  const providers: Provider[] = [];
+  @Injectable()
+  class RouterEnhancers {}
+  const classes: Record<Method, Type[]> = { canActivate: [], intercept: [] };
   const shared = <T extends Guard | Interceptor>(listed: T[] | undefined, method: Method) =>
     (listed ?? []).map((item) => {
       // An instance is one already; NestJS makes a transient class for each that uses it.
       if (typeof item !== 'function' || isTransient(item)) {
         return item;
       }
-      const token = Symbol(item.name);
-      providers.push({ provide: token, useClass: item });
-      return forwarding(item, token, method) as T;
+      classes[method].push(item);
+      return forwarding(item, RouterEnhancers, method) as T;
     });
-  return {
-    lineage: {
-      guards: [...parent.guards, ...shared(own?.guards, 'canActivate')],
-      interceptors: [...parent.interceptors, ...shared(own?.interceptors, 'intercept')],
-    },
-    providers,
+  const lineage: Lineage = {
+    guards: [...parent.guards, ...shared(own?.guards, 'canActivate')],
+    interceptors: [...parent.interceptors, ...shared(own?.interceptors, 'intercept')],
   };
+  if (classes.canActivate.length === 0 && classes.intercept.length === 0) {
+    return { lineage, providers: [] };
+  }
+  UseGuards(...classes.canActivate)(RouterEnhancers);
+  UseInterceptors(...classes.intercept)(RouterEnhancers);
+  return { lineage, providers: [RouterEnhancers] };
 }
 
 type Method = 'canActivate' | 'intercept';
@@ -73,34 +81,47 @@ function isTransient(cls: Type): boolean {
 }
 
 /**
- * A guard or interceptor that calls the instance of `cls` that `token` provides: NestJS makes
- * one in each module with endpoints of a router, and they call that router's one instance. An
- * app makes that one for each request where what it injects is, and makes it with the
- * request's.
+ * A guard or interceptor that calls the instance of `cls` in the module that has `enhancers`:
+ * NestJS makes one in each module with endpoints of a router, and they call that router's one
+ * instance. An app makes that one for each request where what it injects is, and makes it with
+ * the request's.
  */
-function forwarding(cls: Type, token: symbol, method: Method): Type {
+function forwarding(cls: Type, enhancers: Type, method: Method): Type {
   @Injectable()
   class Forwarding {
     /** The instance, once read; none where there is one for each request. */
     private target?: Target;
-    private perRequest = false;
+    /** Where there is one for each request: the module that makes it. */
+    private perRequest?: ModuleRef;
 
-    constructor(@Inject(ModuleRef) private readonly moduleRef: ModuleRef) {}
+    constructor(@Inject(ModulesContainer) private readonly modules: ModulesContainer) {}
 
     forward(context: ExecutionContext, ...rest: unknown[]): unknown {
       if (!this.target && !this.perRequest) {
-        if (this.moduleRef.introspect(token).scope === Scope.DEFAULT) {
-          this.target = this.moduleRef.get(token, { strict: false });
+        const module = [...this.modules.values()].find((m) => m.providers.has(enhancers));
+        if (!module) {
+          throw new Error(
+            `nestjs-endpoints: ${cls.name}, a guard or interceptor of a router, runs for an ` +
+              "endpoint in an app without that router's module. Import the router, not its " +
+              'endpoints alone.',
+          );
+        }
+        const wrapper = module.injectables.get(cls)!;
+        if (wrapper.isDependencyTreeStatic() && !wrapper.isTransient) {
+          this.target = wrapper.instance as Target;
         } else {
-          this.perRequest = true;
+          this.perRequest = module.getProviderByKey<ModuleRef>(ModuleRef).instance;
         }
       }
       if (this.target) {
         return this.target[method](context, ...rest);
       }
-      return this.moduleRef
-        .resolve<Target>(token, contextIdOf(this.moduleRef, context), { strict: false })
-        .then((target) => target[method](context, ...rest));
+      const moduleRef = this.perRequest!;
+      // The module may provide `cls` too, under the same token: NestJS lists a module's
+      // providers before its injectables, so the injectable is the last.
+      return moduleRef
+        .resolve<Target>(cls, contextIdOf(moduleRef, context), { strict: true, each: true })
+        .then((targets) => targets.at(-1)![method](context, ...rest));
     }
   }
   Object.defineProperty(Forwarding.prototype, method, {
