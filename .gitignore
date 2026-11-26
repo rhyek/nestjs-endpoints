@@ -6,7 +6,6 @@ openapi.json
 generated/
 !packages/test/test-app-express/generated
 CLAUDE.local.md
-maintenance/docs/superpowers/
 
 # The documentation site's build output and cache (VitePress)
 docs/.vitepress/dist/
@@ -26,8 +25,6 @@ packages/nestjs-endpoints/docs/
 # Copied into the package at release time (.github/workflows/release.yaml)
 packages/nestjs-endpoints/README.md
 packages/nestjs-endpoints/LICENSE
-# The agent eval's transcripts (maintenance/scripts/agent-eval): they hold this machine's paths
-maintenance/agent-runs/
 
 # Backed-up local files (secrets), a link into Dropbox
 /.local
