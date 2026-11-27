@@ -77,7 +77,8 @@ Run `node benchmarks/scripts/parity.ts` alone to check the apps after changing e
 `run.ts` also takes `--rounds`, `--duration`, `--warmup`, `--connections`, `--latency-rounds`,
 `--skip-build`, and `--scenario <id>` (repeatable).
 
-The apps listen on 22500 (`nestjs-endpoints-app`) and 22501 (`nestjs-app`), set in `ports.ts`.
+The apps listen on 22500 (`nestjs-endpoints-app`) and 22501 (`nestjs-app`), set in `ports.ts`. In a
+worktree they move into its own block of ports, as every port of the repository does (`../ports.ts`).
 
 ## The breakdown
 
