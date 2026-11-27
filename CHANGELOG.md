@@ -1,5 +1,32 @@
 # Changelog
 
+## 3.2.0
+
+### Features
+
+- **An app declares its clients in `NestjsEndpoints.forRoot({ clients })`, and writes them as it starts in development**, or wherever `generateClientsOnStart` says. See [Generating clients](docs/clients/codegen.md#when-they-are-written).
+- **`nestjs-endpoints generate <module file>` writes an app's clients without starting it.** See [The command](docs/clients/codegen.md#the-command).
+- **`setupCodegen(app)` with no `clients` writes those `forRoot` declares.** See [A global prefix or versioning](docs/clients/codegen.md#a-global-prefix-or-versioning).
+- **A router lists the routers it doesn't find in its folders in `routers`**, as those a library of your monorepo exports, and each has its `context`, providers, middleware, guards and interceptors. See [A router from another package](docs/guide/routers.md#a-router-from-another-package).
+- **`router.register({ basePath })` places a listed router**, and a library's router names what the app gives its endpoints in `expects`. See [What it expects from the app](docs/guide/routers.md#what-it-expects-from-the-app).
+- **The types `ClientOptions`, `ClientsOption`, `ListedRouter` and `RegisteredRouter` are exported**, for a client, for `clients`, and for a router another lists. See [Exports](docs/reference/exports.md#types).
+- **Generating a client again rewrites only the files that changed.**
+- **The app warns as it starts when its root router finds no endpoint files, and of an endpoint file that default-exports no endpoint.**
+
+### Fixes
+
+- **Generating a client no longer fails in a project that installed the package recently.**
+- **A client for an API with no endpoints compiles.**
+- **The module a React Query client's `customOptions` names keeps your edits when the client is generated again.**
+- **An `endpoint.ts` at the root of a router whose `basePath` is `/` is served at `/`.**
+- **An endpoint at `/` is `root` in the generated client, which then compiles.**
+- **An `output` status map made with `Object.create(null)` is read as a status map.**
+- **A client that fails to generate says why, with the error of the Kubb plugin that failed.**
+- **A generated client exports `ResponseError` beside an app schema whose name only resembles it**, such as `responseerror`.
+- **The coding-agent files a prerelease of the package wrote are refreshed when you upgrade.**
+- **The library's log lines read `[nestjs-endpoints] <message>`, with no name repeated.**
+- **A page open under a dev server keeps working when its React Query client is generated again**, where it failed with `useApiClient must be used within an <ApiClientProvider>`.
+
 ## 3.1.1
 
 ### Fixes

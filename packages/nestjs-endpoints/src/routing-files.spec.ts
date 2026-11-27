@@ -1,3 +1,4 @@
+import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -76,6 +77,30 @@ describe('scanRoutingFiles', () => {
     const dir = tree(['real/x.endpoint.ts']);
     fs.symlinkSync(path.join(dir, 'real'), path.join(dir, 'linked'));
     expect(scanRoutingFiles(dir)).toEqual(['linked/x.endpoint.ts', 'real/x.endpoint.ts']);
+  });
+
+  test('takes a symlink to a routing file for one, and skips one that points nowhere', () => {
+    const dir = tree(['elsewhere/real.ts']);
+    fs.symlinkSync(path.join(dir, 'elsewhere/real.ts'), path.join(dir, 'linked.endpoint.ts'));
+    fs.symlinkSync(path.join(dir, 'gone.ts'), path.join(dir, 'dangling.endpoint.ts'));
+    fs.symlinkSync(path.join(dir, 'gone'), path.join(dir, 'dangling'));
+    expect(scanRoutingFiles(dir)).toEqual(['linked.endpoint.ts']);
+  });
+
+  test('walks a folder with a routing file’s name as a folder, and lists a file of it beside', () => {
+    const dir = tree(['list.endpoint.ts/x.endpoint.ts', 'router.ts', 'odd/view.endpoint.ts']);
+    expect(scanRoutingFiles(dir)).toEqual([
+      'list.endpoint.ts/x.endpoint.ts',
+      'odd/view.endpoint.ts',
+      'router.ts',
+    ]);
+  });
+
+  test('takes anything in a folder that is not one for a file', () => {
+    const dir = tree([]);
+    // A FIFO: no regular file, and no folder either.
+    execFileSync('mkfifo', [path.join(dir, 'piped.endpoint.ts')]);
+    expect(scanRoutingFiles(dir)).toEqual(['piped.endpoint.ts']);
   });
 
   test('a missing directory has no files', () => {

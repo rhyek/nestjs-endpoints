@@ -16,10 +16,14 @@ import {
   UseGuards,
   UseInterceptors,
 } from '@nestjs/common';
-import { GUARDS_METADATA } from '@nestjs/common/constants';
+import {
+  OPTIONAL_PROPERTY_DEPS_METADATA,
+  PROPERTY_DEPS_METADATA,
+  ROUTE_ARGS_METADATA,
+} from '@nestjs/common/constants.js';
 import { HttpAdapterHost, ModulesContainer } from '@nestjs/core';
 import { z, type ZodType } from 'zod';
-import { DESCRIPTOR_METADATA_KEY, EndpointDescriptor } from './descriptors';
+import { type EndpointDescriptor, mounted } from './descriptors';
 import { documentedPart, endpointSetUp, instantiatedIn, outputJson } from './document-schemas';
 import { EndpointResponse, sendResponse, toResponse } from './endpoint-response';
 import { ZodValidationException } from './exceptions';
@@ -55,7 +59,7 @@ import {
   type OutputSchemaUnion,
   type SchemaOption,
 } from './schema-options';
-import { EndpointSetupFn, settings } from './settings';
+import { type EndpointSetupFn, settings, setUpBy } from './settings';
 import { ApiBody, ApiExtension, ApiOperation, ApiResponse } from './swagger';
 import { operationName, pathFolders, toOpenApiPath, urlParamNames } from './url-params';
 import { toJsonSchema } from './zod-to-openapi';
@@ -563,8 +567,16 @@ export function createRouterEndpoint(
   return isEmptyContext(context) ? endpoint : builders({ file: routerFile, context });
 }
 
+/**
+ * The builders of a router: each endpoint reads `router.context` when it is set up, so one
+ * defined before another router listed this one has what that router gives too.
+ */
+export function routerEndpoint(router: BuilderRouter): EndpointBuilders<any, any, any> {
+  return builders(router);
+}
+
 /** The router whose `endpoint` builds an endpoint, and what it gives the endpoint. */
-type BuilderRouter = { file: string; context: RouterContext };
+export type BuilderRouter = { file: string; readonly context: RouterContext };
 
 /** `endpoint.query` and `endpoint.mutation`: the package's, or a router's. */
 function builders(router?: BuilderRouter): EndpointBuilders<any, any, any> {
@@ -608,8 +620,6 @@ function withRouterContext(
   router: BuilderRouter | undefined,
 ): DefinedOptions {
   const injectOnRequest = injectOnRequestOf(options);
-  // As on a router; before the router's are merged in, which they may replace.
-  assertOneMapPerKey({ inject: options.inject, injectOnRequest }, at);
   if (!router) {
     return options;
   }
@@ -639,7 +649,8 @@ function defineEndpoint(
   router: BuilderRouter | undefined,
 ): any {
   const at = `endpoint.${kind}() in ${file}`;
-  const params = withRouterContext(at, options, router);
+  // What the endpoint declares itself is read here, where it is defined. What its router
+  // gives it is read by each setup, in `build`: a router's context is whole once it loads.
   const {
     method: httpMethod = 'post',
     path: explicitPath,
@@ -648,7 +659,9 @@ function defineEndpoint(
     guards,
     interceptors,
     decorators,
-  } = params;
+  } = options;
+  // As on a router; before the router's are merged in, which they may replace.
+  assertOneMapPerKey({ inject: options.inject, injectOnRequest: injectOnRequestOf(options) }, at);
   const fail = (message: string) => new Error(`${at}: ${message}`);
   if (!Object.hasOwn(httpMethodDecorators, httpMethod)) {
     const methods = Object.keys(httpMethodDecorators)
@@ -657,296 +670,338 @@ function defineEndpoint(
     throw fail(`\`method\` must be one of ${methods}; got ${JSON.stringify(httpMethod)}.`);
   }
   // `input` is typed `never` here, where `method` may be any method.
-  const inputSchema = params.input as SchemaOption;
-  const { params: paramsSchema, query: querySchema } = params;
+  const inputSchema = options.input as SchemaOption;
+  const { query: querySchema } = options;
   if (inputSchema && httpMethod === 'get') {
     throw fail(
       'a GET endpoint cannot declare `input`, since a GET request has no body. ' +
         'Use `query` for search parameters, or another `method`.',
     );
   }
-  const outputs = outputsOf(params.output, fail);
+  const outputs = outputsOf(options.output, fail);
   const outputSchemas = outputs && new Map(outputs.map((o) => [o.status, o.schema]));
-  const inject: NonNullable<InjectProvidersMap> = params.inject ?? {};
-  const injectKeys = Object.keys(inject);
-  const injectOnRequest = injectOnRequestOf(params) ?? {};
-  const injectOnRequestKeys = Object.keys(injectOnRequest);
-  // What the handler is given besides the request: the same objects for every
-  // request.
-  const response = (status: number, body: unknown) => new EndpointResponse(status, body);
-  const schemas = Object.freeze({
-    ...(inputSchema && { input: inputSchema }),
-    ...(paramsSchema && { params: paramsSchema }),
-    ...(querySchema && { query: querySchema }),
-  });
-  // How the search parameters are read before validation (see
-  // `loneValuesAsArrays`): decided once, by the setup, which converts the
-  // query anyway, or on first use. `null` reads them as they come.
-  let readQuery: ((query: unknown) => unknown) | null | undefined;
-
-  const members = declaredMembers(params, {
-    at,
-    owner: 'endpoint',
-    injected: injectKeys,
-    own: ENDPOINT_OWN_MEMBERS,
-  });
+  // Under a key of its own: `this` has the handler's names, and those `inject` declares.
+  const httpAdapterHostKey = Symbol('httpAdapterHost');
 
   class cls {
+    readonly [httpAdapterHostKey]?: HttpAdapterHost;
+
     // Each app that mounts the endpoint instantiates it, with its own modules.
-    constructor(modules?: ModulesContainer) {
-      members.initialize(this);
+    constructor(
+      @Inject(ModulesContainer) modules?: ModulesContainer,
+      @Inject(HttpAdapterHost) httpAdapterHost?: HttpAdapterHost,
+    ) {
+      this[httpAdapterHostKey] = httpAdapterHost;
+      built!.members.initialize(this);
       if (modules) {
         // In an app with no router and no root, nothing else would tell.
-        if (members.hooks.length > 0) {
+        if (built!.members.hooks.length > 0) {
           assertHooksAreCalled(modules, cls);
         }
         instantiatedIn(modules);
       }
     }
   }
-  Inject(ModulesContainer)(cls, undefined, 0);
   const proto = cls.prototype as any;
-  members.defineOn(cls, inject, `the endpoint of ${shown(file)}`);
-  const httpAdapterHostKey = Symbol('httpAdapterHost');
-  Inject(HttpAdapterHost)(proto, httpAdapterHostKey);
+  // Whether a setup has given the class the guard that refuses a name beside a parameter.
+  let refusesNamesBeside = false;
+  /** What the last setup built, with the context its router had then. */
+  let built: ReturnType<typeof build> | undefined;
 
   /**
-   * Validates the request and calls the handler. `handlerParams` already
-   * holds what `injectOnRequest` gave, if anything.
+   * The endpoint with what its router gives it: its members, its handler, and `mount`, which
+   * places it. Built by the first setup, and again by one whose router's context is another.
    */
-  const callHandler = (
-    instance: any,
-    handlerParams: Record<string, unknown>,
-    rawInput: unknown,
-    rawParams: unknown,
-    rawQuery: unknown,
-  ): unknown => {
-    for (const key of injectKeys) {
-      handlerParams[key] = instance[key];
+  const build = (context: RouterContext | undefined) => {
+    if (built) {
+      // What the build before this one had NestJS inject, by a context this one replaces.
+      Reflect.deleteMetadata(PROPERTY_DEPS_METADATA, cls);
+      Reflect.deleteMetadata(OPTIONAL_PROPERTY_DEPS_METADATA, cls);
+      Reflect.deleteMetadata(ROUTE_ARGS_METADATA, cls, 'handler');
     }
-    if (inputSchema) {
-      // A request without a body reads as `{}`, like `query` and `params`,
-      // unless the schema accepts a missing body as it is.
-      let parsed = inputSchema.safeParse(rawInput);
-      if (!parsed.success && rawInput === undefined) {
-        parsed = inputSchema.safeParse({});
-      }
-      handlerParams.input = validated(parsed);
-      handlerParams.rawInput = rawInput;
-    }
-    if (paramsSchema) {
-      handlerParams.params = validated(paramsSchema.safeParse(rawParams ?? {}));
-    }
-    if (querySchema) {
-      if (readQuery === undefined) {
-        readQuery = loneValuesAsArrays(convertObject(querySchema).parameters);
-      }
-      const query = readQuery ? readQuery(rawQuery) : rawQuery;
-      handlerParams.query = validated(querySchema.safeParse(query ?? {}));
-    }
-    // The instance is `this` in a handler written as a method.
-    return (params.handler as (this: unknown, handlerParams: any) => unknown).call(
-      instance,
-      handlerParams,
-    );
-  };
+    // A router that gives nothing leaves the endpoint as the package's own `endpoint` builds it.
+    const giving =
+      router && context && !isEmptyContext(context) ? { file: router.file, context } : undefined;
+    const params = withRouterContext(at, options, giving);
+    const paramsSchema = params.params;
+    const inject: NonNullable<InjectProvidersMap> = params.inject ?? {};
+    const injectKeys = Object.keys(inject);
+    const injectOnRequest = injectOnRequestOf(params) ?? {};
+    const injectOnRequestKeys = Object.keys(injectOnRequest);
+    // What the handler is given besides the request: the same objects for every
+    // request.
+    const response = (status: number, body: unknown) => new EndpointResponse(status, body);
+    const schemas = Object.freeze({
+      ...(inputSchema && { input: inputSchema }),
+      ...(paramsSchema && { params: paramsSchema }),
+      ...(querySchema && { query: querySchema }),
+    });
+    // How the search parameters are read before validation (see
+    // `loneValuesAsArrays`): decided once, by the setup, which converts the
+    // query anyway, or on first use. `null` reads them as they come.
+    let readQuery: ((query: unknown) => unknown) | null | undefined;
 
-  const send = (instance: any, res: unknown, result: unknown) => {
-    const { httpAdapter } = instance[httpAdapterHostKey] as HttpAdapterHost;
-    return sendResponse(httpAdapter, res, toResponse(result, outputSchemas));
-  };
+    const members = declaredMembers(params, {
+      at,
+      owner: 'endpoint',
+      injected: injectKeys,
+      own: ENDPOINT_OWN_MEMBERS,
+    });
 
-  proto.invoke = async function (
-    request: { params?: unknown; query?: unknown; input?: unknown } = {},
-  ) {
-    const result = await callHandler(
-      this,
-      { response, schemas },
-      inputSchema && request.input,
-      paramsSchema && request.params,
-      querySchema && request.query,
-    );
-    const res = toResponse(result, outputSchemas);
-    return result instanceof EndpointResponse ? res : res.body;
-  };
+    members.defineOn(cls, inject, `the endpoint of ${shown(file)}`);
 
-  // The handler's parameters, in order: the response (to set its status and
-  // content type), what the endpoint validates, then `injectOnRequest`.
-  const parameterDecorators: ParameterDecorator[] = [
-    Res({ passthrough: true }),
-    ...(inputSchema ? [Body()] : []),
-    ...(paramsSchema ? [Param()] : []),
-    ...(querySchema ? [Query()] : []),
-    ...Object.values(injectOnRequest).map((d) => d.decorator as ParameterDecorator),
-  ];
-  // A new function each time the endpoint is set up, so that the method
-  // decorators a setup applies do not add to the ones an earlier one did.
-  // It returns a promise only when the handler does.
-  const createHandlerMethod = () =>
-    function (this: any, res: unknown, ...request: unknown[]) {
-      let next = 0;
-      const rawInput = inputSchema ? request[next++] : undefined;
-      const rawParams = paramsSchema ? request[next++] : undefined;
-      const rawQuery = querySchema ? request[next++] : undefined;
-      const handlerParams: Record<string, unknown> = { response, schemas };
-      for (const key of injectOnRequestKeys) {
-        handlerParams[key] = request[next++];
+    /**
+     * Validates the request and calls the handler. `handlerParams` already
+     * holds what `injectOnRequest` gave, if anything.
+     */
+    const callHandler = (
+      instance: any,
+      handlerParams: Record<string, unknown>,
+      rawInput: unknown,
+      rawParams: unknown,
+      rawQuery: unknown,
+    ): unknown => {
+      for (const key of injectKeys) {
+        handlerParams[key] = instance[key];
       }
-      const result = callHandler(this, handlerParams, rawInput, rawParams, rawQuery);
-      return isThenable(result) ? result.then((r) => send(this, res, r)) : send(this, res, result);
+      if (inputSchema) {
+        // A request without a body reads as `{}`, like `query` and `params`,
+        // unless the schema accepts a missing body as it is.
+        let parsed = inputSchema.safeParse(rawInput);
+        if (!parsed.success && rawInput === undefined) {
+          parsed = inputSchema.safeParse({});
+        }
+        handlerParams.input = validated(parsed);
+        handlerParams.rawInput = rawInput;
+      }
+      if (paramsSchema) {
+        handlerParams.params = validated(paramsSchema.safeParse(rawParams ?? {}));
+      }
+      if (querySchema) {
+        if (readQuery === undefined) {
+          readQuery = loneValuesAsArrays(convertObject(querySchema).parameters);
+        }
+        const query = readQuery ? readQuery(rawQuery) : rawQuery;
+        handlerParams.query = validated(querySchema.safeParse(query ?? {}));
+      }
+      // The instance is `this` in a handler written as a method.
+      return (params.handler as (this: unknown, handlerParams: any) => unknown).call(
+        instance,
+        handlerParams,
+      );
     };
 
-  const setupFn: EndpointSetupFn = ({ rootDirectories, basePath, namespaceChain, routerFile }) => {
-    const { httpPath, httpPathPascalName, httpPathSegments } = explicitPath
-      ? explicitHttpPath(basePath, explicitPath)
-      : getEndpointHttpPath(rootDirectories, basePath, file);
-    const url = '/' + httpPathSegments.join('/');
-    // The path parameters it names, as the router reads them, in order.
-    const urlParams = urlParamNames(url);
-    // Before anything is applied: a listed endpoint may be set up again.
-    if (router && routerFile) {
-      if (!isSameModule(router.file, routerFile)) {
-        throw new Error(
-          `${shown(file)} is built with the endpoint of ${shown(router.file)} but is ` +
-            `owned by ${shown(routerFile)}. Build it with the \`endpoint\` of the router ` +
-            'module that owns it.',
-        );
-      }
-      const notInUrl = Object.keys(router.context.params?.shape ?? {}).find(
-        (key) => !urlParams.includes(key),
+    const send = (instance: any, res: unknown, result: unknown) => {
+      const { httpAdapter } = (instance as cls)[httpAdapterHostKey]!;
+      return sendResponse(httpAdapter, res, toResponse(result, outputSchemas));
+    };
+
+    proto.invoke = async function (
+      request: { params?: unknown; query?: unknown; input?: unknown } = {},
+    ) {
+      const result = await callHandler(
+        this,
+        { response, schemas },
+        inputSchema && request.input,
+        paramsSchema && request.params,
+        querySchema && request.query,
       );
-      if (notInUrl) {
-        throw new Error(
-          `${shown(file)}: the \`params\` of its router include the path parameter ` +
-            `\`${notInUrl}\`, but its URL, ${url}, has no ` +
-            `\`:${notInUrl}\`. Put the endpoint under a \`$${notInUrl}\` folder, or declare ` +
-            `the parameter on a router that only has endpoints under one. Its router is ` +
-            `${shown(router.file)}.`,
+      const res = toResponse(result, outputSchemas);
+      return result instanceof EndpointResponse ? res : res.body;
+    };
+
+    // The handler's parameters, in order: the response (to set its status and
+    // content type), what the endpoint validates, then `injectOnRequest`.
+    const parameterDecorators: ParameterDecorator[] = [
+      Res({ passthrough: true }),
+      ...(inputSchema ? [Body()] : []),
+      ...(paramsSchema ? [Param()] : []),
+      ...(querySchema ? [Query()] : []),
+      ...Object.values(injectOnRequest).map((d) => d.decorator as ParameterDecorator),
+    ];
+    // A new function each time the endpoint is set up, so that the method
+    // decorators a setup applies do not add to the ones an earlier one did.
+    // It returns a promise only when the handler does.
+    const createHandlerMethod = () =>
+      function (this: any, res: unknown, ...request: unknown[]) {
+        let next = 0;
+        const rawInput = inputSchema ? request[next++] : undefined;
+        const rawParams = paramsSchema ? request[next++] : undefined;
+        const rawQuery = querySchema ? request[next++] : undefined;
+        const handlerParams: Record<string, unknown> = { response, schemas };
+        for (const key of injectOnRequestKeys) {
+          handlerParams[key] = request[next++];
+        }
+        const result = callHandler(this, handlerParams, rawInput, rawParams, rawQuery);
+        return isThenable(result)
+          ? result.then((r) => send(this, res, r))
+          : send(this, res, result);
+      };
+
+    const mount: EndpointSetupFn = ({ rootDirectories, basePath, namespaceChain, routerFile }) => {
+      const { httpPath, httpPathPascalName, httpPathSegments } = explicitPath
+        ? explicitHttpPath(basePath, explicitPath)
+        : getEndpointHttpPath(rootDirectories, basePath, file);
+      const url = '/' + httpPathSegments.join('/');
+      // The path parameters it names, as the router reads them, in order.
+      const urlParams = urlParamNames(url);
+      // Before anything is applied: a listed endpoint may be set up again.
+      if (giving && routerFile) {
+        if (!isSameModule(giving.file, routerFile)) {
+          throw new Error(
+            `${shown(file)} is built with the endpoint of ${shown(giving.file)} but is ` +
+              `owned by ${shown(routerFile)}. Build it with the \`endpoint\` of the router ` +
+              'module that owns it.',
+          );
+        }
+        const notInUrl = Object.keys(context?.params?.shape ?? {}).find(
+          (key) => !urlParams.includes(key),
+        );
+        if (notInUrl) {
+          throw new Error(
+            `${shown(file)}: the \`params\` of its router include the path parameter ` +
+              `\`${notInUrl}\`, but its URL, ${url}, has no ` +
+              `\`:${notInUrl}\`. Put the endpoint under a \`$${notInUrl}\` folder, or declare ` +
+              `the parameter on a router that only has endpoints under one. Its router is ` +
+              `${shown(giving.file)}.`,
+          );
+        }
+      }
+      Object.defineProperty(cls, 'name', { value: `${httpPathPascalName}Endpoint` });
+      Controller(httpPath)(cls);
+      // A value of a path parameter that is a name beside it is no value: the URL is the name's.
+      // Once, as a listed endpoint may be set up again.
+      if (urlParams.length > 0 && !refusesNamesBeside) {
+        UseGuards(NamesBesideGuard)(cls);
+        refusesNamesBeside = true;
+      }
+
+      proto.handler = createHandlerMethod();
+      parameterDecorators.forEach((decorator, i) => decorator(proto, 'handler', i));
+
+      // A namespace tags the operation; without one, the URL's folders do
+      // (everything but the leaf, without path params), so Swagger UI still
+      // groups it.
+      const autoTag =
+        namespaceChain.length > 0 ? namespaceChain.join('/') : pathFolders(url).join('/');
+      const operationTags = [...(autoTag ? [autoTag] : []), ...(tags ?? [])];
+      const operationSummary = summary ?? '';
+      const methodDecorators: MethodDecorator[] = [
+        ApiOperation({
+          operationId: httpPathPascalName,
+          tags: operationTags,
+          summary: operationSummary,
+        }),
+        // Every endpoint is a POST unless it says otherwise, so the method
+        // does not tell a generator reading the document which it is.
+        ApiExtension('x-endpoint-kind', kind),
+        ...(namespaceChain.length > 0 ? [ApiExtension('x-namespace', namespaceChain)] : []),
+        httpMethodDecorators[httpMethod](''),
+        // The handler sets the status itself; this is the one the OpenAPI
+        // document gives an endpoint without `output`, which a POST would
+        // otherwise get as 201.
+        HttpCode(200),
+        // Before `decorators`, so their guards and interceptors run first.
+        ...(guards?.length ? [UseGuards(...guards)] : []),
+        ...(interceptors?.length ? [UseInterceptors(...interceptors)] : []),
+        ...(decorators ?? []),
+      ];
+      // Each schema is converted once; the decorators and the descriptor read
+      // the same results. The decorators give `@nestjs/swagger` each schema as
+      // the document should have it, which is known when the document is built.
+      const document = (json: Parameters<typeof documentedPart>[2]) =>
+        documentedPart(cls, () => descriptor, json);
+      const endpointLabel = `endpoint "${httpPathPascalName}" (${httpMethod.toUpperCase()} ${url})`;
+      const input = inputSchema && toJsonSchema(inputSchema, 'input', httpPathPascalName + 'Input');
+      if (input) {
+        // As a status's describes its response, the schema's description describes the body.
+        const { description } = inputSchema;
+        methodDecorators.push(
+          ApiBody({
+            ...(description && { description }),
+            standardSchema: document(() => input.json),
+          }),
         );
       }
-    }
-    Object.defineProperty(cls, 'name', { value: `${httpPathPascalName}Endpoint` });
-    Controller(httpPath)(cls);
-    // A value of a path parameter that is a name beside it is no value: the URL is the name's.
-    const classGuards = (Reflect.getMetadata(GUARDS_METADATA, cls) as unknown[] | undefined) ?? [];
-    if (urlParams.length > 0 && !classGuards.includes(NamesBesideGuard)) {
-      UseGuards(NamesBesideGuard)(cls);
-    }
-
-    proto.handler = createHandlerMethod();
-    parameterDecorators.forEach((decorator, i) => decorator(proto, 'handler', i));
-
-    // A namespace tags the operation; without one, the URL's folders do
-    // (everything but the leaf, without path params), so Swagger UI still
-    // groups it.
-    const autoTag =
-      namespaceChain.length > 0 ? namespaceChain.join('/') : pathFolders(url).join('/');
-    const operationTags = [...(autoTag ? [autoTag] : []), ...(tags ?? [])];
-    const operationSummary = summary ?? '';
-    const methodDecorators: MethodDecorator[] = [
-      ApiOperation({
+      const query = querySchema && convertObject(querySchema, `The query of ${endpointLabel}`);
+      if (query) {
+        methodDecorators.push(
+          ...apiParameters('query', query.parameters, (schema) => document(() => schema)),
+        );
+        readQuery = loneValuesAsArrays(query.parameters);
+      }
+      const paramsObject =
+        paramsSchema && convertObject(paramsSchema, `The params of ${endpointLabel}`);
+      if (paramsObject) {
+        // A key the URL lacks is one NestJS never fills, and no path parameter of an OpenAPI
+        // document. The URL is whole once a router sets the endpoint up: one evaluated outside
+        // any router (a test imports it first) has no base path yet.
+        const notInUrl = routerFile
+          ? paramsObject.parameters.find(({ name }) => !urlParams.includes(name))
+          : undefined;
+        if (notInUrl) {
+          const { name } = notInUrl;
+          throw new Error(
+            `${shown(file)}: its \`params\` include \`${name}\`, but its URL, ` +
+              `${url}, has no \`:${name}\`. Remove it from \`params\`, or ` +
+              `add it to the URL: a \`$${name}\` folder or file name, or \`:${name}\` in \`path\`.`,
+          );
+        }
+        // Listed as the URL has them: in the schema, the parameters a router
+        // declares come after the endpoint's own.
+        const position = (name: string) => urlParams.indexOf(name);
+        paramsObject.parameters.sort((a, b) => position(a.name) - position(b.name));
+        methodDecorators.push(
+          ...apiParameters('path', paramsObject.parameters, (schema) => document(() => schema)),
+        );
+      }
+      const descriptorOutputs = (outputs ?? []).map(({ status, schema, description }) => {
+        const schemaName = httpPathPascalName + (status === 200 ? '' : status) + 'Output';
+        const converted = toJsonSchema(schema, 'output', schemaName);
+        methodDecorators.push(
+          ApiResponse({
+            status,
+            description,
+            standardSchema: document(outputJson(converted.json)),
+          }),
+        );
+        return { status, description, schema: converted };
+      });
+      applyDecorators(...methodDecorators)(
+        proto,
+        'handler',
+        Object.getOwnPropertyDescriptor(proto, 'handler')!,
+      );
+      const descriptor: EndpointDescriptor = {
         operationId: httpPathPascalName,
+        kind,
+        method: httpMethod,
+        path: toOpenApiPath(url),
+        pathParams: urlParams.map((name) => {
+          const schema = paramsObject?.parameters.find((p) => p.name === name)?.schema;
+          return { name, schema: schema ?? { type: 'string' } };
+        }),
+        ...(paramsObject && { params: paramsObject }),
+        ...(query && { query }),
+        namespaceChain,
         tags: operationTags,
         summary: operationSummary,
-      }),
-      // Every endpoint is a POST unless it says otherwise, so the method
-      // does not tell a generator reading the document which it is.
-      ApiExtension('x-endpoint-kind', kind),
-      ...(namespaceChain.length > 0 ? [ApiExtension('x-namespace', namespaceChain)] : []),
-      httpMethodDecorators[httpMethod](''),
-      // The handler sets the status itself; this is the one the OpenAPI
-      // document gives an endpoint without `output`, which a POST would
-      // otherwise get as 201.
-      HttpCode(200),
-      // Before `decorators`, so their guards and interceptors run first.
-      ...(guards?.length ? [UseGuards(...guards)] : []),
-      ...(interceptors?.length ? [UseInterceptors(...interceptors)] : []),
-      ...(decorators ?? []),
-    ];
-    // Each schema is converted once; the decorators and the descriptor read
-    // the same results. The decorators give `@nestjs/swagger` each schema as
-    // the document should have it, which is known when the document is built.
-    const document = (json: Parameters<typeof documentedPart>[2]) =>
-      documentedPart(cls, () => descriptor, json);
-    const endpointLabel = `endpoint "${httpPathPascalName}" (${httpMethod.toUpperCase()} ${url})`;
-    const input = inputSchema && toJsonSchema(inputSchema, 'input', httpPathPascalName + 'Input');
-    if (input) {
-      // As a status's describes its response, the schema's description describes the body.
-      const { description } = inputSchema;
-      methodDecorators.push(
-        ApiBody({
-          ...(description && { description }),
-          standardSchema: document(() => input.json),
-        }),
-      );
-    }
-    const query = querySchema && convertObject(querySchema, `The query of ${endpointLabel}`);
-    if (query) {
-      methodDecorators.push(
-        ...apiParameters('query', query.parameters, (schema) => document(() => schema)),
-      );
-      readQuery = loneValuesAsArrays(query.parameters);
-    }
-    const paramsObject =
-      paramsSchema && convertObject(paramsSchema, `The params of ${endpointLabel}`);
-    if (paramsObject) {
-      // A key the URL lacks is one NestJS never fills, and no path parameter of an OpenAPI
-      // document. The URL is whole once a router sets the endpoint up: one evaluated outside
-      // any router (a test imports it first) has no base path yet.
-      const notInUrl = routerFile
-        ? paramsObject.parameters.find(({ name }) => !urlParams.includes(name))
-        : undefined;
-      if (notInUrl) {
-        const { name } = notInUrl;
-        throw new Error(
-          `${shown(file)}: its \`params\` include \`${name}\`, but its URL, ` +
-            `${url}, has no \`:${name}\`. Remove it from \`params\`, or ` +
-            `add it to the URL: a \`$${name}\` folder or file name, or \`:${name}\` in \`path\`.`,
-        );
-      }
-      // Listed as the URL has them: in the schema, the parameters a router
-      // declares come after the endpoint's own.
-      const position = (name: string) => urlParams.indexOf(name);
-      paramsObject.parameters.sort((a, b) => position(a.name) - position(b.name));
-      methodDecorators.push(
-        ...apiParameters('path', paramsObject.parameters, (schema) => document(() => schema)),
-      );
-    }
-    const descriptorOutputs = (outputs ?? []).map(({ status, schema, description }) => {
-      const schemaName = httpPathPascalName + (status === 200 ? '' : status) + 'Output';
-      const converted = toJsonSchema(schema, 'output', schemaName);
-      methodDecorators.push(
-        ApiResponse({ status, description, standardSchema: document(outputJson(converted.json)) }),
-      );
-      return { status, description, schema: converted };
-    });
-    applyDecorators(...methodDecorators)(
-      proto,
-      'handler',
-      Object.getOwnPropertyDescriptor(proto, 'handler')!,
-    );
-    Reflect.defineMetadata('endpoints:path', httpPath, cls);
-    const descriptor: EndpointDescriptor = {
-      operationId: httpPathPascalName,
-      kind,
-      method: httpMethod,
-      path: toOpenApiPath(url),
-      pathParams: urlParams.map((name) => {
-        const schema = paramsObject?.parameters.find((p) => p.name === name)?.schema;
-        return { name, schema: schema ?? { type: 'string' } };
-      }),
-      ...(paramsObject && { params: paramsObject }),
-      ...(query && { query }),
-      namespaceChain,
-      tags: operationTags,
-      summary: operationSummary,
-      ...(input && { input }),
-      outputs: descriptorOutputs,
+        ...(input && { input }),
+        outputs: descriptorOutputs,
+      };
+      mounted(cls, descriptor);
+      endpointSetUp();
     };
-    Reflect.defineMetadata(DESCRIPTOR_METADATA_KEY, descriptor, cls);
-    endpointSetUp();
+    return { context, members, mount };
   };
-  Reflect.defineMetadata('endpoints:setupFn', setupFn, cls);
+  const setupFn: EndpointSetupFn = (placement) => {
+    const context = router?.context;
+    if (!built || built.context !== context) {
+      built = build(context);
+    }
+    built.mount(placement);
+  };
+  setUpBy(cls, setupFn);
   if (moduleAls.getStore()) {
     settings.endpoints.push({ file, setupFn });
   } else {

@@ -1,8 +1,9 @@
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
+import { setTimeout as sleep } from 'node:timers/promises';
 import { pathToFileURL } from 'node:url';
-import { Logger } from '@nestjs/common';
+import { logger } from './logger';
 import { isSkippedDirectory, scanRoutingFiles } from './routing-files';
 
 const DEBOUNCE_MS = 100;
@@ -14,8 +15,6 @@ const DEBOUNCE_MS = 100;
  * such runs: 17 restarted with no pause, and none of 12 with 150 ms.
  */
 const SETTLE_MS = 300;
-
-const logger = new Logger('nestjs-endpoints');
 
 /** One per cache file: a second call for the same app must not stack watchers. */
 const watchers = new Map<string, { close(): void }>();
@@ -71,7 +70,7 @@ export async function watchRoutingFiles(opts: {
   }
   try {
     if (created) {
-      await new Promise((resolve) => setTimeout(resolve, SETTLE_MS));
+      await sleep(SETTLE_MS);
     }
     // What puts the file among those `node --watch` restarts for.
     await import(pathToFileURL(cacheFile).href);
@@ -145,7 +144,7 @@ function warnNotWritable(shown: string): void {
   if (!warned.has(shown)) {
     warned.add(shown);
     logger.warn(
-      `nestjs-endpoints: watch is on, but ${shown} cannot be written, so a new endpoint file needs a manual restart.`,
+      `watch is on, but ${shown} cannot be written, so a new endpoint file needs a manual restart.`,
     );
   }
 }

@@ -100,6 +100,14 @@ test("writes nothing when the package is not under the project's node_modules", 
   expect(lines).toEqual([]);
 });
 
+// A folder whose name begins with two dots is in the project like any other.
+test('writes the agent files when the package is installed under a folder named like `..cache`', () => {
+  const cached = path.join(checkout, '..cache', 'node_modules', 'nestjs-endpoints');
+  fs.mkdirSync(cached, { recursive: true });
+  postinstall({ INIT_CWD: checkout }, cached);
+  expect(has(RULES_FILE)).toBe(true);
+});
+
 test('reports a failure in one line, and never throws', () => {
   fs.writeFileSync(path.join(checkout, '.claude'), 'a file where the folder goes');
   expect(() => postinstall({ INIT_CWD: checkout })).not.toThrow();

@@ -84,6 +84,26 @@ describe('the routes a controller has, as NestJS reads its decorators', () => {
     expect(routesOf(Lanes)).toEqual([{ path: 'lanes/list', method: GET, version: undefined }]);
   });
 
+  test('are those of the handler a subclass overrides, not its base’s, and never the constructor’s', () => {
+    class Base {
+      @Get('base')
+      run() {}
+      @Get('kept')
+      kept() {}
+    }
+    @Controller('lanes')
+    class Lanes extends Base {
+      @Post('own')
+      override run() {}
+    }
+    // The constructor's metadata would be read as a route's, were it a handler.
+    Reflect.defineMetadata('method', RequestMethod.GET, Lanes);
+    expect(routesOf(Lanes)).toEqual([
+      { path: 'lanes/own', method: POST, version: undefined },
+      { path: 'lanes/kept', method: GET, version: undefined },
+    ]);
+  });
+
   test('are none for a class that is not a controller', () => {
     class Plain {
       run() {}

@@ -27,7 +27,8 @@ async function bootstrap() {
     ],
     forceGenerate: true,
   });
-  const port = process.env.PORT || 3000;
+  // Its port in development, which test-react-query-client's `dev` page calls: see its ports.ts.
+  const port = process.env.PORT || 22521;
   await app.listen(port, () => {
     console.log(`Server is running on port ${port}`);
   });

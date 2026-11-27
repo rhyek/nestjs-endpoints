@@ -29,6 +29,18 @@ const modulesOf = {
   workspace: path.resolve(appDirectory, '../../../node_modules'),
 };
 
+/**
+ * The files the package publishes, relative to it, as `pnpm pack` lists them: those an install
+ * gets. Listed once in a spec file, by the first project it makes.
+ */
+let published: Promise<string[]> | undefined;
+function publishedFiles(): Promise<string[]> {
+  published ??= run('pnpm', ['pack', '--dry-run', '--json'], { cwd: libraryDirectory }).then(
+    ({ stdout }) => (JSON.parse(stdout) as { files: { path: string }[] }).files.map((f) => f.path),
+  );
+  return published;
+}
+
 /** Links the folder `target` into the project at `directory`, as the package `name`. */
 async function linkAs(directory: string, name: string, target: string): Promise<void> {
   const link = path.join(directory, 'node_modules', name);
@@ -91,11 +103,17 @@ export async function createInstalledProject(
   const modules = path.join(directory, 'node_modules');
 
   const library = JSON.parse(await readFile(path.join(libraryDirectory, 'package.json'), 'utf-8'));
-  const copy = path.join(modules, 'nestjs-endpoints');
-  await mkdir(copy, { recursive: true });
-  for (const entry of ['package.json', 'postinstall.js', 'dist', 'assets', 'skills']) {
-    await cp(path.join(libraryDirectory, entry), path.join(copy, entry), { recursive: true });
-  }
+  // The files it publishes, and the folders they are in. A file the list adds from outside the
+  // package, the workspace's `LICENSE`, is not in its folder to copy.
+  const files = new Set(await publishedFiles());
+  const folders = new Set([...files].flatMap((file) => ancestorsOf(file)));
+  await cp(libraryDirectory, path.join(modules, 'nestjs-endpoints'), {
+    recursive: true,
+    filter: (source) => {
+      const file = path.relative(libraryDirectory, source).split(path.sep).join('/');
+      return file === '' || files.has(file) || folders.has(file);
+    },
+  });
   // Its dependencies and its peers, but for the optional ones: `@nestjs/swagger` is below.
   const optional = [...Object.keys(library.peerDependenciesMeta), '@nestjs/swagger'];
   for (const name of [
@@ -127,6 +145,12 @@ export async function createInstalledProject(
 
   await writeFile(path.join(directory, 'package.json'), JSON.stringify({ type: 'module' }));
   return directory;
+}
+
+/** The folders `file` is in, from the outermost: `['a', 'a/b']` for `a/b/c.ts`. */
+function ancestorsOf(file: string): string[] {
+  const parts = file.split('/').slice(0, -1);
+  return parts.map((_, i) => parts.slice(0, i + 1).join('/'));
 }
 
 /** The files under `directory`, relative to it, sorted. */

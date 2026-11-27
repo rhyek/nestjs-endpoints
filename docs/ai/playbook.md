@@ -13,7 +13,7 @@ Check, in order:
 
 1. `nestjs-endpoints` in the `dependencies` of a `package.json`.
 2. Files named `*.endpoint.ts` or `endpoint.ts`, or `router.ts`.
-3. A call to `setupCodegen(` in a `main.ts` or another bootstrap file.
+3. A call to `NestjsEndpoints.forRoot(` in the app's root module.
 
 If none of those appear, the library is not in play, and these pages don't apply.
 
@@ -51,8 +51,12 @@ Write every endpoint you add this way. See
 - **Nothing registers an endpoint file by hand.** A router serves every endpoint file in its
   folder. Don't add one to a module's `controllers` or a router's `endpoints`, unless it is
   [registered by hand on purpose](../guide/explicit-paths.md), with a `path`.
-- **The app's root module calls `NestjsEndpoints.forRoot({ router })`, once.** Every other
-  router is `EndpointRouter.create()`. See [Routers](../guide/routers.md#the-root-router).
+- **The app's root module calls `NestjsEndpoints.forRoot({ router, clients })`, once.** It
+  holds the root router and the generated clients. The root router is `forRoot`'s `router`: an
+  app module that has none, and lists in its `imports` an `EndpointRouter.create()` made there
+  or in another file, has its root made that way. Move those options into `router`, with
+  `rootDirectory` relative to the app module. Every other router is `EndpointRouter.create()`,
+  in a `router.ts`. See [Routers](../guide/routers.md#the-root-router).
 - **ESM only.** The project has `"type": "module"`, and its relative imports end in `.js`.
 - **No bundling.** File-based routing reads each endpoint file on disk, so the app is built
   with `tsc` or `nest build`, never Webpack or a bundler.
@@ -113,7 +117,9 @@ the current user in `injectOnRequest`, and the path parameter of a `$param` fold
 A provider the router's [own lifecycle hooks or methods](../guide/routers.md#own) use goes in its
 top-level `inject`. A nested
 router made with the parent's `child()` inherits them, with the parent's `providers` and
-`imports`: it lists only its own. A router's guards and interceptors are one instance for every
+`imports`: it lists only its own. A router a library exports goes in the `routers` of one of
+the app's routers, and inherits the same; it names what it needs from the app in `expects`. A
+router's guards and interceptors are one instance for every
 endpoint under it, made with that router's providers. A router that lists one of its parent's
 guards, interceptors or providers again gets an instance of its own, and so does an endpoint
 that lists one of its routers' guards or interceptors; such a guard runs twice, the parent's
@@ -122,9 +128,19 @@ first. See [What flows down](../guide/what-flows-down.md) and
 
 ## Regenerate and call the client
 
-- **Where it is generated:** find the `setupCodegen(` call, in `main.ts` or a script of its own.
-  It writes the clients when the app starts, and rewrites one only when what it is generated
-  from changed, such as an endpoint's schema. See [Generating clients](../clients/codegen.md).
+- **Where it is declared:** `clients` in the app module's `NestjsEndpoints.forRoot`. The app
+  writes them as it starts when `NODE_ENV` is `development` or not set (not under a test
+  runner), unless `generateClientsOnStart` says otherwise, and rewrites one only when what it
+  is generated from changed, such as an endpoint's schema. See
+  [When they are written](../clients/codegen.md#when-they-are-written).
+- **Without starting the app:** run the project's script for it, or
+  `nestjs-endpoints generate <module file>`, with the app module as the app runs it
+  (`dist/app.module.js`, or `src/app.module.ts --import <loader>`). See
+  [Generating clients](../clients/codegen.md#the-command).
+- **Declare clients there, not in `main.ts` or a script.** An app that sets a global prefix or
+  versioning in `main.ts` writes them without starting from a
+  [script of its own](../clients/codegen.md#a-global-prefix-or-versioning), which sets them and
+  calls `setupCodegen(app)`.
 - **Calling it:** a method takes one object, `{ path, query, body }`, with the parts the
   endpoint declares. See [axios](../clients/axios.md) and [React Query](../clients/react-query.md).
 - **Its shape:** a router with `namespace` nests its operations (`client.shop.recipes.list`).

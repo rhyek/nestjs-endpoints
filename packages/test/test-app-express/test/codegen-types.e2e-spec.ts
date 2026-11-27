@@ -1,6 +1,7 @@
 import { mkdtemp, readFile, rm, stat } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
+import { setTimeout as sleep } from 'node:timers/promises';
 import { NestFactory } from '@nestjs/core';
 import { setupCodegen, type z } from 'nestjs-endpoints';
 import { toJsonSchema } from '../../../nestjs-endpoints/dist/zod-to-openapi.js';
@@ -145,7 +146,7 @@ describe('setupCodegen', () => {
     await run(outputFile);
     const runtime = path.join(outputDirOf(outputFile), '.kubb', 'client.ts');
     const before = [await stat(outputFile), await stat(runtime)];
-    await new Promise((r) => setTimeout(r, 20));
+    await sleep(20);
     await run(outputFile);
     const after = [await stat(outputFile), await stat(runtime)];
     expect(after.map((s) => s.mtimeMs)).toEqual(before.map((s) => s.mtimeMs));

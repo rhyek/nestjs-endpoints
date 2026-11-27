@@ -10,6 +10,7 @@ import {
   type VersioningOptions,
 } from '@nestjs/common';
 import { METHOD_METADATA, PATH_METADATA, VERSION_METADATA } from '@nestjs/common/constants';
+import { MetadataScanner } from '@nestjs/core';
 import { trimSlashes } from './url-params';
 
 type Version = string | typeof VERSION_NEUTRAL | (string | typeof VERSION_NEUTRAL)[];
@@ -53,28 +54,6 @@ export function unversionedVersion(versioning: VersioningOptions | undefined): V
   ];
 }
 
-/**
- * The methods of a class's prototype chain, the nearest of each name, as NestJS's
- * `MetadataScanner` lists them: an accessor is none, and is not read.
- */
-function methodsOf(prototype: object): object[] {
-  const seen = new Set<string>();
-  const methods: object[] = [];
-  for (let proto = prototype; proto !== Object.prototype; proto = Object.getPrototypeOf(proto)) {
-    for (const name of Object.getOwnPropertyNames(proto)) {
-      if (seen.has(name)) {
-        continue;
-      }
-      seen.add(name);
-      const { value } = Object.getOwnPropertyDescriptor(proto, name)!;
-      if (name !== 'constructor' && typeof value === 'function') {
-        methods.push(value as object);
-      }
-    }
-  }
-  return methods;
-}
-
 /** The routes a controller has, as NestJS reads its decorators. */
 export function routesOf(cls: Type): Route[] {
   const pathsOf = (target: object): string[] => {
@@ -86,7 +65,13 @@ export function routesOf(cls: Type): Route[] {
     return [];
   }
   const own = Reflect.getMetadata(VERSION_METADATA, cls) as Version | undefined;
-  return methodsOf(cls.prototype as object).flatMap((handler) => {
+  const prototype = cls.prototype as Record<string, object>;
+  // Its methods as NestJS lists them, the nearest of each name: an accessor is none, and is
+  // not read. A scanner of its own, as one keeps what it read of a prototype, and an
+  // endpoint's gains its handler as the endpoint is set up.
+  const names = new MetadataScanner().getAllMethodNames(prototype);
+  return names.flatMap((name) => {
+    const handler = prototype[name]!;
     const method = Reflect.getMetadata(METHOD_METADATA, handler) as RequestMethod | undefined;
     if (method === undefined) {
       return [];

@@ -1,8 +1,8 @@
 import { createHash } from 'node:crypto';
 import fs from 'node:fs/promises';
 import type { EndpointDescriptor } from '../descriptors';
-import { settings } from '../settings';
 import { sortedCopy } from '../shared-schemas';
+import { sharedState } from '../shared-state';
 import type { JsonSchema } from '../zod-to-openapi';
 
 /**
@@ -41,7 +41,7 @@ export function clientHash(params: {
  * joined with `/`, written above each namespace bucket.
  */
 export function tagDescriptions(): Map<string, string> {
-  return new Map(settings.descriptions.map(({ name, description }) => [name, description]));
+  return new Map(sharedState.descriptions);
 }
 
 /**

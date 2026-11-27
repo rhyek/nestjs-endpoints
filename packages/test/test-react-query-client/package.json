@@ -5,8 +5,8 @@
   "main": "index.js",
   "type": "module",
   "scripts": {
-    "dev": "VITE_WEB_API_PORT=3000 vite",
-    "test": "VITE_WEB_API_PORT=3000 vitest",
+    "dev": "VITE_WEB_API_PORT=22521 vite",
+    "test": "vitest run",
     "tscheck": "tsc --noEmit"
   },
   "keywords": [],

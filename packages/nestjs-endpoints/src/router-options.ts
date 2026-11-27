@@ -1,4 +1,4 @@
-import type { ModuleMetadata, Type } from '@nestjs/common';
+import type { DynamicModule, ModuleMetadata, Type } from '@nestjs/common';
 import type { z } from 'zod';
 import type { InjectOnRequestMap, InjectProvidersMap } from './injections';
 import type { EndpointOwnMembers, InjectNaming } from './instance-members';
@@ -44,6 +44,12 @@ export type RouterContextOptions<
    */
   params?: RouterParams;
 };
+
+/** A router as another lists it in `routers`: itself, or as its `register()` returns it. */
+export type ListedRouter = Promise<DynamicModule> | RegisteredRouter;
+
+/** A router with the base path the router that lists it gives it, in place of its own. */
+export type RegisteredRouter = { router: Promise<DynamicModule>; basePath?: string };
 
 /** The keys of a router's `context`. */
 export const CONTEXT_KEYS = ['params', 'inject', 'injectOnRequest'] as const;
@@ -115,6 +121,14 @@ export type RouterOptions<
    * hover. Only beside `namespace`.
    */
   description?: string;
+  /**
+   * Routers nested under this one that it does not find in its folders, as those a library
+   * of a monorepo exports: each a router, or `router.register({ basePath })` to place it.
+   * Each is under this router's base path and in its namespace, and has what this router
+   * gives a router made with its `child()`: its `context`, `providers` and `imports`, and
+   * its middleware, guards and interceptors.
+   */
+  routers?: ListedRouter[];
   /**
    * Modules whose exports this router's endpoints and providers can
    * inject, and those of every router made with its `child()`.

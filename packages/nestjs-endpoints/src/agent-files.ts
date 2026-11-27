@@ -1,6 +1,7 @@
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
+import semver from 'semver';
 
 /**
  * The files that tell a coding agent this repo's API is built with nestjs-endpoints, and point
@@ -100,18 +101,13 @@ export function renderSkill(version: string, name: SkillName = 'nestjs-endpoints
   return skill(name).render(version);
 }
 
-/** `true` when `a` is an older `x.y.z` version than `b`. */
+/**
+ * `true` when `a` is an older version than `b`, a prerelease older than its release. A missing
+ * part counts as 0 (`3.2` is `3.2.0`), and what is no version is older than nothing.
+ */
 export function isOlder(a: string, b: string): boolean {
-  const pa = a.split('.').map(Number);
-  const pb = b.split('.').map(Number);
-  for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
-    const na = pa[i] ?? 0;
-    const nb = pb[i] ?? 0;
-    if (na !== nb) {
-      return na < nb;
-    }
-  }
-  return false;
+  const [va, vb] = [a, b].map((v) => semver.coerce(v, { includePrerelease: true }));
+  return va !== null && vb !== null && semver.lt(va, vb);
 }
 
 /**

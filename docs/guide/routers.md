@@ -195,4 +195,99 @@ you want ordinary NestJS wiring around it:
 export class AuthModule {}
 ```
 
+## A router from another package
+
+A router the app doesn't find in its folders, as one a library of your monorepo exports, goes
+in the `routers` of one of the app's own:
+
+::: code-group
+
+```ts [libs/shared-backend/src/router.ts]
+import { EndpointRouter } from 'nestjs-endpoints';
+
+export const sharedRouter = EndpointRouter.create({
+  rootDirectory: './endpoints',
+  basePath: 'shared',
+  namespace: 'shared',
+});
+```
+
+```ts [apps/api/src/app.module.ts]
+import { sharedRouter } from 'shared-backend';
+
+NestjsEndpoints.forRoot({
+  router: {
+    rootDirectory: './endpoints',
+    basePath: 'api',
+    routers: [sharedRouter],
+  },
+});
+```
+
+:::
+
+The library's router is nested under the router that lists it, as a `router.ts` in one of its
+folders is: its routes are under `/api/shared`. It has what that router gives a router made
+with its [`child()`](./what-flows-down.md#routers): its `context`, `providers` and `imports`,
+and its middleware, guards and interceptors. Any router has `routers`, not only the root one.
+
+### Its base path
+
+A listed router's `basePath` is joined under that of the router that lists it. The app gives it
+another with `register()`:
+
+```ts
+// The library's routes are under /api/v1/common.
+routers: [sharedRouter.register({ basePath: 'v1/common' })],
+```
+
+A library can read its own from the environment:
+
+```ts
+basePath: process.env.SHARED_BASE_PATH ?? 'shared',
+```
+
+### What it expects from the app
+
+A library can't import the app's types. Its router names what its endpoints are given, each
+typed with `EndpointRouter.given<T>()`, and the app's router says what each is in its `context`:
+
+::: code-group
+
+```ts [libs/shared-backend/src/router.ts]
+import type { AppUser, Db } from 'di';
+
+export const sharedRouter = EndpointRouter.create({
+  rootDirectory: './endpoints',
+  basePath: 'shared',
+  expects: {
+    db: EndpointRouter.given<Db>(),
+    user: EndpointRouter.given<AppUser>(),
+  },
+});
+```
+
+```ts [apps/api/src/app.module.ts]
+NestjsEndpoints.forRoot({
+  router: {
+    rootDirectory: './endpoints',
+    providers: [PgDb],
+    context: {
+      inject: { db: PgDb },
+      injectOnRequest: {
+        user: decorated<AppUser>(CurrentUser()),
+      },
+    },
+    routers: [sharedRouter],
+  },
+});
+```
+
+:::
+
+`Db` and `AppUser` are interfaces in a package both import, so neither imports from the other.
+The handlers of the endpoints built with `sharedRouter.endpoint` have `db` and `user`, typed.
+An app whose router gives the library's none of a name it expects fails as it starts, naming
+the name.
+
 See the [router options reference](../reference/router.md) for every option.

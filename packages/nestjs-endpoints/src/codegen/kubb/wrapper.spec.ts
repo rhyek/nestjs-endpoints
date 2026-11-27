@@ -73,6 +73,7 @@ const source = buildReactQueryWrapperSource({
   runtimeImport: './c/.kubb/client',
   typesImport: './c/types',
   schemasImport: './c/schemas',
+  contextImport: './c/context',
   pluginOptions: undefined,
   inputSchemaNames: new Set(['greet', 'authLogin']),
 });
@@ -156,6 +157,7 @@ describe('buildReactQueryWrapperSource', () => {
         runtimeImport: './c/.kubb/client',
         typesImport: './c/types',
         schemasImport: './c/schemas',
+        contextImport: './c/context',
         pluginOptions: undefined,
         inputSchemaNames: new Set(),
       });
@@ -216,6 +218,7 @@ describe('buildReactQueryWrapperSource', () => {
         runtimeImport: './c/.kubb/client',
         typesImport: './c/types',
         schemasImport: './c/schemas',
+        contextImport: './c/context',
         pluginOptions,
         inputSchemaNames: new Set(['itemSave']),
       });
@@ -285,6 +288,7 @@ describe('buildReactQueryWrapperSource', () => {
       runtimeImport: './c/.kubb/client',
       typesImport: './c/types',
       schemasImport: './c/schemas',
+      contextImport: './c/context',
       pluginOptions: undefined,
       inputSchemaNames: new Set(),
     });
@@ -314,6 +318,7 @@ describe('buildReactQueryWrapperSource', () => {
       runtimeImport: './c/.kubb/client',
       typesImport: './c/types',
       schemasImport: './c/schemas',
+      contextImport: './c/context',
       pluginOptions: undefined,
       inputSchemaNames: new Set(),
     });
@@ -341,6 +346,7 @@ describe('buildReactQueryWrapperSource', () => {
       runtimeImport: './c/.kubb/client',
       typesImport: './c/types',
       schemasImport: './c/schemas',
+      contextImport: './c/context',
       pluginOptions: undefined,
       inputSchemaNames: new Set(),
     });
@@ -352,6 +358,55 @@ describe('buildReactQueryWrapperSource', () => {
 
   test('the emitted wrapper parses', () => {
     expect(syntaxErrors(source)).toEqual([]);
+  });
+
+  test('takes its React context from a module of its own, which no API changes', () => {
+    expect(source).toContain(
+      `import { ApiClientContext, CLIENT_CONTEXT as _CTX, type ApiClientContextValue } from './c/context';`,
+    );
+    expect(source).not.toContain('createContext');
+  });
+
+  test('for an app with no endpoints, refers to none of the modules Kubb then leaves out', () => {
+    const empty = buildReactQueryWrapperSource({
+      descriptors: [],
+      shared,
+      opsImport: './c/clients',
+      hooksImport: './c/hooks',
+      runtimeImport: './c/.kubb/client',
+      typesImport: './c/types',
+      schemasImport: './c/schemas',
+      contextImport: './c/context',
+      pluginOptions: undefined,
+      inputSchemaNames: new Set(),
+    });
+    expect(empty).not.toMatch(/\.\/c\/(clients|hooks|types)'/);
+    // Nothing is declared that nothing reads: a consumer's `noUnusedLocals` would fail it.
+    expect(empty).not.toMatch(/_ops|_hooks|_client\b/);
+    for (const name of ['createApiClient', 'useApiClient', 'ApiClientProvider']) {
+      expect(empty).toContain(`export const ${name} =`);
+    }
+    expect(empty).toContain('export type ApiClient =');
+    expect(empty).toContain(`export { isResponseError, ResponseError } from './c/.kubb/client';`);
+    expect(empty).toContain(`export type { InputSchema } from './c/schemas';`);
+    expect(syntaxErrors(empty)).toEqual([]);
+  });
+
+  test('with no operation Kubb gives a hook, does not import the hooks', () => {
+    const noHooks = buildReactQueryWrapperSource({
+      descriptors: [descriptors[1]],
+      shared,
+      opsImport: './c/clients',
+      hooksImport: './c/hooks',
+      runtimeImport: './c/.kubb/client',
+      typesImport: './c/types',
+      schemasImport: './c/schemas',
+      contextImport: './c/context',
+      pluginOptions: { query: false },
+      inputSchemaNames: new Set(),
+    });
+    expect(noHooks).toContain(`import * as _ops from './c/clients';`);
+    expect(noHooks).not.toContain('_hooks');
   });
 });
 
@@ -387,5 +442,47 @@ describe('buildAxiosWrapperSource', () => {
       }),
     ]);
     expect(withOwn).toContain(`export { isResponseError } from './c/.kubb/client';`);
+  });
+
+  /** A client of one operation whose input is the app's schema `name`. */
+  const withSchema = (name: string) =>
+    build({ schemas: { [name]: { type: 'object' } }, renamed: new Map() }, [
+      descriptor({
+        operationId: 'Fail',
+        kind: 'mutation',
+        method: 'post',
+        path: '/fail',
+        input: { json: { $ref: `#/components/schemas/${name}` }, components: {} },
+      }),
+    ]);
+
+  // Kubb names the type of a schema in PascalCase: `response-error` is `ResponseError` too.
+  test.each(['ResponseError', 'response-error', 'Response_Error'])(
+    "Kubb's ResponseError is not exported beside the app's schema %s",
+    (name) => {
+      expect(withSchema(name)).toContain(`export { isResponseError } from './c/.kubb/client';`);
+    },
+  );
+
+  // Kubb names these `Responseerror` and `RESPONSEERROR`: neither hides the runtime's.
+  test.each(['responseerror', 'RESPONSE_ERROR'])(
+    "Kubb's ResponseError is exported beside the app's schema %s",
+    (name) => {
+      expect(withSchema(name)).toContain(
+        `export { isResponseError, ResponseError } from './c/.kubb/client';`,
+      );
+    },
+  );
+
+  test('for an app with no endpoints, refers to none of the modules Kubb then leaves out', () => {
+    const empty = build(shared, []);
+    expect(empty).not.toMatch(/\.\/c\/(clients|types)'/);
+    // Nothing is declared that nothing reads: a consumer's `noUnusedLocals` would fail it.
+    expect(empty).not.toMatch(/_ops|_client\b|_clientFor|createClient\b|ClientInstance/);
+    expect(empty).toContain('export const createApiClient =');
+    expect(empty).toContain('export type ApiClient =');
+    expect(empty).toContain('axios: _axios,');
+    expect(empty).toContain(`export { isResponseError, ResponseError } from './c/.kubb/client';`);
+    expect(syntaxErrors(empty)).toEqual([]);
   });
 });

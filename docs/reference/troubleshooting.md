@@ -10,6 +10,8 @@ description: Symptoms and causes — routes that 404, validation errors, setup, 
 | --- | --- |
 | A route answers `404` | The file isn't named `<name>.endpoint.ts` or `endpoint.ts`; or it doesn't `export default` its endpoint; or it sits in a folder owned by a nested `router.ts` you didn't expect. |
 | A new endpoint answers `404` | A new endpoint file is served after a restart, or in a built app, after a build. With `node --watch`, set `watch: true` in [`NestjsEndpoints.forRoot`](./router.md#nestjsendpoints-forroot). See [Development](../guide/development.md). |
+| `<file> default-exports no endpoint, so it serves nothing` warning as the app starts | A file named as an endpoint file has no endpoint as its default export: it is empty, or exports its endpoint by name. `export default` the endpoint. |
+| `No endpoint files found in <folder>` warning as the app starts | The root router's `rootDirectory` is missing, or has no endpoint file or router in it. The path is relative to the file that calls `forRoot()`. |
 | A route is mounted at `/dist/…` or `/src/…` | An endpoint registered by hand has no `path`. See [Explicit paths](../guide/explicit-paths.md). |
 | Routes disappear in production | The build bundles the app into one file. File-based routing needs each file on disk. |
 
@@ -56,7 +58,9 @@ description: Symptoms and causes — routes that 404, validation errors, setup, 
 
 | Symptom | Cause |
 | --- | --- |
-| Nothing is regenerated after an endpoint changes | Codegen isn't running; or the route isn't in that client, because it is a plain controller's, or in a namespace the client's `namespaces` leaves out. `forceGenerate: true` regenerates every client. |
+| Nothing is regenerated after an endpoint changes | The app has not restarted, or it does not [write its clients as it starts](../clients/codegen.md#when-they-are-written): `NODE_ENV` is set to a value other than `development`, or `generateClientsOnStart` is `false`; or the route isn't in that client, because it is a plain controller's, or in a namespace the client's `namespaces` leaves out. [`nestjs-endpoints generate`](../clients/codegen.md#the-command) writes every client. |
+| `nestjs-endpoints generate` fails with `could not load` a `.ts` file | Node cannot run the file by itself. Name the file a build wrote, such as `dist/app.module.js`, or give a TypeScript loader with `--import`. |
+| A client's URLs lack the app's global prefix or version | The client was written by `nestjs-endpoints generate`, which does not see what `main.ts` sets on the app. See [A global prefix or versioning](../clients/codegen.md#a-global-prefix-or-versioning). |
 | `Two operations resolve to the same wrapper property` | Two operations have the same name in the same namespace. Rename an endpoint file, or a namespace. See [How names are derived](../clients/namespaces.md#how-names-are-derived). |
 | An operation keeps its full name inside its namespace, such as `client.shop.recipes.shopRecipes` | A bare `endpoint.ts` whose URL is the namespace itself. Give the file a name of its own. |
 | `useApiClient must be used within an <ApiClientProvider>` | No `<ApiClientProvider>` above the component. |

@@ -5,27 +5,18 @@
 //
 //   node scripts/check-code-width.ts
 
-import { readdirSync, readFileSync } from 'node:fs';
+import { globSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 
 const MAX = 66;
 const docs = path.join(import.meta.dirname, '..');
 // The home page's samples sit in windows of their own width, and the rest is not pages.
-const skipped = new Set(['node_modules', '.vitepress', 'snippets', 'public', 'scripts']);
+const skipped = ['node_modules', '.vitepress', 'snippets', 'public', 'scripts'];
 
-function* pages(dir: string): Generator<string> {
-  for (const entry of readdirSync(dir, { withFileTypes: true })) {
-    if (skipped.has(entry.name)) {
-      continue;
-    }
-    const file = path.join(dir, entry.name);
-    if (entry.isDirectory()) {
-      yield* pages(file);
-    } else if (entry.name.endsWith('.md')) {
-      yield file;
-    }
-  }
-}
+const pages = globSync('**/*.md', {
+  cwd: docs,
+  exclude: skipped.map((name) => `**/${name}`),
+}).map((page) => path.join(docs, page));
 
 /** The line as the page shows it: without Twoslash's markers and Shiki's annotations. */
 function shown(line: string): string | null {
@@ -37,7 +28,7 @@ function shown(line: string): string | null {
 }
 
 const failures: string[] = [];
-for (const file of pages(docs)) {
+for (const file of pages) {
   const lines = readFileSync(file, 'utf8').split('\n');
   // The fence's indentation, its language line, and whether lines are still Twoslash's hidden
   // setup (everything before `// ---cut---`).

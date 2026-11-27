@@ -9,13 +9,16 @@ import { appWith, namesFirst } from './app-with';
 // `names/legacy`.
 
 /** Every warning an app logs. */
+/** The warnings nestjs-endpoints logs, by their logger's context: a logger that records them. */
 function warnings() {
   const logged: string[] = [];
   const logger: LoggerService = {
     log() {},
     error() {},
-    warn(message: unknown) {
-      logged.push(String(message));
+    warn(message: unknown, ...params: unknown[]) {
+      if (params.at(-1) === 'nestjs-endpoints') {
+        logged.push(String(message));
+      }
     },
   };
   return { logged, logger };
@@ -140,12 +143,11 @@ describe('the warning to register names before parameters, where a parameter has
     const { logged, logger } = warnings();
     const { app, httpAdapter } = await started(undefined, { logger });
     try {
-      const warned = logged.filter((message) => message.includes('nestjs-endpoints'));
       if (httpAdapter === 'express') {
-        expect(warned).toEqual([expect.stringContaining("routeResolutionStrategy: 'specificity'")]);
-        expect(warned[0]).toContain('/names/:slug');
+        expect(logged).toEqual([expect.stringContaining("routeResolutionStrategy: 'specificity'")]);
+        expect(logged[0]).toContain('/names/:slug');
       } else {
-        expect(warned).toEqual([]);
+        expect(logged).toEqual([]);
       }
     } finally {
       await app.close();
@@ -156,7 +158,7 @@ describe('the warning to register names before parameters, where a parameter has
     const { logged, logger } = warnings();
     const { app } = await started(undefined, { logger, ...namesFirst });
     try {
-      expect(logged.filter((message) => message.includes('nestjs-endpoints'))).toEqual([]);
+      expect(logged).toEqual([]);
     } finally {
       await app.close();
     }

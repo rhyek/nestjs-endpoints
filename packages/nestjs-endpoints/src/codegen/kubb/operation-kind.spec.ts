@@ -138,11 +138,21 @@ describe('operationKinds', () => {
 describe('kindOverrides', () => {
   const tanstack = '@tanstack/react-query';
 
+  /** A pattern that matches the operation id `id`, and no longer one: what each override has. */
+  const only = (id: string) => ({
+    asymmetricMatch: (pattern: unknown) =>
+      pattern instanceof RegExp &&
+      pattern.test(id) &&
+      !pattern.test(`x${id}`) &&
+      !pattern.test(`${id}x`),
+    toString: () => `a pattern of ${id} alone`,
+  });
+
   test("claims each operation's method for its builder's kind alone", () => {
     expect(kindOverrides(descriptors, undefined)).toEqual([
       {
         type: 'operationId',
-        pattern: /^Greet$/,
+        pattern: only('Greet'),
         options: {
           query: { importPath: tanstack, methods: ['GET'] },
           mutation: { importPath: tanstack, methods: [] },
@@ -150,7 +160,7 @@ describe('kindOverrides', () => {
       },
       {
         type: 'operationId',
-        pattern: /^AuthLogin$/,
+        pattern: only('AuthLogin'),
         options: {
           query: { importPath: tanstack, methods: [] },
           mutation: { importPath: tanstack, methods: ['POST'] },
@@ -158,7 +168,7 @@ describe('kindOverrides', () => {
       },
       {
         type: 'operationId',
-        pattern: /^Upload$/,
+        pattern: only('Upload'),
         options: {
           query: { importPath: tanstack, methods: [] },
           mutation: { importPath: tanstack, methods: ['PUT'] },
@@ -166,7 +176,7 @@ describe('kindOverrides', () => {
       },
       {
         type: 'operationId',
-        pattern: /^Find$/,
+        pattern: only('Find'),
         options: {
           query: { importPath: tanstack, methods: ['POST'] },
           mutation: { importPath: tanstack, methods: [] },
@@ -187,9 +197,9 @@ describe('kindOverrides', () => {
       override: [own],
     });
     expect(overrides.map((o) => 'pattern' in o && o.pattern)).toEqual([
-      /^Greet$/,
-      /^Upload$/,
-      /^Find$/,
+      only('Greet'),
+      only('Upload'),
+      only('Find'),
       'Find',
     ]);
     expect(overrides[0].options.query).toEqual({
@@ -204,20 +214,23 @@ describe('kindOverrides', () => {
     expect(overrides[3]).toBe(own);
   });
 
-  test('matches the operation id literally', () => {
+  test.each([
+    ['A.b', ['AXb', 'Ab']],
+    ['a+b', ['aab', 'ab']],
+    ['x(y)', ['xy', 'x(y']],
+    ['a|b', ['a', 'b']],
+    ['a$b^', ['ab']],
+    ['[ab]', ['a', 'b']],
+    ['a\\b', ['a\\\\b', 'ab']],
+  ])('matches the operation id %s literally', (operationId, others) => {
     const [override] = kindOverrides(
-      [
-        descriptor({
-          operationId: 'A.b',
-          kind: 'query',
-          method: 'post',
-          path: '/a',
-        }),
-      ],
+      [descriptor({ operationId, kind: 'query', method: 'post', path: '/a' })],
       undefined,
     );
     const pattern = ('pattern' in override && override.pattern) as RegExp;
-    expect(pattern.test('A.b')).toBe(true);
-    expect(pattern.test('Axb')).toBe(false);
+    expect(pattern.test(operationId)).toBe(true);
+    for (const other of others) {
+      expect(pattern.test(other)).toBe(false);
+    }
   });
 });

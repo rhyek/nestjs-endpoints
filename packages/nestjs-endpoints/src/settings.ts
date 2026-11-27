@@ -1,3 +1,17 @@
+import { sharedState } from './shared-state';
+
+const { setups } = sharedState;
+
+/** Records the setup of an endpoint's class, as `endpoint.query()` and `endpoint.mutation()` make it. */
+export function setUpBy(cls: object, setupFn: EndpointSetupFn): void {
+  setups.set(cls, setupFn);
+}
+
+/** The setup of an endpoint's class; none for any other value. */
+export function setupOf(value: unknown): EndpointSetupFn | undefined {
+  return typeof value === 'function' ? setups.get(value) : undefined;
+}
+
 /** Mounts an endpoint where the router setting it up places it. */
 export type EndpointSetupFn = (settings: {
   rootDirectories: string[];
@@ -8,17 +22,13 @@ export type EndpointSetupFn = (settings: {
 }) => void;
 
 /**
- * What endpoints and routers register as the app's modules load, read when routers mount
- * endpoints and when clients are generated.
+ * The endpoints defined while a router of this copy loads its files, which it then sets up.
  */
 export const settings: {
   endpoints: {
     file: string;
     setupFn: EndpointSetupFn;
   }[];
-  /** The `description` of each router that has one, by its namespace or `basePath`. */
-  descriptions: { name: string; description: string }[];
 } = {
   endpoints: [],
-  descriptions: [],
 };

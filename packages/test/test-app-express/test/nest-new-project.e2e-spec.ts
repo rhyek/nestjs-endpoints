@@ -22,7 +22,6 @@ const LINT = ['node_modules/oxlint/bin/oxlint', '--type-aware', 'src/', 'test/']
 const endpointSpecSource = `import { Test } from '@nestjs/testing';
 import { AppModule } from './../src/app.module.js';
 import { Clock } from './../src/health.service.js';
-
 ${adapterSource}
 
 describe('the endpoints (e2e)', () => {

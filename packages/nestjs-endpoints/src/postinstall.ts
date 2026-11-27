@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { syncAgentFiles } from './agent-files';
 import { readOwnVersion } from './package-json';
+import { isWithin } from './path-within';
 
 /**
  * The package's `postinstall`: writes the coding-agent files (`agent-files.ts`) into the repo
@@ -30,11 +31,9 @@ export function runPostinstall(opts: {
     }
     const project = fs.realpathSync(env.INIT_CWD);
     const installed = fs.realpathSync(opts.packageDir);
-    const inProject = path.relative(project, installed);
     if (
-      inProject.startsWith('..') ||
-      path.isAbsolute(inProject) ||
-      !inProject.split(path.sep).includes('node_modules')
+      !isWithin(installed, project) ||
+      !path.relative(project, installed).split(path.sep).includes('node_modules')
     ) {
       return;
     }

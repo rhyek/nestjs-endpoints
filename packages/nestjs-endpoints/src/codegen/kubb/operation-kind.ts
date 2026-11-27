@@ -107,7 +107,7 @@ export function kindOverrides(
         // A RegExp: `@kubb/core` reads a string pattern as a regular
         // expression, but the plugin's `hookOptionsGenerator` compares it
         // with `===`, and both test a RegExp.
-        pattern: new RegExp(`^${descriptor.operationId.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`),
+        pattern: new RegExp(`^${RegExp.escape(descriptor.operationId)}$`),
         options: {
           ...overridden,
           query: claim('query'),

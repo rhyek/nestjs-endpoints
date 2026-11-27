@@ -38,6 +38,18 @@ export function sourceFileOf(runningFile: string): string | undefined {
   }
 }
 
+/**
+ * `directory`, which is placed from the folder of `runningFile`, as it is in the source tree
+ * `runningFile` was compiled from: where a developer looks for it. Itself when there is no
+ * source map to tell.
+ */
+export function sourceDirectoryOf(directory: string, runningFile: string): string {
+  const source = sourceFileOf(runningFile);
+  return source === undefined
+    ? directory
+    : path.resolve(path.dirname(source), path.relative(path.dirname(runningFile), directory));
+}
+
 function readSourceMap(url: string, fileDir: string): { map: SourceMap; mapDir: string } {
   const inline = /^data:application\/json;(?:charset=[^;]+;)?base64,(.*)$/.exec(url);
   if (inline) {

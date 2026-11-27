@@ -1,6 +1,7 @@
 import { Headers, INestApplication } from '@nestjs/common';
+import { PATH_METADATA } from '@nestjs/common/constants.js';
 import { Test } from '@nestjs/testing';
-import { decorated, endpoint, EndpointRouter } from 'nestjs-endpoints';
+import { decorated, EndpointRouter } from 'nestjs-endpoints';
 import request from 'supertest';
 import { AppModule } from '../src/app.module';
 import misroutedRouter from '../src/misrouted/router.module';
@@ -73,9 +74,7 @@ describe('inject and injectOnRequest on a router', () => {
   });
 
   test("an endpoint built with the router's endpoint gets its path from its own file", async () => {
-    expect(Reflect.getMetadata('endpoints:path', await membersList())).toBe(
-      'workspace/members/list',
-    );
+    expect(Reflect.getMetadata(PATH_METADATA, await membersList())).toBe('workspace/members/list');
   });
 
   test('an endpoint may declare a key its router injects, and its own wins', () => {
@@ -129,10 +128,9 @@ describe('inject and injectOnRequest on a router', () => {
     });
   });
 
-  test("a router without injections hands out the package's endpoint", () => {
+  test("a router without injections builds an endpoint as the package's endpoint does", async () => {
     const plain = EndpointRouter.create({ endpoints: [] }).endpoint;
-    expect(plain).toBe(endpoint);
-    plain.query({
+    const built = plain.query({
       path: 'types-only',
       inject: { workspace: WorkspaceService },
       handler: (params) => {
@@ -141,6 +139,10 @@ describe('inject and injectOnRequest on a router', () => {
         return null;
       },
     });
+    // Any router may own it: one built with a router's injections is owned by that router.
+    const elsewhere = await EndpointRouter.create({ basePath: 'elsewhere', endpoints: [built] });
+    expect(elsewhere.controllers).toEqual([built]);
+    expect(Reflect.getMetadata(PATH_METADATA, built)).toBe('/elsewhere/types-only');
   });
 });
 

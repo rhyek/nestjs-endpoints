@@ -3,7 +3,7 @@ import type { CanActivate, DynamicModule, INestApplicationContext, Type } from '
 import { GUARDS_METADATA, INTERCEPTORS_METADATA } from '@nestjs/common/constants';
 import { hooks, log, RootGuard } from '../test/fixtures/routing/order/log';
 import { fixtures, pathOf, start } from '../test/routing';
-import { EndpointRouter } from './endpoint-router';
+import { EndpointRouter, endpointsUnder } from './endpoint-router';
 import { NestjsEndpoints } from './nestjs-endpoints';
 
 /** The names of what a class has under a class metadata key of NestJS, in order. */
@@ -12,10 +12,7 @@ const named = (key: string, target: object) =>
 
 /** Every endpoint under a router, by its path. */
 async function endpointsOf(router: Promise<DynamicModule>) {
-  const all = ((await router) as unknown as Record<symbol, Type[]>)[
-    Symbol.for('nestjs-endpoints:allEndpoints')
-  ]!;
-  return Object.fromEntries(all.map((cls) => [pathOf(cls), cls]));
+  return Object.fromEntries(endpointsUnder(await router).map((cls) => [pathOf(cls), cls]));
 }
 
 // `order/` is a tree of routers the root finds: `outer` and, under it, `inner` and `plain`

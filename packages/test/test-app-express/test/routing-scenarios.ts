@@ -1,5 +1,6 @@
 import { rename, rm } from 'node:fs/promises';
 import path from 'node:path';
+import { setTimeout as sleep } from 'node:timers/promises';
 import {
   Booted,
   createNestProject,
@@ -80,7 +81,7 @@ export function describeRouting(runtime: Runtime) {
         }, WAIT);
         return { failed: false, output: app.output, served: app.served() };
       } finally {
-        app.stop();
+        await app.stop();
       }
     }
 
@@ -161,14 +162,14 @@ export function describeRouting(runtime: Runtime) {
         app = project.start(runtime.watch.args, watchIfNeeded);
       });
 
-      afterAll(() => {
-        app?.stop();
+      afterAll(async () => {
+        await app?.stop();
       });
 
       test('serves its endpoint files, and starts once, on a first run too', async () => {
         await vi.waitFor(() => expect(app.served()).toEqual(['a', 'b']), WAIT);
         // Long enough for a watcher to restart an app that had changed a file it watches.
-        await new Promise((resolve) => setTimeout(resolve, 2000));
+        await sleep(2000);
         expect(app.starts()).toBe(1);
       });
 
@@ -207,8 +208,8 @@ export function describeRouting(runtime: Runtime) {
         app = project.start(runtime.watch.args, { CODEGEN: 'true', ...watchIfNeeded });
       });
 
-      afterAll(() => {
-        app?.stop();
+      afterAll(async () => {
+        await app?.stop();
       });
 
       test('starts with no endpoint folder: nothing to serve, and a client with no operations', async () => {
@@ -260,12 +261,12 @@ export function describeRouting(runtime: Runtime) {
           expect(app.starts()).toBe(1);
 
           await project.addEndpoint('c');
-          await new Promise((resolve) => setTimeout(resolve, 3000));
+          await sleep(3000);
 
           expect(app.starts()).toBe(1);
           expect(app.served()).toEqual(['a', 'b']);
         } finally {
-          app.stop();
+          await app.stop();
         }
       });
     }

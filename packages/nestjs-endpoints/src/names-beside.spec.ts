@@ -1,4 +1,11 @@
-import { namedRequest, namesBeside as namesIn, routeTree, type Served } from './names-beside';
+import type { HttpServer } from '@nestjs/common';
+import {
+  caseSensitiveOf,
+  namedRequest,
+  namesBeside as namesIn,
+  routeTree,
+  type Served,
+} from './names-beside';
 
 /** The tree of `paths`, each the route of itself. */
 const tree = (paths: string[]) => routeTree(paths.map((path) => [path, path]));
@@ -127,6 +134,28 @@ describe('what a router skips its middleware for: a URL with a name beside a par
     });
   });
 
+  test('reads a name with characters of an expression, beside text of its base path, as text', () => {
+    expect(
+      skips(
+        'lanes/:id',
+        ['/lanes/a.b+c(d)', '/lanes/$x^'],
+        ['/lanes/a.b+c(d)', '/lanes/aXb+c(d)', '/lanes/$x^/y', '/lanes/x'],
+      ),
+    ).toEqual({
+      '/lanes/a.b+c(d)': true,
+      '/lanes/aXb+c(d)': false,
+      '/lanes/$x^/y': true,
+      '/lanes/x': false,
+    });
+    // Its base path's text is read as text too, of either case where the router ignores case.
+    expect(
+      skips('a.b/:id', ['/a.b/list'], ['/A.B/list', '/aXb/list'], {
+        ...plain,
+        caseSensitive: false,
+      }),
+    ).toEqual({ '/A.B/list': true, '/aXb/list': false });
+  });
+
   test('reads a value of another case as the name only where the router ignores case', () => {
     expect(skips('Lanes/:id', ['/lanes/List'], ['/lanes/LIST/view'])).toEqual({
       '/lanes/LIST/view': false,
@@ -165,6 +194,21 @@ describe('what a router skips its middleware for: a URL with a name beside a par
       '/lanes/l%69st': true,
       '/lanes/%E0%A4%A': false,
     });
+  });
+});
+
+describe("whether an adapter's router reads URLs as of their case", () => {
+  test.each([
+    ['one that does not tell', {}, true],
+    [
+      'one that tells it ignores case',
+      { getRouteMatchingOptions: () => ({ caseSensitive: false }) },
+      false,
+    ],
+    ['one that tells nothing of case', { getRouteMatchingOptions: () => ({}) }, true],
+    ['one that answers nothing', { getRouteMatchingOptions: () => undefined }, true],
+  ])('is so, as NestJS reads it, for %s', (_, adapter, caseSensitive) => {
+    expect(caseSensitiveOf(adapter as unknown as HttpServer)).toBe(caseSensitive);
   });
 });
 

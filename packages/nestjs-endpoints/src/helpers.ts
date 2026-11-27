@@ -30,7 +30,8 @@ export function getEndpointHttpPath(rootDirectories: string[], basePath: string,
   if (basename !== 'endpoint') {
     pathSegments.push(...expandUrlSegment(basename.split('.endpoint')[0]));
   }
-  const httpPath = path.posix.join(...pathSegments);
+  // No segments is the root: `path.posix.join()` of none would be `.`.
+  const httpPath = pathSegments.length > 0 ? path.posix.join(...pathSegments) : '';
   return {
     httpPath,
     httpPathPascalName: operationName(httpPath),

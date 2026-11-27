@@ -16,13 +16,19 @@ Install once at the example root:
 pnpm install
 ```
 
-Start both packages in parallel — the API boots and writes the generated SDK into `packages/client/src/generated/`, then Vite serves the front-end:
+Start both packages in parallel — the API boots and writes the client it declares in `NestjsEndpoints.forRoot` into `packages/client/src/generated/`, then Vite serves the front-end:
 
 ```bash
 pnpm dev
 ```
 
 Visit the URL Vite prints (defaults to <http://localhost:5173>).
+
+To write the client without starting the API:
+
+```bash
+pnpm --filter api codegen
+```
 
 ## Tests
 

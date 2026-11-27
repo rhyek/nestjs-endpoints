@@ -1,15 +1,15 @@
 import path from 'node:path';
 import type { DynamicModule } from '@nestjs/common';
-import { fixtures, nestedIn, pathsOf, start } from '../test/routing';
-import { DESCRIPTOR_METADATA_KEY, type EndpointDescriptor } from './descriptors';
+import { ApplicationConfig } from '@nestjs/core';
+import { RoutePathFactory } from '@nestjs/core/router/route-path-factory.js';
+import { fixtures, nestedIn, pathOf, pathsOf, start } from '../test/routing';
+import { descriptorOf } from './descriptors';
 import { EndpointRouter } from './endpoint-router';
 
 const under = (name: string) => path.join(fixtures, name);
 
 const namespacesOf = (module: DynamicModule) =>
-  (module.controllers ?? []).map(
-    (c) => (Reflect.getMetadata(DESCRIPTOR_METADATA_KEY, c) as EndpointDescriptor).namespaceChain,
-  );
+  (module.controllers ?? []).map((c) => descriptorOf(c)!.namespaceChain);
 
 describe('routers in files of their own', () => {
   test("an endpoint in a child router's folder built with the `endpoint` of the router above fails", async () => {
@@ -32,6 +32,23 @@ describe('routers in files of their own', () => {
     const [shop] = nestedIn(module);
     expect(pathsOf(shop!)).toEqual(['shop/list']);
     expect(namespacesOf(shop!)).toEqual([['shop']]);
+  });
+
+  test('an `endpoint.ts` at the root of a router at `/` is served at `/`', async () => {
+    const module = await EndpointRouter.create({
+      rootDirectory: under('root-endpoint'),
+      basePath: '/',
+    });
+    const [root] = module.controllers!;
+    expect(pathOf(root!)).toBe('');
+    // As NestJS reads the path of a controller.
+    expect(
+      new RoutePathFactory(new ApplicationConfig()).create({
+        ctrlPath: pathOf(root!),
+        methodPath: '',
+      }),
+    ).toEqual(['/']);
+    expect(descriptorOf(root!)).toMatchObject({ path: '/' });
   });
 
   test('a router at the root of the URLs still takes the namespace of its folder', async () => {

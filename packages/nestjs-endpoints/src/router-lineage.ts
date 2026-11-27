@@ -98,7 +98,7 @@ function forwarding(cls: Type, enhancers: Type, method: Method): Type {
 
     forward(context: ExecutionContext, ...rest: unknown[]): unknown {
       if (!this.target && !this.perRequest) {
-        const module = [...this.modules.values()].find((m) => m.providers.has(enhancers));
+        const module = this.modules.values().find((m) => m.providers.has(enhancers));
         if (!module) {
           throw new Error(
             `nestjs-endpoints: ${cls.name}, a guard or interceptor of a router, runs for an ` +

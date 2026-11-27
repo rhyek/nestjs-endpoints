@@ -1,5 +1,5 @@
 // The schemas an endpoint declares.
-import type { ZodType } from 'zod';
+import { z, type ZodType } from 'zod';
 import type { ObjectSchemaLike } from './object-parameters';
 
 export type Schema = ZodType<any>;
@@ -22,8 +22,9 @@ export function outputsOf(
   if (!output) {
     return undefined;
   }
-  // A zod schema is an instance of its class; a map by status is a plain object.
-  const byStatus = (output.constructor === Object ? output : { 200: output }) as Record<
+  // A map by status is any object that is no zod schema. Zod tells its schemas by what each
+  // is, not by its class, so one of another copy of zod is one too.
+  const byStatus = (output instanceof z.core.$ZodType ? { 200: output } : output) as Record<
     string,
     Schema
   >;

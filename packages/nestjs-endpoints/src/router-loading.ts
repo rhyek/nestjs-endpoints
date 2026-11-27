@@ -4,6 +4,7 @@
 import { pathToFileURL } from 'node:url';
 import type { Type } from '@nestjs/common';
 import { shown } from './routing-files';
+import { setupOf } from './settings';
 
 /**
  * What a router's `endpoints` callback lists: an endpoint class, a promise
@@ -14,7 +15,7 @@ export type ListedEndpoint = Type | Promise<object>;
 
 /** Whether `value` is what `endpoint.query()` and `endpoint.mutation()` return. */
 export function isEndpoint(value: unknown): value is Type {
-  return typeof value === 'function' && Reflect.hasMetadata('endpoints:setupFn', value);
+  return setupOf(value) !== undefined;
 }
 
 /**

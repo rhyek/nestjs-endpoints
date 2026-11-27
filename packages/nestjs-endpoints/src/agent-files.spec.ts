@@ -127,6 +127,21 @@ test.each([
   ['1.9.0', '1.10.0', true],
   ['2.0.0', '1.99.99', false],
   ['1.2.3', '1.2.3', false],
+  ['3.1.1', '3.2.0', true],
+  ['3.10.0', '3.9.0', false],
+  ['3.9.0', '3.10.0', true],
+  ['3.2', '3.2.1', true],
+  ['3.2.1', '3.2', false],
+  ['3.2', '3.2.0', false],
+  // A banner's version that is no version is never older: the file is left as it is.
+  ['not-a-version', '3.2.0', false],
+  ['3.2.0', 'not-a-version', false],
+  // A prerelease comes before its release, and before the next prerelease.
+  ['3.2.0-beta.1', '3.2.0', true],
+  ['3.2.0-beta.1', '3.2.0-beta.2', true],
+  ['3.2.0-beta.2', '3.2.0-beta.1', false],
+  ['3.2.0', '3.2.0-beta.1', false],
+  ['3.1.0', '3.2.0-beta.1', true],
 ])('isOlder(%s, %s) is %s', (a, b, expected) => {
   expect(isOlder(a, b)).toBe(expected);
 });
@@ -150,6 +165,12 @@ describe('syncAgentFiles', () => {
     expect(read(RULES_FILE)).toBe(renderRules('1.1.0'));
     expect(read(SKILL_FILE)).toBe(renderSkill('1.1.0'));
     expect(read(REFACTOR_FILE)).toBe(renderSkill('1.1.0', 'nestjs-endpoints-refactor'));
+  });
+
+  test('rewrites the files a prerelease of this version wrote', () => {
+    sync('1.1.0-beta.1');
+    expect(sync('1.1.0')).toEqual([RULES_FILE, SKILL_FILE, REFACTOR_FILE]);
+    expect(read(RULES_FILE)).toBe(renderRules('1.1.0'));
   });
 
   test('leaves alone a file a newer version wrote', () => {

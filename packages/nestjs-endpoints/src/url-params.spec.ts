@@ -84,6 +84,12 @@ const urls = [
   },
 ];
 
+// A URL with no word in it is the API's root: its operation is named for that, as an operation
+// with no name has no function in a generated client.
+test.each(['/', '', '/:id', '/:a/:b'])('the URL %j names its operation Root', (url) => {
+  expect(operationName(url)).toBe('Root');
+});
+
 describe.each(urls)('a URL with $is', ({ url, params, openApi, name, folders }) => {
   test('names its parameters, in order', () => {
     expect(urlParamNames(url)).toEqual(params);
