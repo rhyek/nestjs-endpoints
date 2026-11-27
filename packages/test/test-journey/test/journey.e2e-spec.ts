@@ -95,12 +95,14 @@ function failedWith({ failed, output }: Ran, error: RegExp) {
 // How many times the API has started: Nest prints the line once the app has initialized, which
 // is after it wrote its clients.
 const STARTED = 'Nest application successfully started';
+// What the Nest CLI's compiler prints as it begins to compile a change it saw.
+const CHANGE_DETECTED = 'File change detected';
 const starts = () => plain(api!.output()).split(STARTED).length - 1;
 
 /** Whether the Nest CLI has compiled every change it saw, and the app it started is up. */
 function settled() {
   const output = plain(api!.output());
-  return output.lastIndexOf(STARTED) > output.lastIndexOf('File change detected');
+  return output.lastIndexOf(STARTED) > output.lastIndexOf(CHANGE_DETECTED);
 }
 
 /**
@@ -134,11 +136,24 @@ async function apiRestartsAfter(change: () => Promise<unknown>) {
   await vi.waitFor(() => expect(settled()).toBe(true), WAIT);
 }
 
-/** The lines of what a dev server printed since `mark` that report an error. */
-const errorsSince = (server: Running, mark: number) =>
-  plain(server.since(mark))
-    .split('\n')
-    .filter((line) => /error TS\d+|\bERROR\b|\berror\b|Error:/.test(line));
+/**
+ * The lines of what a dev server printed since `mark` that report an error. A compile error the
+ * compiler got past by itself is not one: a file that is renamed is deleted and then added, and
+ * a compiler that looks between the two reports the first as missing, then compiles again.
+ */
+const errorsSince = (server: Running, mark: number) => {
+  // What the Nest CLI's compiler printed for each compilation, the last of them last.
+  const compilations = plain(server.since(mark)).split(CHANGE_DETECTED);
+  return compilations.flatMap((printed, index) =>
+    printed
+      .split('\n')
+      .filter((line) => /error TS\d+|\bERROR\b|\berror\b|Error:/.test(line))
+      .filter(
+        (line) =>
+          index === compilations.length - 1 || !/error TS\d+|Found \d+ errors?\./.test(line),
+      ),
+  );
+};
 
 /** What the API warns of the list's endpoint file while it has no endpoint in it. */
 const LIST_SERVES_NOTHING =
