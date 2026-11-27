@@ -1,8 +1,10 @@
 name: ci
 
-# Runs on every pull request. The jobs run side by side; `check` waits for all of them, and it is
-# the required status check for merging into `main` (.github/rulesets/main.json), so a job can be
-# added or split without touching the ruleset.
+# Runs on every pull request, with no path filter: a run that never starts leaves the required
+# `check` pending, and the pull request never merges. A job that has nothing to do skips itself
+# with an `if:`. The jobs run side by side; `check` waits for all of them, and it is the required
+# status check for merging into `main` (.github/rulesets/main.json), so a job can be added or
+# split without touching the ruleset.
 on:
   pull_request:
     branches: [main]
@@ -99,10 +101,12 @@ jobs:
 
       - run: ./scripts/test.sh "$SUITE"
 
-  # The required status check: passes only when every job above did. It runs always, cancelled
-  # runs included, so it fails rather than being skipped, which a required check would let through.
+  # The one required status check for merging into `main` (.github/rulesets/main.json). It waits
+  # for every other job in this workflow and passes when each one succeeded or skipped itself, so
+  # a job can be added, split or given an `if:` without touching the ruleset. It runs always,
+  # cancelled runs included, so it reports a failure rather than being skipped itself.
   check:
-    needs: [lint, test]
+    needs: [lint, test] # every other job in this workflow
     if: always()
     runs-on: ubuntu-latest
     permissions: {}
@@ -111,8 +115,11 @@ jobs:
           RESULTS: ${{ join(needs.*.result, ' ') }}
         run: |
           for result in $RESULTS; do
-            if [ "$result" != success ]; then
-              echo "::error::a job did not succeed: $RESULTS"
-              exit 1
-            fi
+            case "$result" in
+              success | skipped) ;;
+              *)
+                echo "::error::a job did not pass: $RESULTS"
+                exit 1
+                ;;
+            esac
           done
