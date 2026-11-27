@@ -1,5 +1,5 @@
 ---
-description: How to lay out an API built with nestjs-endpoints - the resource in the path, a router for everything a folder shares, self-contained endpoints, and GET where it fits.
+description: How to lay out an API built with nestjs-endpoints - one root in the app module, the resource in the path, a router for everything a folder shares, self-contained endpoints, and GET where it fits.
 ---
 
 # Recommended architecture
@@ -8,6 +8,43 @@ nestjs-endpoints serves any layout you give it. The one below uses what the libr
 for: URLs that name what they act on, folders that declare what they share once, and endpoint
 files that hold their own logic. Start new APIs this way, and write new endpoints this way in
 an API that is laid out otherwise.
+
+## One root, in the app module {#root}
+
+The app module calls `NestjsEndpoints.forRoot` once. It holds what the whole API has: its root
+[router](./routers.md#the-root-router), which serves every endpoint file under a folder, and the
+[clients](../clients/codegen.md) generated from them.
+
+```ts
+// src/app.module.ts
+import path from 'node:path';
+import { Module } from '@nestjs/common';
+import { NestjsEndpoints } from 'nestjs-endpoints';
+
+@Module({
+  imports: [
+    NestjsEndpoints.forRoot({
+      router: { rootDirectory: './endpoints' },
+      clients: () => [
+        {
+          type: 'react-query',
+          outputFile: path.join(
+            import.meta.dirname,
+            '../../web/src/api-client.tsx',
+          ),
+        },
+      ],
+    }),
+  ],
+})
+export class AppModule {}
+```
+
+- **Every other router is a `router.ts`** in the folder it owns, which the root finds. The app
+  module lists none of them.
+- **Clients are declared here, not in `main.ts`**, and
+  [`nestjs-endpoints generate`](../clients/codegen.md#the-command) writes them where the app is
+  not running, in place of a script that creates the app to generate them.
 
 ## The resource in the path {#path}
 
@@ -320,6 +357,7 @@ they are until you set out to change them. To rework a whole API, coding agents 
 
 | You need | Use |
 | --- | --- |
+| The API's root router and its generated clients | [`NestjsEndpoints.forRoot`](../reference/router.md#nestjsendpoints-forroot), once, in the app module |
 | The id of what an endpoint acts on | A `$param` file or folder, and [`params`](./file-based-routing.md#path-parameters) |
 | Several actions on one resource | [A `.` after the parameter](./file-based-routing.md#how-a-path-is-built): `$orderId.cancel` |
 | A parameter, an injection, a guard or middleware three endpoints share | A `router.ts`, with [`context`](./router-context.md) |
@@ -328,6 +366,7 @@ they are until you set out to change them. To rework a whole API, coding agents 
 | An endpoint's own helpers and state | [`methods` and `properties`](./state-and-lifecycle.md), on `this` |
 | Setup or teardown | [`lifecycle`](./state-and-lifecycle.md#lifecycle-hooks), on an endpoint or [a router](./routers.md#own) |
 | A provider the router itself uses | The router's own [`inject`](./routers.md#own) |
+| Endpoints several apps of a monorepo share | A library's router, in the [`routers`](./routers.md#a-router-from-another-package) of one of the app's |
 | A folder's guards, middleware or interceptors | [Its router](./routers.md#middleware-interceptors-and-guards) |
 | Error responses | [`output` by status code](./responses.md#several-statuses) |
 | A description in the OpenAPI document | [`.meta({ description })`](../clients/openapi.md) |

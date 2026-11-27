@@ -27,6 +27,8 @@ module.
 | --- | --- | --- |
 | `router` | the router [options](#options) | The app's root router. Its `rootDirectory` is relative to the file that calls `forRoot()`. An app made only of routers it imports can leave `router` out. |
 | `watch` | `boolean` | Whether the app watches its endpoint folders, so that `node --watch` restarts it when an endpoint file is added or removed. `nest start --watch` restarts by itself. Defaults to `false`. See [Development](../guide/development.md#with-node-and-a-typescript-loader). |
+| `clients` | a list of [clients](../clients/codegen.md#set-it-up), or a function that returns one | The clients generated from the app's endpoints. |
+| `generateClientsOnStart` | `boolean` | Whether the app writes its `clients` as it starts. Defaults to on when `NODE_ENV` is `development` or not set, and off otherwise. See [When they are written](../clients/codegen.md#when-they-are-written). [`nestjs-endpoints generate`](../clients/codegen.md#the-command) writes them either way. |
 
 `forRoot()` returns what `create()` returns.
 
@@ -50,6 +52,7 @@ The returned promise also has:
 | --- | --- |
 | `endpoint` | The router's own `endpoint.query()` and `endpoint.mutation()` builders, which give the endpoints built with them the router's [context](../guide/router-context.md). |
 | `child()` | Creates a [child router](../guide/what-flows-down.md): a nested router that inherits this one's context, and its `providers` and `imports`. It takes the same [options](#options) and returns what `create()` returns. |
+| `register()` | The router as another lists it in `routers`, with a [`basePath`](../guide/routers.md#its-base-path) in place of its own: `register({ basePath })`. |
 
 ## Options
 
@@ -68,6 +71,8 @@ The returned promise also has:
 | `context.inject` | object of provider classes or `decorated<T>()` | Providers for those endpoints, as the [endpoint option](./endpoint.md#options) of the same name. |
 | `context.injectOnRequest` | object of `decorated<T>()` | Per-request values for those endpoints, as the endpoint option of the same name. |
 | `inject` | object of provider classes or `decorated<T>()` | Providers for the router's own instance: on [`this`](./endpoint.md#this) in its `lifecycle` hooks, `methods` and the getters of its `properties`. Its endpoints and the routers under it don't get them. |
+| `routers` | array of routers, each as it is or as its `register()` returns it | Routers nested under this one that it doesn't find in its folders, as those [a library exports](../guide/routers.md#a-router-from-another-package). Each has what a router made with `child()` has. |
+| `expects` | object of `EndpointRouter.given<T>()` | On `create()`: the names the router's endpoints are given by the router that [lists it](../guide/routers.md#what-it-expects-from-the-app) in `routers`. |
 | `imports`, `providers` | as in `@Module()` | The router's own, which every router made with its [`child()`](../guide/what-flows-down.md#context) has too. |
 | `properties`, `methods` | as the [endpoint options](./endpoint.md#options) of the same names | Properties and methods of the router's instance, read from `this`. They are the router's own: its endpoints and the routers under it do not have them. |
 | `lifecycle` | object of functions: `onModuleInit`, `onApplicationBootstrap`, `onModuleDestroy`, `beforeApplicationShutdown`, `onApplicationShutdown` | [Lifecycle hooks](https://docs.nestjs.com/fundamentals/lifecycle-events), called as a module's are, [before those of what is under the router](../guide/what-flows-down.md#lifecycle) at startup and after them at shutdown. Written as a method, a hook has on [`this`](./endpoint.md#this) what the router's own `inject` gives, with its `properties` and `methods`. |

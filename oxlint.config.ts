@@ -12,6 +12,8 @@ export default defineConfig({
     ...ignorePatterns,
     // Codegen output: every test app has one, not just the examples.
     '**/generated/**',
+    // The project the journey suite copies, kept as `nest new` and TanStack's CLI wrote it.
+    'packages/test/test-journey/assets/**',
     // Self-contained showcases, each its own workspace with its own install.
     'examples/**',
   ],
@@ -20,6 +22,11 @@ export default defineConfig({
     'eslint/no-console': 'off',
   },
   overrides: [
+    {
+      // A fixture that is an empty file: what a router makes of one is what its spec is about.
+      files: ['packages/nestjs-endpoints/test/fixtures/routing/warned/blank.endpoint.ts'],
+      rules: { 'unicorn/no-empty-file': 'off' },
+    },
     {
       files: ['packages/nestjs-endpoints/**'],
       rules: {

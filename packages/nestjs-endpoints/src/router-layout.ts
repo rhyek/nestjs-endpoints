@@ -30,6 +30,9 @@ export const notANamespaceName = (name: string) =>
   `"${name}", is not a name for a namespace: a name has letters, digits, "-" and "_", and ` +
   'starts with a letter.';
 
+/** How a router lists another in its `routers`: with a base path in place of its own, or none. */
+export type Listing = { basePath?: string };
+
 /** What a router's layout is made from, of its options. */
 type LayoutOptions = Pick<RouterOptions<any, any, any>, 'rootDirectory' | 'basePath' | 'namespace'>;
 
@@ -45,6 +48,7 @@ export function layoutOf(
   callsiteFile: string,
   params: LayoutOptions | undefined,
   parentStore: ParentStore | undefined,
+  listed?: Listing,
 ) {
   const definedAtDir = path.dirname(callsiteFile);
   const resolveDir = (dir: string) => {
@@ -61,6 +65,18 @@ export function layoutOf(
     return raw.map(resolveDir);
   })();
   const effectiveBasePath = ((): string => {
+    if (listed) {
+      // Under the base path of the router that lists it: the path that router registers it
+      // with, or else its own, which is the name of its folder only in a router file.
+      const own =
+        listed.basePath ??
+        params?.basePath ??
+        (routerFileRegex.test(path.basename(callsiteFile)) ? path.basename(definedAtDir) : '');
+      const segments = [parentStore?.parentBasePath ?? '', own].flatMap((part) =>
+        part.split('/').filter(Boolean),
+      );
+      return '/' + segments.join('/');
+    }
     if (params?.basePath !== undefined) {
       return params.basePath;
     }

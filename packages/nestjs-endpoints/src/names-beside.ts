@@ -3,8 +3,10 @@
 // as a value of it, and a router's middleware skips the URLs of the names beside the
 // parameters of its base path.
 
-import { Logger, type Type } from '@nestjs/common';
-import type { ApplicationConfig, HttpAdapterHost, ModulesContainer } from '@nestjs/core';
+import type { HttpServer, Type } from '@nestjs/common';
+import { type ApplicationConfig, DiscoveryService, type ModulesContainer } from '@nestjs/core';
+import { descriptorOf } from './descriptors';
+import { logger } from './logger';
 import { routesOf } from './route-paths';
 import { trimSlashes, type UnbracedToken, urlTokens } from './url-params';
 
@@ -175,11 +177,9 @@ export function namesBeside(
 }
 
 /** Whether the router of an adapter reads URLs as of their case, as NestJS reads it. */
-export function caseSensitiveOf(adapter: object): boolean {
-  const matching = adapter as {
-    getRouteMatchingOptions?: () => { caseSensitive?: boolean } | undefined;
-  };
-  return matching.getRouteMatchingOptions?.()?.caseSensitive ?? true;
+export function caseSensitiveOf(adapter: HttpServer): boolean {
+  // An adapter may answer nothing, whatever the interface says.
+  return adapter.getRouteMatchingOptions?.()?.caseSensitive ?? true;
 }
 
 /** The routes of an app: the paths of each of its controllers', and their tree. */
@@ -195,8 +195,8 @@ const routesOfApps = new WeakMap<ModulesContainer, AppRoutes>();
 export function appRoutes(modules: ModulesContainer): AppRoutes {
   let routes = routesOfApps.get(modules);
   if (!routes) {
-    const controllers = [...modules.values()]
-      .flatMap((module) => [...module.controllers.values()])
+    const controllers = new DiscoveryService(modules)
+      .getControllers()
       .map(({ metatype }) => metatype as Type | null)
       .filter((cls): cls is Type => cls !== null);
     const paths = new Map(controllers.map((cls) => [cls, routesOf(cls).map(({ path }) => path)]));
@@ -223,8 +223,6 @@ export type Served = {
   caseSensitive: boolean;
 };
 
-const regExpText = (text: string) => text.replace(/[.*+?^${}()|[\]\\/]/g, '\\$&');
-
 /**
  * A test of whether the path of a request that a router's pattern takes in has, where the
  * router's base path has a parameter, a name beside it in `others`: the URL is the name's,
@@ -249,7 +247,7 @@ export function namedRequest(
   const pattern = segments
     .map((segment, at) => {
       if (segment.kind === 'literal') {
-        return regExpText(segment.text);
+        return RegExp.escape(segment.text);
       }
       if (segment.kind !== 'param') {
         return '[^/]+';
@@ -269,11 +267,11 @@ export function namedRequest(
   const versions = versionPaths.length
     ? `(?:${versionPaths
         .toSorted((a, b) => b.length - a.length)
-        .map(regExpText)
+        .map((path) => RegExp.escape(path))
         .join('|')})`
     : '';
   const expression = new RegExp(
-    `^${prefix ? `(?:${regExpText(prefix)})?` : ''}${versions}/${pattern}(?:/|$)`,
+    `^${prefix ? `(?:${RegExp.escape(prefix)})?` : ''}${versions}/${pattern}(?:/|$)`,
     caseSensitive ? '' : 'i',
   );
   return (path) => {
@@ -307,27 +305,25 @@ const warnedOfRouteOrder = new WeakSet<ApplicationConfig>();
 export function warnOfRouteOrder(
   routes: AppRoutes,
   config: ApplicationConfig,
-  adapter: HttpAdapterHost['httpAdapter'] | undefined,
+  adapter: HttpServer | undefined,
 ): void {
   if (warnedOfRouteOrder.has(config)) {
     return;
   }
   warnedOfRouteOrder.add(config);
-  const orderSensitive =
-    (adapter as { isRouteOrderSensitive?: () => boolean } | undefined)?.isRouteOrderSensitive?.() ??
-    true;
+  const orderSensitive = adapter?.isRouteOrderSensitive?.() ?? true;
   if (!orderSensitive || config.getRouteResolutionStrategy() === 'specificity') {
     return;
   }
   const named = [...routes.paths]
-    .filter(([cls]) => Reflect.hasMetadata('endpoints:path', cls))
+    .filter(([cls]) => descriptorOf(cls) !== undefined)
     .filter(([cls]) => endpointNamesBeside(cls, routes).size > 0)
     .flatMap(([, paths]) => paths.map((path) => `/${path}`));
   if (named.length === 0) {
     return;
   }
-  new Logger('NestjsEndpoints').warn(
-    `nestjs-endpoints: ${named.join(', ')} ${named.length > 1 ? 'have' : 'has a'} path ` +
+  logger.warn(
+    `${named.join(', ')} ${named.length > 1 ? 'have' : 'has a'} path ` +
       `parameter${named.length > 1 ? 's' : ''} beside routes with a name there. Every URL ` +
       "under a name is the name's route's, but this app's HTTP adapter answers a URL with the " +
       'first route registered that matches it, which may be one with the parameter: that one ' +

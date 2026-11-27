@@ -8,8 +8,7 @@ Run the app with one of these while you work on it. They make the routers pick u
 files you add, rename or delete, so that:
 
 1. the new HTTP endpoints are served, and
-2. the [client SDKs](../clients/codegen.md) are regenerated, when the app calls `setupCodegen` as
-   it starts.
+2. the [client SDKs](../clients/codegen.md) the app declares are regenerated.
 
 ## With the Nest CLI
 
@@ -22,11 +21,13 @@ npx nest start --watch
 ::: code-group
 
 ```bash [SWC]
-node --watch --import @swc-node/register/esm-register src/main.ts
+NODE_ENV=development node --watch \
+  --import @swc-node/register/esm-register src/main.ts
 ```
 
 ```bash [oxc]
-node --watch --import @oxc-node/core/register src/main.ts
+NODE_ENV=development node --watch \
+  --import @oxc-node/core/register src/main.ts
 ```
 
 :::

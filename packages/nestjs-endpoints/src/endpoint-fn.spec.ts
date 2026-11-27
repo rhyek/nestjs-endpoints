@@ -1,11 +1,14 @@
 import { Injectable, Module, Req, type Type } from '@nestjs/common';
-import { NestFactory } from '@nestjs/core';
+import { GUARDS_METADATA } from '@nestjs/common/constants';
+import { HttpAdapterHost, NestFactory } from '@nestjs/core';
 import z from 'zod';
-import { DESCRIPTOR_METADATA_KEY, type EndpointDescriptor } from './descriptors';
+import { descriptorOf } from './descriptors';
 import { createRouterEndpoint, endpoint, type EndpointBuilders } from './endpoint-fn';
 import { ZodValidationException } from './exceptions';
 import { decorated } from './injections';
+import { NamesBesideGuard } from './names-beside.guard';
 import { loneValuesAsArrays } from './object-parameters';
+import { setupOf } from './settings';
 
 // The reader `loneValuesAsArrays` decides on is wrapped, to count the
 // decisions and the requests the reader reads.
@@ -105,7 +108,7 @@ describe("a router's endpoint builders", () => {
   test('are checked against the router that sets the endpoint up', () => {
     const router = createRouterEndpoint(routerFile, { inject: { service: Service } });
     const cls = router.query({ path: 'owned', handler: () => null });
-    const setupFn = Reflect.getMetadata('endpoints:setupFn', cls);
+    const setupFn = setupOf(cls)!;
     const settings = {
       rootDirectories: [],
       basePath: '',
@@ -126,7 +129,7 @@ describe("a router's endpoint builders", () => {
 describe("an endpoint's params", () => {
   /** Sets the endpoint up as the router of `routerFile` does, under `basePath`. */
   const setUp = (cls: object, basePath = '') =>
-    (Reflect.getMetadata('endpoints:setupFn', cls) as (settings: object) => void)({
+    setupOf(cls)!({
       rootDirectories: [],
       namespaceChain: [],
       basePath,
@@ -202,7 +205,7 @@ describe("an endpoint's params", () => {
       handler: () => null,
     });
     setUp(cls, 'r');
-    const descriptor = Reflect.getMetadata(DESCRIPTOR_METADATA_KEY, cls) as EndpointDescriptor;
+    const descriptor = descriptorOf(cls)!;
     expect(descriptor).toMatchObject({
       path: openApiPath,
       operationId: name,
@@ -221,7 +224,7 @@ describe("an endpoint's params", () => {
       handler: () => null,
     });
     setUp(cls);
-    const descriptor = Reflect.getMetadata(DESCRIPTOR_METADATA_KEY, cls) as EndpointDescriptor;
+    const descriptor = descriptorOf(cls)!;
     expect(descriptor.pathParams.map((p) => p.name)).toEqual(['region', 'clinicId', 'visitId']);
     expect(descriptor.params?.parameters.map((p) => p.name)).toEqual([
       'region',
@@ -239,6 +242,16 @@ describe("an endpoint's params", () => {
         handler: () => null,
       }),
     ).not.toThrow();
+  });
+
+  test('give the endpoint the guard that refuses a name beside one once, however often it is set up', () => {
+    const cls = endpoint.query({ path: 'view', handler: () => null });
+    // Where it is defined, its URL has no parameter.
+    expect(Reflect.getMetadata(GUARDS_METADATA, cls)).toBeUndefined();
+    setUp(cls, 'lanes/:id');
+    setUp(cls, 'lanes/:id');
+    setUp(cls, 'other');
+    expect(Reflect.getMetadata(GUARDS_METADATA, cls)).toEqual([NamesBesideGuard]);
   });
 });
 
@@ -334,10 +347,7 @@ describe("a router's params", () => {
 
   describe('must be in the URL of each endpoint', () => {
     const settings = { rootDirectories: [], namespaceChain: [], basePath: 'clinics' };
-    const setupFnOf = (path: string) =>
-      Reflect.getMetadata('endpoints:setupFn', router.query({ path, handler: () => null })) as (
-        s: typeof settings & { routerFile?: string },
-      ) => void;
+    const setupFnOf = (path: string) => setupOf(router.query({ path, handler: () => null }))!;
 
     test('when a router sets it up', () => {
       expect(() => setupFnOf('list')({ ...settings, routerFile })).toThrow(
@@ -403,8 +413,7 @@ describe('how an endpoint reads its search parameters', () => {
     });
     // An endpoint outside a router module is set up where it is defined.
     expect(decide).toHaveBeenCalledTimes(1);
-    const setupFn = Reflect.getMetadata('endpoints:setupFn', cls);
-    setupFn({ rootDirectories: [], basePath: '', namespaceChain: [] });
+    setupOf(cls)!({ rootDirectories: [], basePath: '', namespaceChain: [] });
     expect(decide).toHaveBeenCalledTimes(2);
     await expect(call(cls, { tags: 'a' })).resolves.toEqual({ tags: ['a'] });
     await expect(call(cls, { tags: 'b' })).resolves.toEqual({ tags: ['b'] });
@@ -1043,5 +1052,31 @@ describe('what invoke() takes', () => {
     await expect(new input().invoke({ input: { id: 'one' } } as never)).rejects.toThrow(
       ZodValidationException,
     );
+  });
+});
+
+describe("an endpoint's response", () => {
+  test('is sent through the HTTP adapter of the app that made it, which `this` does not show', async () => {
+    const Sent = endpoint.mutation({
+      path: 'sent',
+      output: { 201: z.object({ id: z.string() }) },
+      handler: ({ response }) => response(201, { id: 'a' }),
+    });
+    @Module({ controllers: [Sent] })
+    class OwnModule {}
+    const app = await NestFactory.createApplicationContext(OwnModule, { logger: false });
+    const calls: unknown[][] = [];
+    app.get(HttpAdapterHost).httpAdapter = {
+      status: (...args: unknown[]) => calls.push(['status', ...args]),
+      setHeader: (...args: unknown[]) => calls.push(['setHeader', ...args]),
+    } as never;
+    const instance = app.get(Sent, { strict: false }) as {
+      handler: (res: unknown) => unknown;
+    };
+    // A handler that returns no promise is answered with none.
+    expect(instance.handler('the response')).toEqual({ id: 'a' });
+    expect(calls).toEqual([['status', 'the response', 201]]);
+    expect(Object.keys(instance)).toEqual([]);
+    await app.close();
   });
 });

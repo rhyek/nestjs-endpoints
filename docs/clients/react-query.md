@@ -8,7 +8,7 @@ The React Query client is the [axios client](./axios.md) with a typed
 [TanStack Query](https://tanstack.com/query) hook beside every operation. An
 `endpoint.query()` gets a query hook and an `endpoint.mutation()` a mutation hook.
 
-Generate it with [`setupCodegen`](./codegen.md), with `type: 'react-query'`.
+[Declare it](./codegen.md#set-it-up) in `NestjsEndpoints.forRoot`, with `type: 'react-query'`.
 
 ## Provide the client
 
@@ -207,7 +207,7 @@ request type, so a form library can infer a form's values from the schema alone.
 
 ## Plugin options
 
-A client's `options` in [`setupCodegen`](./codegen.md#set-it-up) are passed to
+A client's [`options`](./codegen.md#set-it-up) are passed to
 [`@kubb/plugin-react-query`](https://kubb.dev/extensions/kubb-labs/plugin-react-query/options).
 nestjs-endpoints ignores `query.methods` and `mutation.methods`, since the endpoint's builder
 decides an operation's kind, and sets `client`, `hooks`, `output` and `group` itself.

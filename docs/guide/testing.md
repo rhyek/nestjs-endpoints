@@ -73,8 +73,10 @@ or an endpoint lists it again.
 ## Through the generated client
 
 Calling the app through its [generated client](../clients/axios.md) tests the client and the
-server together, with typed requests and responses. The client needs a real listener, so listen
-on port `0` and read the URL back:
+server together, with typed requests and responses. A test run does not
+[write the client](../clients/codegen.md#when-they-are-written), so commit it, or run
+`nestjs-endpoints generate` before the tests. The client needs a real listener, so listen on
+port `0` and read the URL back:
 
 ```ts
 import { createApiClient } from '../generated/axios-client.js';

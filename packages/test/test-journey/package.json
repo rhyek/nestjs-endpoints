@@ -1,0 +1,16 @@
+{
+  "name": "test-journey",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "vitest run",
+    "tscheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.6",
+    "playwright": "1.65.1",
+    "typescript": "7.1.0-beta",
+    "vitest": "^5.0.0"
+  }
+}

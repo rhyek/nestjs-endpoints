@@ -6,13 +6,23 @@ import {
   Version,
   VersioningType,
 } from '@nestjs/common';
-import { AbstractHttpAdapter, NestFactory, RouterModule } from '@nestjs/core';
+import {
+  AbstractHttpAdapter,
+  ApplicationConfig,
+  ModulesContainer,
+  NestFactory,
+  RouterModule,
+} from '@nestjs/core';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { z } from 'zod';
 import { collectDescriptors, EndpointDescriptor, filterDescriptors } from './descriptors';
 import { endpoint } from './endpoint-fn';
+import { EndpointRouter } from './endpoint-router';
 
 const apps: INestApplicationContext[] = [];
+
+const descriptorsOf = (app: INestApplicationContext) =>
+  collectDescriptors(app.get(ModulesContainer), app.get(ApplicationConfig));
 
 async function describeApp(controllers: Type[]): Promise<EndpointDescriptor[]> {
   @Module({ controllers })
@@ -21,7 +31,7 @@ async function describeApp(controllers: Type[]): Promise<EndpointDescriptor[]> {
     logger: false,
   });
   apps.push(app);
-  return collectDescriptors(app);
+  return descriptorsOf(app);
 }
 
 /** A real Nest application over an HTTP adapter that serves nothing. */
@@ -329,7 +339,7 @@ test('paths carry the global prefix, except the routes it excludes', async () =>
   const health = endpoint.query({ path: '/health', handler: () => null });
   const app = await createHttpApp([view, health]);
   app.setGlobalPrefix('api/', { exclude: ['health'] });
-  expect(collectDescriptors(app).map((d) => d.path)).toEqual(['/api/p/{id}/view', '/health']);
+  expect(descriptorsOf(app).map((d) => d.path)).toEqual(['/api/p/{id}/view', '/health']);
 });
 
 test('paths carry the URI version, by default or by the method', async () => {
@@ -342,7 +352,7 @@ test('paths carry the URI version, by default or by the method', async () => {
   const app = await createHttpApp([plain, pinned]);
   app.setGlobalPrefix('api');
   app.enableVersioning({ type: VersioningType.URI, defaultVersion: '1' });
-  expect(collectDescriptors(app).map((d) => d.path)).toEqual(['/api/v1/plain', '/api/v2/pinned']);
+  expect(descriptorsOf(app).map((d) => d.path)).toEqual(['/api/v1/plain', '/api/v2/pinned']);
 });
 
 test('an endpoint served under several versions takes the first path', async () => {
@@ -353,7 +363,7 @@ test('an endpoint served under several versions takes the first path', async () 
   });
   const app = await createHttpApp([both]);
   app.enableVersioning({ type: VersioningType.URI });
-  expect(collectDescriptors(app).map((d) => d.path)).toEqual(['/v1/both']);
+  expect(descriptorsOf(app).map((d) => d.path)).toEqual(['/v1/both']);
 });
 
 test('an endpoint served under no version keeps the path it was set up with', async () => {
@@ -364,7 +374,7 @@ test('an endpoint served under no version keeps the path it was set up with', as
   });
   const app = await createHttpApp([none]);
   app.enableVersioning({ type: VersioningType.URI });
-  expect(collectDescriptors(app).map((d) => d.path)).toEqual(['/r/{id}/view']);
+  expect(descriptorsOf(app).map((d) => d.path)).toEqual(['/r/{id}/view']);
 });
 
 test('paths carry the module path a RouterModule mounts them under', async () => {
@@ -380,7 +390,23 @@ test('paths carry the module path a RouterModule mounts them under', async () =>
     [AdminModule, RouterModule.register([{ path: 'admin', module: AdminModule }])],
   );
   app.setGlobalPrefix('api');
-  expect(collectDescriptors(app).map((d) => d.path)).toEqual(['/api/admin/users/list', '/api/top']);
+  expect(descriptorsOf(app).map((d) => d.path)).toEqual(['/api/admin/users/list', '/api/top']);
+});
+
+test('an endpoint two modules mount is described once, under the first', async () => {
+  const list = endpoint.query({ path: '/twice/list', handler: () => null });
+  @Module({ controllers: [list] })
+  class FirstModule {}
+  @Module({ controllers: [list] })
+  class SecondModule {}
+  const mounted = (...modules: Type[]) => [
+    ...modules,
+    RouterModule.register([{ path: 'second', module: SecondModule }]),
+  ];
+  const paths = async (...modules: Type[]) =>
+    descriptorsOf(await createHttpApp([], mounted(...modules))).map((d) => d.path);
+  expect(await paths(FirstModule, SecondModule)).toEqual(['/twice/list']);
+  expect(await paths(SecondModule, FirstModule)).toEqual(['/second/twice/list']);
 });
 
 test('every descriptor path is a path of the OpenAPI document', async () => {
@@ -403,11 +429,38 @@ test('every descriptor path is a path of the OpenAPI document', async () => {
   app.setGlobalPrefix('api');
   app.enableVersioning({ type: VersioningType.URI, defaultVersion: '1' });
   const document = SwaggerModule.createDocument(app, new DocumentBuilder().build());
-  const paths = collectDescriptors(app).map((d) => d.path);
+  const paths = descriptorsOf(app).map((d) => d.path);
   expect(paths).toEqual(['/api/v1/admin/users/list', '/api/v1/plain', '/api/v2/both']);
   for (const path of paths) {
     expect(document.paths[path]).toBeDefined();
   }
+});
+
+test('the OpenAPI document has the endpoints of a router another lists, under both base paths', async () => {
+  const shared = EndpointRouter.create({
+    rootDirectory: import.meta.dirname + '/../test/fixtures/routing/empty',
+    basePath: 'shared',
+    namespace: 'shared',
+    endpoints: (): Type[] => [ping],
+  });
+  const ping = shared.endpoint.query({
+    path: 'ping',
+    method: 'get',
+    output: z.object({ pong: z.boolean() }).meta({ id: 'Pong' }),
+    handler: () => ({ pong: true }),
+  });
+  const root = EndpointRouter.create({
+    rootDirectory: import.meta.dirname + '/../test/fixtures/routing/empty',
+    basePath: 'api',
+    routers: [shared.register({ basePath: 'common' })],
+  });
+  const app = await createHttpApp([], [root]);
+  const document = SwaggerModule.createDocument(app, new DocumentBuilder().build());
+  expect(descriptorsOf(app).map((d) => [d.path, d.namespaceChain])).toEqual([
+    ['/api/common/ping', ['shared']],
+  ]);
+  expect(document.paths['/api/common/ping']?.get?.operationId).toBe('ApiCommonPing');
+  expect(document.components?.schemas).toHaveProperty('Pong');
 });
 
 test('each operation of the OpenAPI document carries its kind', async () => {

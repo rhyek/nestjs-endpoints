@@ -15,7 +15,9 @@
     "src/**/*",
     "test/**/*",
     "../test-app-express/generated/react-query-client.tsx",
+    "ports.ts",
     "vitest.config.ts",
+    "vitest.global-setup.ts",
     "vitest.setup.ts"
   ]
 }

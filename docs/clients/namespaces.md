@@ -64,26 +64,33 @@ A router's `description` becomes a comment on its namespace's object in the clie
 One server can generate several clients, each limited to the top-level namespaces it needs:
 
 ```ts
-await setupCodegen(app, {
-  clients: [
-    // The whole API, for other back-end services.
-    {
-      type: 'axios',
-      outputFile: process.cwd() + '/generated/backend.ts',
-    },
+NestjsEndpoints.forRoot({
+  router: { rootDirectory: './endpoints' },
+  clients: () => {
+    const generated = path.join(
+      import.meta.dirname,
+      '../generated',
+    );
+    return [
+      // The whole API, for other back-end services.
+      {
+        type: 'axios',
+        outputFile: path.join(generated, 'backend.ts'),
+      },
 
-    // One client per front end.
-    {
-      type: 'react-query',
-      outputFile: process.cwd() + '/generated/admin-client.tsx',
-      namespaces: ['auth', 'admin'],
-    },
-    {
-      type: 'react-query',
-      outputFile: process.cwd() + '/generated/shop-client.tsx',
-      namespaces: ['auth', 'shop'],
-    },
-  ],
+      // One client per front end.
+      {
+        type: 'react-query',
+        outputFile: path.join(generated, 'admin-client.tsx'),
+        namespaces: ['auth', 'admin'],
+      },
+      {
+        type: 'react-query',
+        outputFile: path.join(generated, 'shop-client.tsx'),
+        namespaces: ['auth', 'shop'],
+      },
+    ];
+  },
 });
 ```
 

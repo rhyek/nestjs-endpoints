@@ -5,7 +5,9 @@ import { INestApplication, Module } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { z } from 'zod';
 import { endpoint } from '../endpoint-fn';
+import { NestjsEndpoints } from '../nestjs-endpoints';
 import { stripExtension } from '../routing-files';
+import type { ClientOptions, ClientsOption } from './clients';
 import { hashHeader } from './hash';
 import { generateAxiosClient } from './kubb/generate';
 import { setupCodegen } from './setup';
@@ -70,4 +72,63 @@ test('a failed build leaves no wrapper, so the next run fails again', async () =
   await expect(stat(outputFile)).rejects.toThrow(/ENOENT/);
   await expect(run()).rejects.toThrow(/a plugin failed/);
   expect(generate).toHaveBeenCalledTimes(2);
+});
+
+test('names itself for `clients` that are not a list', async () => {
+  const clients = { type: 'axios', outputFile } as unknown as ClientOptions[];
+  await expect(setupCodegen(app, { clients })).rejects.toThrow(
+    'nestjs-endpoints: the `clients` of setupCodegen() are not a list of clients.',
+  );
+});
+
+describe('with no `clients`', () => {
+  /** An app whose root declares `clients`, which it does not generate as it starts. */
+  async function appWith(clients?: ClientsOption) {
+    @Module({ imports: [NestjsEndpoints.forRoot({ clients, generateClientsOnStart: false })] })
+    class RootModule {}
+    await app.close();
+    app = (await NestFactory.createApplicationContext(RootModule, {
+      logger: false,
+    })) as INestApplication;
+  }
+
+  beforeEach(() => {
+    generate.mockImplementation(({ outputFile, hash }) => writeClient(outputFile, hash));
+  });
+
+  test('generates the clients the app declares in forRoot', async () => {
+    await appWith(() => [{ type: 'axios', outputFile }]);
+    await setupCodegen(app);
+    expect(generate).toHaveBeenCalledTimes(1);
+    expect(generate.mock.calls[0][0].outputFile).toBe(outputFile);
+  });
+
+  test('regenerates them when forced', async () => {
+    await appWith([{ type: 'axios', outputFile }]);
+    await setupCodegen(app);
+    await setupCodegen(app);
+    await setupCodegen(app, { forceGenerate: true });
+    expect(generate).toHaveBeenCalledTimes(2);
+  });
+
+  const missing =
+    'setupCodegen: pass `clients`, or declare them in NestjsEndpoints.forRoot({ clients }).';
+
+  test('names forRoot for its `clients`, which it reads', async () => {
+    await appWith(() => {
+      throw new Error('no such folder');
+    });
+    await expect(setupCodegen(app)).rejects.toThrow(
+      'nestjs-endpoints: the `clients` of NestjsEndpoints.forRoot() threw: no such folder',
+    );
+  });
+
+  test('fails in an app with no forRoot', async () => {
+    await expect(setupCodegen(app)).rejects.toThrow(missing);
+  });
+
+  test('fails in an app whose forRoot declares none', async () => {
+    await appWith();
+    await expect(setupCodegen(app)).rejects.toThrow(missing);
+  });
 });

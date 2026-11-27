@@ -207,12 +207,21 @@ importers:
       '@kubb/plugin-axios':
         specifier: 6.0.3
         version: 6.0.3(@kubb/parser-ts@5.20.1)(axios@1.20.0(debug@4.4.3(supports-color@7.2.0))(supports-color@7.2.0))(typescript@7.1.0-beta)(zod@4.6.7)
+      '@kubb/plugin-client':
+        specifier: 6.0.3
+        version: 6.0.3(@kubb/parser-ts@5.20.1)(typescript@7.1.0-beta)(zod@4.6.7)
       '@kubb/plugin-react-query':
         specifier: 5.10.3
         version: 5.10.3(@kubb/parser-ts@5.20.1)(@tanstack/react-query@5.102.8(react@19.2.8))(typescript@7.1.0-beta)
       '@kubb/plugin-ts':
         specifier: 5.5.3
         version: 5.5.3(@kubb/parser-ts@5.20.1)(typescript@7.1.0-beta)
+      '@kubb/plugin-zod':
+        specifier: 5.9.3
+        version: 5.9.3(zod@4.6.7)
+      '@kubb/renderer-jsx':
+        specifier: 5.20.1
+        version: 5.20.1
       '@nestjs/common':
         specifier: '>=12.0.0'
         version: 12.4.0(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@7.2.0)
@@ -222,6 +231,9 @@ importers:
       callsites:
         specifier: ^4.2.0
         version: 4.2.0
+      semver:
+        specifier: ^7.8.5
+        version: 7.8.5
       zod:
         specifier: '>=4.1.0'
         version: 4.6.7
@@ -235,6 +247,9 @@ importers:
       '@types/node':
         specifier: ^26.6.6
         version: 26.6.6
+      '@types/semver':
+        specifier: ^7.8.0
+        version: 7.8.0
       tsdown:
         specifier: 0.23.7
         version: 0.23.7(@vue/language-core@3.3.14)(oxc-resolver@11.24.2)(tsx@4.23.13)(typescript@7.1.0-beta)
@@ -460,6 +475,21 @@ importers:
       typescript:
         specifier: 7.1.0-beta
         version: 7.1.0-beta
+
+  packages/test/test-journey:
+    devDependencies:
+      '@types/node':
+        specifier: ^26.6.6
+        version: 26.6.6
+      playwright:
+        specifier: 1.65.1
+        version: 1.65.1
+      typescript:
+        specifier: 7.1.0-beta
+        version: 7.1.0-beta
+      vitest:
+        specifier: ^5.0.0
+        version: 5.1.0(@opentelemetry/api@1.9.0)(@types/node@26.6.6)(jsdom@30.0.1(@noble/hashes@1.8.0))(vite@8.2.2(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.13)(yaml@2.9.1))
 
   packages/test/test-react-query-client:
     dependencies:
@@ -3154,6 +3184,9 @@ packages:
   '@types/react@19.2.18':
     resolution: {integrity: sha512-AnzbBERsrLKtk2XSfTbYRLjQPdy116Sty4q+T+Bp3IC4l6jNBvreVPAHmpq9qhXQM7CXZPjLVmGMw9sy+hxQ3w==}
 
+  '@types/semver@7.8.0':
+    resolution: {integrity: sha512-1mAINjtQCXXeLkJ9ehXkwOcBpqtLxiVtKhpUf83DdRNdQKV0iXZpaHYqRr7nj+wvxuJzoAmAwXI+sCNMv1CzLQ==}
+
   '@types/send@1.2.1':
     resolution: {integrity: sha512-arsCikDvlU99zl1g69TcAB3mzZPpxgw0UQnaHeC1Nwb015xp8bknZv5rIfri9xTOcMuaVgvabfIRA7PSZVuZIQ==}
 
@@ -5247,6 +5280,16 @@ packages:
 
   piscina@4.9.4:
     resolution: {integrity: sha512-RyBDr2VheQ8ZfH3N8SzQZHztqVyOtadTwLnUYof6gdj5161/eu2wNhCbGl5GHnNKDpnkicJYpKtL2J+y/gk6XA==}
+
+  playwright-core@1.65.1:
+    resolution: {integrity: sha512-hqPpz7blSMPxWVdoeE1yiBSzXsKiVOd2k+kjCvmUywD2GPO2Dd9HfcWnq9NN0GHbNZDFgZ9JfBFr+X5/BLo0qw==}
+    engines: {node: '>=20'}
+    hasBin: true
+
+  playwright@1.65.1:
+    resolution: {integrity: sha512-vJ1FuoOrNwOKHUIVEvSt3jT1L+wjjDpwhwIstKtfvTh8XIG4FG4bIFuvNdMxi81LGfAhUgUZleVFaOLY4RIUUw==}
+    engines: {node: '>=20'}
+    hasBin: true
 
   pluralize@8.0.0:
     resolution: {integrity: sha512-Nc3IT5yHzflTfbjgqWcCPpo7DaKy4FnpB0l/zCAW0Tc7jxAiuqSxHasntB3D7887LSrA93kDJ9IXovxJYxyLCA==}
@@ -8201,6 +8244,8 @@ snapshots:
     dependencies:
       csstype: 3.2.3
 
+  '@types/semver@7.8.0': {}
+
   '@types/send@1.2.1':
     dependencies:
       '@types/node': 26.6.6
@@ -10434,6 +10479,12 @@ snapshots:
     optionalDependencies:
       '@napi-rs/nice': 1.1.1
     optional: true
+
+  playwright-core@1.65.1: {}
+
+  playwright@1.65.1:
+    dependencies:
+      playwright-core: 1.65.1
 
   pluralize@8.0.0: {}
 

@@ -3,6 +3,7 @@ node_modules/
 openapi.json
 *.e2e-spec.ts
 !packages/test/test-app-express/**/*.e2e-spec.ts
+!packages/test/test-journey/**/*.e2e-spec.ts
 generated/
 !packages/test/test-app-express/generated
 CLAUDE.local.md

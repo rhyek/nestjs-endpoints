@@ -1257,6 +1257,7 @@ packages:
   nestjs-endpoints@file:../../packages/nestjs-endpoints:
     resolution: {directory: ../../packages/nestjs-endpoints, type: directory}
     engines: {node: '>=24.22'}
+    hasBin: true
     peerDependencies:
       '@nestjs/common': '>=12.0.0'
       '@nestjs/core': '>=12.0.0'
@@ -1367,6 +1368,11 @@ packages:
 
   secure-json-parse@4.1.1:
     resolution: {integrity: sha512-lnd81MQEZKjhW/Gd2TQqdd4XP6QYNdDW/EP+I7nTrFHP9y2LmaGPIHk9xsnzcOiEr1c39c/e84xFgGviQKBTRw==}
+
+  semver@7.8.6:
+    resolution: {integrity: sha512-9lpSSU4Mly3mrtruwLs1eLK6+gzbzqeBFwRNjIjE+9LuDpWdYctrQlQ3ej1Ilgi7gknpsTRnPoLP8DpCHqHIJw==}
+    engines: {node: '>=10'}
+    hasBin: true
 
   send@1.2.1:
     resolution: {integrity: sha512-1gnZf7DFcoIcajTjTwjwuDjzuz4PPcY2StKPlsGAQ1+YH20IRVrBaXSWmdjowTJ6u8Rc01PoYOGHXfP1mYcZNQ==}
@@ -2567,11 +2573,15 @@ snapshots:
       '@kubb/kit': 5.20.1
       '@kubb/parser-ts': 5.20.1
       '@kubb/plugin-axios': 6.0.3(@kubb/parser-ts@5.20.1)(axios@1.20.0(debug@4.4.3))(typescript@7.1.0-beta)(zod@4.6.7)
+      '@kubb/plugin-client': 6.0.3(@kubb/parser-ts@5.20.1)(typescript@7.1.0-beta)(zod@4.6.7)
       '@kubb/plugin-react-query': 5.10.3(@kubb/parser-ts@5.20.1)(@tanstack/react-query@5.102.8(react@19.2.8))(typescript@7.1.0-beta)
       '@kubb/plugin-ts': 5.5.3(@kubb/parser-ts@5.20.1)(typescript@7.1.0-beta)
+      '@kubb/plugin-zod': 5.9.3(zod@4.6.7)
+      '@kubb/renderer-jsx': 5.20.1
       '@nestjs/common': 12.4.0(reflect-metadata@0.2.2)(rxjs@7.8.2)
       '@nestjs/core': 12.4.0(@nestjs/common@12.4.0(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/platform-express@12.1.3)(reflect-metadata@0.2.2)(rxjs@7.8.2)
       callsites: 4.2.0
+      semver: 7.8.6
       zod: 4.6.7
       zod-openapi: 6.0.2(zod@4.6.7)
     transitivePeerDependencies:
@@ -2691,6 +2701,8 @@ snapshots:
   scheduler@0.27.0: {}
 
   secure-json-parse@4.1.1: {}
+
+  semver@7.8.6: {}
 
   send@1.2.1:
     dependencies:

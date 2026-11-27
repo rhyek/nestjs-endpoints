@@ -27,6 +27,33 @@ describe('convertObject', () => {
     expect(parameters).toHaveLength(1);
     expect(parameters[0]).toMatchObject({ name: 'a', required: true });
   });
+
+  test('unwraps a transform: the object it transforms', () => {
+    const { json, parameters } = convertObject(
+      z.object({ a: z.string(), b: z.coerce.number().optional() }).transform((v) => v.a),
+    );
+    expect(json).toMatchObject({ type: 'object', required: ['a'] });
+    expect(parameters.map(({ name, required }) => [name, required])).toEqual([
+      ['a', true],
+      ['b', false],
+    ]);
+  });
+
+  test('unwraps a pipe into another object: the object it reads', () => {
+    const { parameters } = convertObject(
+      z.object({ a: z.string() }).pipe(z.object({ a: z.string(), b: z.string().optional() })),
+    );
+    expect(parameters.map(({ name }) => name)).toEqual(['a']);
+  });
+
+  test('unwraps a named preprocess to its object, which is converted as it is', () => {
+    const { json, parameters, components } = convertObject(
+      z.preprocess((v) => v, z.object({ a: z.string() })).meta({ id: 'NamedPreprocess' }),
+    );
+    expect(json).toMatchObject({ type: 'object', properties: { a: { type: 'string' } } });
+    expect(components).toEqual({});
+    expect(parameters.map(({ name }) => name)).toEqual(['a']);
+  });
 });
 
 describe('parameter shapes', () => {

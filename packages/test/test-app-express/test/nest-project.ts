@@ -22,14 +22,17 @@ export const SETUP_TIMEOUT = 120_000;
 /** The Nest CLI, from the project's directory. */
 export const NEST = 'node_modules/@nestjs/cli/bin/nest.js';
 
+/** The package's own command, from the project's directory. */
+export const CLI = 'node_modules/nestjs-endpoints/dist/cli.js';
+
+const platform = await platformPackage();
+const adapterName = Object.keys(await import(platform)).find((name) => name.endsWith('Adapter'))!;
+
 /**
- * Source that gets the HTTP adapter of this test app as `Adapter`, for the app and the specs
- * that run in the project: it is named by `PLATFORM_PACKAGE`, which `start` and `runOnce` set.
+ * The import of this test app's HTTP adapter as `Adapter`, for the app and the specs that run in
+ * the project: `ExpressAdapter` from `@nestjs/platform-express`, or another app's own.
  */
-export const adapterSource = `const platform: Record<string, unknown> = await import(process.env.PLATFORM_PACKAGE!);
-const Adapter = Object.entries(platform).find(([name]) =>
-  name.endsWith('Adapter'),
-)![1] as new () => never;`;
+export const adapterSource = `import { ${adapterName} as Adapter } from '${platform}';`;
 
 // The routes the app asks itself for, each named by its endpoint file under `src/endpoints`.
 const ROUTES = ['a', 'b', 'c', 'd', 'shop/e'] as const;
@@ -39,8 +42,20 @@ type Route = (typeof ROUTES)[number];
 export type Served = Route[];
 
 // Written as Nest providers are. Nest injects `Clock` by the type of the constructor's
-// parameter, which it knows only if the runtime emitted the decorator's metadata.
-const healthServiceSource = `import { Injectable } from '@nestjs/common';
+// parameter, which it knows only if the runtime emitted the decorator's metadata. `Probe` says
+// when the app makes and starts its providers, for the specs that run what must do neither.
+const healthServiceSource = `import { Injectable, OnModuleInit } from '@nestjs/common';
+
+@Injectable()
+export class Probe implements OnModuleInit {
+  constructor() {
+    console.log('probe constructed');
+  }
+
+  onModuleInit() {
+    console.log('probe initialized');
+  }
+}
 
 @Injectable()
 export class Clock {
@@ -97,30 +112,50 @@ export const viewed = router.endpoint.query({
   output: z.object({ id: z.number() }),
   handler: ({ params }) => ({ id: params.id }),
 });
+
+// A router as a library exports one, with what it expects of the app, as an app lists it, and
+// an endpoint that is given what it expects.
+export const expecting = EndpointRouter.create({
+  basePath: 'expecting',
+  expects: { clock: EndpointRouter.given<{ now(): number }>() },
+});
+
+export const timed = expecting.endpoint.query({
+  path: 'at',
+  output: z.object({ at: z.number() }),
+  handler: ({ clock }) => ({ at: clock.now() }),
+});
+
+export const placed = expecting.register({ basePath: 'placed' });
 `;
 
 // What Getting started adds to the app module. `watch` is the app's own choice: the specs turn
-// it on through the environment, for the runtimes that need it.
+// it on through the environment, for the runtimes that need it. So are its clients, which only
+// the specs about them ask for: every other spec has an app that declares none.
 const routerImports = `import { NestjsEndpoints } from 'nestjs-endpoints';
-import { Clock, HealthService } from './health.service.js';`;
+import { Clock, HealthService, Probe } from './health.service.js';`;
 const routerModule = `imports: [
     NestjsEndpoints.forRoot({
       router: {
         rootDirectory: './endpoints',
-        providers: [Clock, HealthService],
+        providers: [Clock, HealthService, Probe],
       },
       watch: process.env.WATCH === 'true',
+      clients: process.env.ROOT_CLIENTS
+        ? () => [{ type: 'axios', outputFile: process.cwd() + '/generated/root-client.ts' }]
+        : undefined,
+      // Left to its default unless a spec turns it off.
+      generateClientsOnStart: process.env.ON_START === 'false' ? false : undefined,
     }),
   ],`;
 
-// `main.ts` as `nest new` writes it, but for three things. Asked to, it generates a client
-// from the app, as the Codegen guide has an app do. The adapter is this test app's. And the app
-// listens on a free port, asks itself for each route, prints the statuses, and stays up only
-// when asked to: the specs start many at once.
+// `main.ts` as `nest new` writes it, but for four things. Asked to, it generates a client
+// from the app with `setupCodegen`; asked to, it gives the app a global prefix. The adapter is
+// this test app's. And the app listens on a free port, asks itself for each route, prints the
+// statuses, and stays up only when asked to: the specs start many at once.
 const mainSource = `import { NestFactory } from '@nestjs/core';
 import { setupCodegen } from 'nestjs-endpoints';
 import { AppModule } from './app.module.js';
-
 ${adapterSource}
 
 async function bootstrap() {
@@ -129,6 +164,9 @@ async function bootstrap() {
     await setupCodegen(app, {
       clients: [{ type: 'axios', outputFile: process.cwd() + '/generated/client.ts' }],
     });
+  }
+  if (process.env.GLOBAL_PREFIX) {
+    app.setGlobalPrefix(process.env.GLOBAL_PREFIX);
   }
   await app.listen(0, '127.0.0.1');
   const url = await app.getUrl();
@@ -183,7 +221,8 @@ export type Started = {
   served(): Served | undefined;
   /** How many times the app has started: it reports its routes once each time. */
   starts(): number;
-  stop(): void;
+  /** Stops it and everything it started, and resolves once it has ended. */
+  stop(): Promise<void>;
 };
 
 /** How a run of the app ended: whether it failed, what it printed, the routes it served. */
@@ -197,7 +236,6 @@ export type NestProject = Awaited<ReturnType<typeof createNestProject>>;
  */
 export async function createNestProject(prefix: string) {
   const directory = await createInstalledProject(prefix);
-  const platform = await platformPackage();
 
   // What the project's own scripts and config need, beyond what the package does.
   for (const name of ['@nestjs/cli', '@nestjs/testing', 'vitest']) {
@@ -274,21 +312,30 @@ export async function createNestProject(prefix: string) {
     const { NODE_ENV: _, CI: __, ...inherited } = process.env;
     const child = spawn(process.execPath, args, {
       cwd: directory,
-      env: { ...inherited, PLATFORM_PACKAGE: platform, ...env },
+      env: { ...inherited, ...env },
       detached: true,
       stdio: ['ignore', 'pipe', 'pipe'],
     });
+    const signal = (name: NodeJS.Signals) => {
+      try {
+        process.kill(-child.pid!, name);
+      } catch {
+        // The group has ended.
+      }
+    };
     const started: Started = {
       output: '',
-      exited: new Promise<number | null>((resolve) => child.on('exit', resolve)),
+      // Once its output is read to the end: a process can exit before all it wrote has arrived.
+      exited: new Promise<number | null>((resolve) => child.on('close', resolve)),
       served: () => lastServed(started.output),
       starts: () => statusLines(started.output).length,
-      stop() {
-        try {
-          process.kill(-child.pid!);
-        } catch {
-          // It has exited.
-        }
+      async stop() {
+        signal('SIGTERM');
+        const forced = setTimeout(() => signal('SIGKILL'), 5_000);
+        await started.exited;
+        clearTimeout(forced);
+        // What the group's leader started may outlive it by a moment.
+        signal('SIGKILL');
       },
     };
     child.stdout.on('data', (chunk) => (started.output += chunk));
@@ -309,7 +356,7 @@ export async function createNestProject(prefix: string) {
     /** Runs `node` with `args` in the project to its end. */
     async runOnce(args: string[], env: Record<string, string> = {}): Promise<Booted> {
       const started = spawnNode(args, env);
-      const timeout = setTimeout(() => started.stop(), 90_000);
+      const timeout = setTimeout(() => void started.stop(), 90_000);
       try {
         const code = await started.exited;
         return { failed: code !== 0, output: started.output, served: started.served() };
@@ -331,6 +378,15 @@ export async function createNestProject(prefix: string) {
     /** The client the app generated when it last started with `CODEGEN` set, if it has. */
     generatedClient: () =>
       readFile(path.join(directory, 'generated/client.ts'), 'utf-8').catch(() => undefined),
+
+    /**
+     * The request functions of the client the app declares in `forRoot` when `ROOT_CLIENTS`
+     * is set, if it was written.
+     */
+    rootClient: () =>
+      readFile(path.join(directory, 'generated/root-client/clients.ts'), 'utf-8').catch(
+        () => undefined,
+      ),
 
     /**
      * Every file of the project that a run of the app could add to or change: all but its

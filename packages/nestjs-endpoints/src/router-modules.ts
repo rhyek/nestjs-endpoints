@@ -51,6 +51,13 @@ export type SharedProviders = {
    * import, the nearest first.
    */
   inherited: () => Imports;
+  /**
+   * Puts it under the providers of the router that lists it in `routers`, as one made with
+   * that router's `child()` is under its parent's. Before either registers.
+   */
+  under: (above: SharedProviders) => void;
+  /** The providers of the router above it: its parent's, or those of the router that lists it. */
+  above: () => SharedProviders | undefined;
 };
 
 /** NestJS registers a provider of one of these for the whole app, under a token of its own. */
@@ -76,6 +83,7 @@ export function sharedProviders(
 ): SharedProviders {
   const providers = options?.providers ?? [];
   const imports = options?.imports ?? [];
+  let above = parent;
   let module: DynamicModule | undefined;
   const shared: SharedProviders = {
     own: providers,
@@ -88,7 +96,7 @@ export function sharedProviders(
         module = {
           module: RouterProvidersModule,
           // What its providers are made from, as the router's own module has it.
-          imports: [...imports, ...(parent?.inherited() ?? [])],
+          imports: [...imports, ...(above?.inherited() ?? [])],
           providers: [
             ...providers,
             ...(keptBy && providers.length ? [notBeside(keptBy, file)] : []),
@@ -100,7 +108,11 @@ export function sharedProviders(
       }
       return module;
     },
-    inherited: () => [shared.module(), ...imports, ...(parent?.inherited() ?? [])],
+    inherited: () => [shared.module(), ...imports, ...(above?.inherited() ?? [])],
+    under: (listing) => {
+      above = listing;
+    },
+    above: () => above,
   };
   return shared;
 }
@@ -129,5 +141,5 @@ function notBeside(routerModule: Type, file: string): Provider {
 
 /** Whether an app has the module of the class `metatype`. */
 export function hasModule(modules: ModulesContainer, metatype: Type | undefined): boolean {
-  return [...modules.values()].some((module) => module.metatype === metatype);
+  return modules.values().some((module) => module.metatype === metatype);
 }

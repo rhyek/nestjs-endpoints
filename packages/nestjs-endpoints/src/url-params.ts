@@ -79,11 +79,16 @@ function wordsOf(url: string): { words: string[]; leaf: boolean } {
 /**
  * The name of the operation a URL serves: `/recipes/edit/:recipeId` → `RecipesEdit`. Its
  * parameters are left out: the generated clients take them as a typed `path` group, so
- * repeating their names in the method's would only be noise.
+ * repeating their names in the method's would only be noise. A URL with no word in it, as `/`
+ * or `/:id`, is the API's root, `Root`: a client has a function for each name.
  */
 export function operationName(url: string): string {
-  return wordsOf(url)
-    .words.join('/')
+  const { words } = wordsOf(url);
+  if (words.length === 0) {
+    return 'Root';
+  }
+  return words
+    .join('/')
     .replace(/^[a-z]/, (letter) => letter.toUpperCase())
     .replace(/[/-]([a-z0-9])/g, (_, char: string) => char.toUpperCase());
 }

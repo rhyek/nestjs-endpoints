@@ -1,13 +1,13 @@
-import { RequestMethod, VersioningType } from '@nestjs/common';
-import type { INestApplicationContext } from '@nestjs/common';
+import { RequestMethod, type Type, VersioningType } from '@nestjs/common';
 // Not re-exported by `@nestjs/common`'s index.
-import { MODULE_PATH, VERSION_METADATA } from '@nestjs/common/constants.js';
-import { ApplicationConfig, ModulesContainer } from '@nestjs/core';
+import { MODULE_PATH, PATH_METADATA, VERSION_METADATA } from '@nestjs/common/constants.js';
+import { ApplicationConfig, DiscoveryService, ModulesContainer } from '@nestjs/core';
 // Not re-exported by `@nestjs/core`'s index; `@nestjs/swagger` builds the
 // document's paths with the same factory.
 import { RoutePathFactory } from '@nestjs/core/router/route-path-factory.js';
 import type { EndpointKind } from './endpoint-fn';
 import type { ObjectConversion } from './object-parameters';
+import { sharedState } from './shared-state';
 import { toOpenApiPath } from './url-params';
 import type { ConvertedSchema, JsonSchema } from './zod-to-openapi';
 
@@ -44,7 +44,17 @@ export type EndpointDescriptor = {
   }[];
 };
 
-export const DESCRIPTOR_METADATA_KEY = 'endpoints:descriptor';
+const { MountedEndpoint } = sharedState;
+
+/** Marks the class of an endpoint a setup has mounted with its descriptor. */
+export function mounted(cls: Type, descriptor: EndpointDescriptor): void {
+  MountedEndpoint(descriptor)(cls);
+}
+
+/** The descriptor of an endpoint a setup has mounted; none for any other class. */
+export function descriptorOf(cls: object): EndpointDescriptor | undefined {
+  return Reflect.getMetadata(MountedEndpoint.KEY, cls) as EndpointDescriptor | undefined;
+}
 
 const requestMethods = {
   get: RequestMethod.GET,
@@ -58,16 +68,17 @@ const requestMethods = {
 export type HttpMethod = keyof typeof requestMethods;
 
 /**
- * The descriptors of the endpoints mounted in `app`, by path then method.
+ * The descriptors of the endpoints mounted in an app's `modules`, by path then method.
  * Paths are the ones the app serves, built as the OpenAPI document builds
  * them: under the global prefix (unless it excludes the route), the module
  * path a `RouterModule` mounts the module under, and the URI version. An
  * endpoint served under several paths (several URI versions) takes the
  * first. Plain controllers carry no descriptor and are skipped.
  */
-export function collectDescriptors(app: INestApplicationContext): EndpointDescriptor[] {
-  const modules = app.get(ModulesContainer);
-  const config = app.get(ApplicationConfig);
+export function collectDescriptors(
+  modules: ModulesContainer,
+  config: ApplicationConfig,
+): EndpointDescriptor[] {
   const globalPrefix = config.getGlobalPrefix().replace(/\/$/, '');
   const versioningOptions = config.getVersioning();
   const routePaths = new RoutePathFactory(config);
@@ -78,7 +89,7 @@ export function collectDescriptors(app: INestApplicationContext): EndpointDescri
       Reflect.getMetadata(MODULE_PATH, module.metatype);
     const [routePath] = routePaths.create(
       {
-        ctrlPath: Reflect.getMetadata('endpoints:path', cls) as string,
+        ctrlPath: Reflect.getMetadata(PATH_METADATA, cls) as string,
         methodPath: '',
         modulePath,
         globalPrefix,
@@ -103,20 +114,15 @@ export function collectDescriptors(app: INestApplicationContext): EndpointDescri
  * it: one descriptor per class, as the SDK has one function per operation.
  */
 export function* mountedEndpoints(modules: ModulesContainer) {
+  const discovery = new DiscoveryService(modules);
   const seen = new Set<unknown>();
-  for (const module of modules.values()) {
-    for (const { metatype: cls } of module.controllers.values()) {
-      if (typeof cls !== 'function' || seen.has(cls)) {
-        continue;
-      }
-      const descriptor: EndpointDescriptor | undefined = Reflect.getMetadata(
-        DESCRIPTOR_METADATA_KEY,
-        cls,
-      );
-      if (descriptor) {
-        seen.add(cls);
-        yield { module, cls, descriptor };
-      }
+  // One wrapper for each module that mounts an endpoint, in the order NestJS scanned them.
+  for (const wrapper of discovery.getControllers({ metadataKey: MountedEndpoint.KEY })) {
+    const cls = wrapper.metatype as Type;
+    const descriptor = discovery.getMetadataByDecorator(MountedEndpoint, wrapper);
+    if (descriptor && wrapper.host && !seen.has(cls)) {
+      seen.add(cls);
+      yield { module: wrapper.host, cls, descriptor };
     }
   }
 }

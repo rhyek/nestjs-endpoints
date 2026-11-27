@@ -9,12 +9,19 @@ import {
 } from '@nestjs/common';
 import { ApplicationConfig, HttpAdapterHost, ModulesContainer } from '@nestjs/core';
 import type { z } from 'zod';
-import { RootOptions, topLevelProviders } from './app-root';
+import { RootOptions, topLevelProviders, watching } from './app-root';
+import { sourceDirectoryOf, sourceFileOf } from './compiled-source';
+import { descriptorOf } from './descriptors';
 import { instantiatedIn } from './document-schemas';
-import { createRouterEndpoint, type EndpointBuilders } from './endpoint-fn';
+import { type EndpointBuilders, routerEndpoint } from './endpoint-fn';
 import { getCallsiteFile, moduleAls } from './helpers';
 import { hooksAreCalled } from './hook-scopes';
-import type { Injected, InjectOnRequestMap, InjectProvidersMap } from './injections';
+import {
+  given,
+  type Injected,
+  type InjectOnRequestMap,
+  type InjectProvidersMap,
+} from './injections';
 import {
   declaredMembers,
   ENDPOINT_OWN_MEMBERS,
@@ -25,6 +32,7 @@ import {
   type MethodsMap,
 } from './instance-members';
 import { LazyPromise } from './lazy-promise';
+import { logger } from './logger';
 import { appRoutes, warnOfRouteOrder } from './names-beside';
 import { underBase } from './route-paths';
 import {
@@ -38,6 +46,7 @@ import {
 import {
   type Layout,
   layoutOf,
+  type Listing,
   NAMESPACE_NAME,
   nestedRouterParents,
   notANamespaceName,
@@ -58,9 +67,16 @@ import {
   sharedProviders,
   type SharedProviders,
 } from './router-modules';
-import { CONTEXT_KEYS, type DescribesNamespace, type RouterOptions } from './router-options';
+import {
+  CONTEXT_KEYS,
+  type DescribesNamespace,
+  type ListedRouter,
+  type RegisteredRouter,
+  type RouterOptions,
+} from './router-options';
 import { findRouterFiles, isSameModule, shown, stripExtension } from './routing-files';
-import { EndpointSetupFn, settings } from './settings';
+import { type EndpointSetupFn, settings, setupOf } from './settings';
+import { type RouterSubtree, sharedState } from './shared-state';
 
 /**
  * A provider every router has, which an app creates as it starts: it tells the endpoints'
@@ -73,14 +89,20 @@ const appOfRouter: Provider = {
   useFactory: (modules: ModulesContainer) => instantiatedIn(modules),
 };
 
-/** A router's module carries every endpoint of its subtree under this key. */
-const ALL_ENDPOINTS_SYMBOL = Symbol.for('nestjs-endpoints:allEndpoints');
-/** The module of a router made with `child()` carries its parent's file under this key. */
-const CHILD_OF_SYMBOL = Symbol('nestjs-endpoints:childOf');
-type AllEndpointsCarrier = {
-  [ALL_ENDPOINTS_SYMBOL]?: Type[];
-  [CHILD_OF_SYMBOL]?: string;
-};
+const { router: ROUTER, subtree: SUBTREE } = sharedState;
+
+/**
+ * What a router's module carries for the router it is nested under. A property, which a module
+ * spread into another keeps.
+ */
+function subtreeOf(module: DynamicModule): RouterSubtree | undefined {
+  return (module as unknown as Record<symbol, RouterSubtree | undefined>)[SUBTREE];
+}
+
+/** Every endpoint of a router's subtree, read off its module. */
+export function endpointsUnder(module: DynamicModule): Type[] {
+  return subtreeOf(module)?.endpoints ?? [];
+}
 
 /**
  * What `create()`, `child()` and `forRoot()` take. `RouterInject`, `RouterInjectOnRequest` and
@@ -110,7 +132,21 @@ export type EndpointRouterOptions<
     inject?: InjectNaming<Inject, 'configure'>;
   } & InstanceOptions<Injected<Inject>, Properties, Methods, 'configure'>;
 
-type AnyRouterOptions = EndpointRouterOptions<any, any, any, any, any, any>;
+/** What `create()` takes besides: the names the router that lists this one gives its endpoints. */
+type Expecting<Expects extends InjectOnRequestMap> = {
+  /**
+   * The names this router's endpoints are given by the router that lists it in `routers`,
+   * each typed with `EndpointRouter.given<T>()`. A library's router declares here what the
+   * app's router gives it: the app decides how, in its own `context`.
+   *
+   * ```ts
+   * expects: { db: EndpointRouter.given<Db>(), user: EndpointRouter.given<AppUser>() }
+   * ```
+   */
+  expects?: Expects;
+};
+
+type AnyRouterOptions = EndpointRouterOptions<any, any, any, any, any, any> & Expecting<any>;
 
 /**
  * What `create()` returns: the module a router module exports by default,
@@ -122,6 +158,17 @@ export type EndpointRouter<
   RouterParams extends z.ZodObject | undefined = undefined,
 > = Promise<DynamicModule> & {
   endpoint: EndpointBuilders<RouterInject, RouterInjectOnRequest, RouterParams>;
+  /**
+   * This router as another lists it in `routers`, with a base path in place of its own: the
+   * app that imports a library's router says where it is.
+   *
+   * ```ts
+   * NestjsEndpoints.forRoot({
+   *   router: { routers: [sharedRouter.register({ basePath: 'v1/shared' })] },
+   * });
+   * ```
+   */
+  register: (listing?: Listing) => RegisteredRouter;
   /**
    * Creates a router nested under this one, in a `router.ts` of a
    * folder under this router's. It takes the options `create()` takes, and
@@ -172,12 +219,15 @@ export type EndpointRouter<
  */
 type Router = {
   file: string;
-  /** What it gives its endpoints. */
-  context: RouterContext;
+  /**
+   * What it gives its endpoints: its own, over that of the router above it. Read when it is
+   * needed, as a router that lists this one in `routers` may be made after it.
+   */
+  readonly context: RouterContext;
   /** Its providers and imports, as its children have them. */
   providers: SharedProviders;
-  /** Its guards and interceptors, after those of the routers above it. */
-  lineage: Lineage;
+  /** Its guards and interceptors, after those of the routers above it. Read as it loads. */
+  readonly lineage: Lineage;
   instance: RouterInstance;
 };
 
@@ -189,6 +239,29 @@ type ParentRouter = Pick<Router, 'file' | 'context'> &
   Partial<Pick<Router, 'providers' | 'lineage' | 'instance'>>;
 
 /** What the call that made a router was given, and where it was made. */
+/** A router as another lists it in `routers`. */
+type Listed = { router: Promise<DynamicModule>; handle: RouterHandle; listing: Listing };
+
+/**
+ * What a router carries for the router that lists it in `routers`, under the key that tells a
+ * router: who it is, and how it is put under that router. One copy of the package calls
+ * another's, so its shape is part of what copies share.
+ */
+type RouterHandle = {
+  file: string;
+  /**
+   * Has it take the context, the providers and the guards and interceptors of the router that
+   * lists it, `above`, as one made with that router's `child()` has its parent's. When that
+   * router is made.
+   */
+  listedBy: (above: Above) => void;
+  /** Places it under the layout of the router that lists it. When that router loads. */
+  placedUnder: (store: ParentStore, listing: Listing) => void;
+};
+
+/** What a router has of the router above it: its parent, or the one that lists it. */
+type Above = Pick<Router, 'file' | 'context' | 'providers' | 'lineage'>;
+
 type MadeWith = {
   file: string;
   /** The call that made it, and where: how its errors begin. */
@@ -198,6 +271,8 @@ type MadeWith = {
   root: RootOptions | undefined;
   /** The router whose `child()` made this one. */
   parent: ParentRouter | undefined;
+  /** The routers its `routers` lists. */
+  listed: Listed[];
   /**
    * The store of the router running where it was made, for a router no parent discovered.
    * Never read from the store when the deferred work runs: that could pick up whichever
@@ -226,6 +301,8 @@ type RouterInstance = {
    * store of the router running where it was made.
    */
   above: () => ParentStore | undefined;
+  /** How the router that lists it in `routers` placed it; none for any other router. */
+  placed?: { store: ParentStore; listing: Listing };
   /**
    * Its layout, as the routers under it read it: the one it registered with, or, while it
    * has not, the one its options, its file and the router above it give.
@@ -300,9 +377,6 @@ function ownContext(at: string, options: AnyRouterOptions | undefined): RouterCo
   return context;
 }
 
-/** What tells a router from anything else a file exports, whichever copy of the package made it. */
-const ROUTER = Symbol.for('nestjs-endpoints:router');
-
 /** Whether `value` is what `create()`, `child()` and `forRoot()` return. */
 function isRouter(value: unknown): value is EndpointRouter<any, any, any> {
   return value instanceof Promise && ROUTER in value;
@@ -312,26 +386,92 @@ function isRouter(value: unknown): value is EndpointRouter<any, any, any> {
  * What a router carries beside its module: its `endpoint` builders, and
  * `child()` for the routers nested under it.
  */
-export function routerMembers(
+function routerMembers(
   router: ParentRouter,
+  handle?: RouterHandle,
 ): Pick<EndpointRouter<any, any, any>, 'endpoint' | 'child'> {
-  const { file, context, providers, instance } = router;
   const members: Pick<EndpointRouter<any, any, any>, 'endpoint' | 'child'> = {
-    endpoint: createRouterEndpoint(file, context),
+    endpoint: routerEndpoint(router),
     child: (options) => {
       // Reads its calling file as `create()` does: the router module that calls it.
       const child = createLazily(getCallsiteFile(), options, undefined, router);
-      if (providers) {
-        providers.wanted = true;
-      }
-      // Where its children find its members, to start after it.
-      if (instance?.members.any) {
-        importInto(instance.order, instance.module());
-      }
+      hasRoutersUnder(router);
       return child;
     },
   };
-  return Object.assign(members, { [ROUTER]: true });
+  return Object.assign(members, { [ROUTER]: handle ?? true });
+}
+
+/**
+ * A router's endpoints are given every name it `expects`: by its own context, or by that of
+ * the router that lists it in `routers`, `listedBy`. Checked as it loads, when both are known.
+ */
+function assertGiven(
+  { at, params }: MadeWith,
+  context: RouterContext,
+  listedBy: string | undefined,
+): void {
+  const given = { ...context.inject, ...context.injectOnRequest };
+  const missing = Object.keys(params?.expects ?? {}).filter((name) => !Object.hasOwn(given, name));
+  if (missing.length === 0) {
+    return;
+  }
+  const names = new Intl.ListFormat('en').format(missing.map((name) => `\`${name}\``));
+  throw new Error(
+    listedBy
+      ? `${at}: \`expects\` names ${names}, which ${shown(listedBy)}, the router that lists it ` +
+          `in \`routers\`, does not give its endpoints. Add ${names} to the \`context\` of ` +
+          'that router.'
+      : `${at}: \`expects\` names ${names}, and no router lists it in \`routers\`: an app ` +
+          'lists it in the `routers` of a router whose `context` gives them.',
+  );
+}
+
+/**
+ * `module` as a router: with the members `router` gives it, and `register()`, which returns it
+ * as another router lists it.
+ */
+export function asRouter(
+  module: Promise<DynamicModule>,
+  router: ParentRouter,
+  handle?: RouterHandle,
+): EndpointRouter<any, any, any> {
+  const created = Object.assign(module, routerMembers(router, handle));
+  return Object.assign(created, {
+    register: (listing: Listing = {}): RegisteredRouter => ({ router: created, ...listing }),
+  });
+}
+
+/**
+ * A router that has one under it by `child()` or by `routers` keeps its providers where that
+ * one finds them, and its members where that one starts after them.
+ */
+function hasRoutersUnder({ providers, instance }: ParentRouter): void {
+  if (providers) {
+    providers.wanted = true;
+  }
+  if (instance?.members.any) {
+    importInto(instance.order, instance.module());
+  }
+}
+
+/** The routers a router's `routers` lists, each with how it is listed. `at` begins an error. */
+function listedRouters(at: string, routers: ListedRouter[] | undefined): Listed[] {
+  return (routers ?? []).map((entry) => {
+    const registered = (isRouter(entry) ? { router: entry } : entry) as
+      | Partial<RegisteredRouter>
+      | undefined;
+    const { router, ...listing } = registered ?? {};
+    const handle = isRouter(router) ? (router as unknown as Record<symbol, unknown>)[ROUTER] : 0;
+    if (typeof handle !== 'object' || handle === null) {
+      const name = (entry as { name?: string } | undefined)?.name || 'a value';
+      throw new Error(
+        `${at}: \`routers\` lists ${name}, which is not a router. A router is made with ` +
+          'EndpointRouter.create(), and is listed as it is or as its register() returns it.',
+      );
+    }
+    return { router: router as Promise<DynamicModule>, handle: handle as RouterHandle, listing };
+  });
 }
 
 /**
@@ -356,17 +496,23 @@ export function createLazily(
     : parent
       ? 'child()'
       : 'EndpointRouter.create()';
+  const at = `${madeWith} in ${callsiteFile}`;
   const made: MadeWith = {
     file: callsiteFile,
-    at: `${madeWith} in ${callsiteFile}`,
+    at,
     params,
     root,
     parent,
+    listed: listedRouters(at, params?.routers),
     capturedStore: moduleAls.getStore(),
   };
-  const context = mergeContext(parent?.context ?? {}, ownContext(made.at, params));
+  const own = ownContext(made.at, params);
+  // The router that lists this one in `routers`, once one does.
+  let listedBy: Above | undefined;
+  // Its context, for the one the router above it had when it was read last.
+  let given: { above: RouterContext | undefined; context: RouterContext } | undefined;
   // Its guards and interceptors are among its providers: one instance of each.
-  const { lineage, providers: checks } = lineageOf(parent?.lineage ?? NO_LINEAGE, params);
+  const { lineage: ownLineage, providers: checks } = lineageOf(NO_LINEAGE, params);
   const providers = sharedProviders(
     callsiteFile,
     { imports: params?.imports, providers: [...(params?.providers ?? []), ...checks] },
@@ -377,14 +523,68 @@ export function createLazily(
   if (checks.length) {
     providers.wanted = true;
   }
+  const instance = routerInstance(made, providers);
   const router: Router = {
     file: callsiteFile,
-    context,
+    get context() {
+      const above = (listedBy ?? parent)?.context;
+      if (given?.above !== above || !given) {
+        given = { above, context: mergeContext(above ?? {}, own) };
+      }
+      return given.context;
+    },
     providers,
-    lineage,
-    instance: routerInstance(made, providers),
+    get lineage() {
+      const above = (listedBy ?? parent)?.lineage ?? NO_LINEAGE;
+      return {
+        guards: [...above.guards, ...ownLineage.guards],
+        interceptors: [...above.interceptors, ...ownLineage.interceptors],
+      };
+    },
+    instance,
   };
-  return Object.assign(new LazyPromise(() => registerRouter(made, router)), routerMembers(router));
+  const handle: RouterHandle = {
+    file: callsiteFile,
+    listedBy: (above) => {
+      if (loading) {
+        throw new Error(
+          `${shown(above.file)} lists the router of ${shown(callsiteFile)} in \`routers\`, ` +
+            'which has loaded already: where it is, and what its endpoints are given, are ' +
+            'settled as it loads. List it before an app loads it.',
+        );
+      }
+      if (parent) {
+        throw new Error(
+          `${shown(above.file)} lists the router of ${shown(callsiteFile)} in \`routers\`, ` +
+            `which is made with the child() of ${shown(parent.file)}: it is under that router.`,
+        );
+      }
+      if (listedBy) {
+        throw new Error(
+          `${shown(above.file)} lists the router of ${shown(callsiteFile)} in \`routers\`, ` +
+            `which ${shown(listedBy.file)} lists already. A router is under one router.`,
+        );
+      }
+      listedBy = above;
+      providers.under(above.providers);
+    },
+    placedUnder: (store, listing) => {
+      instance.placed = { store, listing };
+    },
+  };
+  for (const listed of made.listed) {
+    listed.handle.listedBy(router);
+  }
+  if (made.listed.length > 0) {
+    hasRoutersUnder(router);
+  }
+  // Whether it has begun to load, which settles where it is and what it gives.
+  let loading = false;
+  const load = () => {
+    loading = true;
+    return registerRouter(made, router);
+  };
+  return asRouter(new LazyPromise(load), router, handle);
 }
 
 /** A router's instance, for the router `made` describes. */
@@ -420,7 +620,10 @@ function routerInstance(made: MadeWith, providers: SharedProviders): RouterInsta
       ];
     },
     above: () =>
-      parent?.instance?.store() ?? nestedRouterParents.get(stripExtension(file)) ?? capturedStore,
+      parent?.instance?.store() ??
+      instance.placed?.store ??
+      nestedRouterParents.get(stripExtension(file)) ??
+      capturedStore,
     registeredAs: (store) => {
       // A router under it that registered before took it to be where `assumed` says, and
       // registers once: where an app places this one elsewhere, that router is misplaced.
@@ -448,7 +651,11 @@ function routerInstance(made: MadeWith, providers: SharedProviders): RouterInsta
       if (registered) {
         return registered;
       }
-      assumed = storeOf(file, layoutOf(file, params, instance.above()), order);
+      assumed = storeOf(
+        file,
+        layoutOf(file, params, instance.above(), instance.placed?.listing),
+        order,
+      );
       return assumed;
     },
     module: () => {
@@ -495,6 +702,7 @@ export const EndpointRouter = {
     Properties extends object = object,
     // eslint-disable-next-line @typescript-eslint/no-empty-object-type
     Methods extends MethodsMap = {},
+    Expects extends InjectOnRequestMap = undefined,
   >(
     options?: EndpointRouterOptions<
       RouterInject,
@@ -503,10 +711,21 @@ export const EndpointRouter = {
       Inject,
       Properties,
       Methods
-    >,
-  ): EndpointRouter<RouterInject, RouterInjectOnRequest, RouterParams> {
+    > &
+      Expecting<Expects>,
+  ): EndpointRouter<
+    RouterInject,
+    // What it expects is among its handlers' parameters, under what it declares itself.
+    Extract<Overriding<Expects, RouterInjectOnRequest, RouterInject>, InjectOnRequestMap>,
+    RouterParams
+  > {
     return createLazily(getCallsiteFile(), options);
   },
+  /**
+   * A name in a router's `expects`, typed as `T`: what its endpoints are given under that name
+   * by the router that lists it in `routers`.
+   */
+  given,
 };
 
 /**
@@ -515,13 +734,14 @@ export const EndpointRouter = {
  * it read it.
  */
 async function loadRouter(
-  { file: callsiteFile, at, params }: MadeWith,
+  { file: callsiteFile, at, params, root, listed: routers }: MadeWith,
   layout: Layout,
   ownStore: ParentStore,
 ): Promise<{ endpoints: Type[]; nestedModules: DynamicModule[] }> {
   const { rootDirectories, effectiveBasePath, effectiveNamespaceChain } = layout;
-  // The files that had defined an endpoint before this router imported any.
-  const definedBefore = settings.endpoints.map((e) => e.file);
+  // The modules that had defined an endpoint before this router imported any, by file
+  // without its extension, as `isSameModule` reads them.
+  const definedBefore = new Set(settings.endpoints.map((e) => stripExtension(e.file)));
   const { notImported, endpoints, nestedModules, listedEndpoints } = await moduleAls.run(
     ownStore,
     async () => {
@@ -538,15 +758,17 @@ async function loadRouter(
       for (const file of passedOver) {
         nestedRouterParents.delete(stripExtension(file));
       }
-      const notImported = [...endpointFiles].filter((f) =>
-        definedBefore.every((file) => !isSameModule(file, f)),
-      );
+      const notImported = [...endpointFiles].filter((f) => !definedBefore.has(stripExtension(f)));
       const endpoints: Type[] = [];
       for (const file of notImported) {
         // A file with an endpoint file's name that default-exports no endpoint serves nothing.
         const endpoint: unknown = await (await importFile(file)).default;
         if (isEndpoint(endpoint)) {
           endpoints.push(endpoint);
+        } else {
+          logger.warn(
+            `${shown(sourceFileOf(file) ?? file)} default-exports no endpoint, so it serves nothing.`,
+          );
         }
       }
       const nestedModules: DynamicModule[] = [];
@@ -558,6 +780,11 @@ async function loadRouter(
           nestedModules.push(await router);
         }
       }
+      // Those its `routers` lists, placed under it before each runs.
+      for (const { router, handle, listing } of routers) {
+        handle.placedUnder(ownStore, listing);
+        nestedModules.push(await router);
+      }
       // Imported here, inside this router's run, so each endpoint defined
       // by a listed file is set up once, below, by this router.
       const listed =
@@ -565,18 +792,31 @@ async function loadRouter(
       const listedEndpoints = (
         await Promise.all((listed ?? []).map((entry) => resolveListedEndpoints(entry, at)))
       ).flat();
+      // The app's root is where a new project's first endpoint file goes: a folder that is
+      // missing or misnamed would otherwise be an app that starts and answers 404.
+      if (
+        root &&
+        endpointFiles.size +
+          nestedRouterModuleFiles.size +
+          routers.length +
+          listedEndpoints.length ===
+          0
+      ) {
+        const folders = rootDirectories.map((directory) =>
+          shown(sourceDirectoryOf(directory, callsiteFile)),
+        );
+        logger.warn(`No endpoint files found in ${folders.join(', ')}.`);
+      }
       return { notImported, endpoints, nestedModules, listedEndpoints };
     },
   );
-  // Each endpoint is set up once, whether this router discovered it, it is
-  // listed, or both.
+  // Each endpoint is set up once, whether this router discovered it, it is listed, or both:
+  // those its files defined, which waited for it, and those it mounts, by their class. One
+  // another copy of the package built did not wait, and is set up again here.
+  const imported = new Set(notImported.map(stripExtension));
   const setupFns = new Set<EndpointSetupFn>([
-    ...settings.endpoints
-      .filter((e) => notImported.some((f) => isSameModule(f, e.file)))
-      .map((e) => e.setupFn),
-    ...listedEndpoints
-      .map((ep) => Reflect.getMetadata('endpoints:setupFn', ep) as EndpointSetupFn | undefined)
-      .filter((fn) => fn !== undefined),
+    ...settings.endpoints.filter((e) => imported.has(stripExtension(e.file))).map((e) => e.setupFn),
+    ...[...endpoints, ...listedEndpoints].map(setupOf).filter((fn) => fn !== undefined),
   ]);
   for (const setupFn of setupFns) {
     setupFn({
@@ -587,8 +827,8 @@ async function loadRouter(
     });
   }
   return {
-    endpoints: [...new Set([...endpoints, ...listedEndpoints])].filter((e) =>
-      Reflect.hasMetadata('endpoints:path', e),
+    endpoints: [...new Set([...endpoints, ...listedEndpoints])].filter(
+      (e) => descriptorOf(e) !== undefined,
     ),
     nestedModules,
   };
@@ -598,6 +838,8 @@ async function registerRouter(made: MadeWith, router: Router): Promise<DynamicMo
   const { file: callsiteFile, params, root, parent } = made;
   const { providers: shared, lineage, instance } = router;
   const childOf = parent?.file;
+  // The router whose guards and interceptors this one applies with its own.
+  const under = childOf ?? instance.placed?.store.parentRouterFile;
   const discoveredBy = nestedRouterParents.get(stripExtension(callsiteFile));
   if (childOf && discoveredBy && !isSameModule(discoveredBy.parentRouterFile, childOf)) {
     throw new Error(
@@ -608,33 +850,28 @@ async function registerRouter(made: MadeWith, router: Router): Promise<DynamicMo
   }
   // A child's place comes from its parent's, whether or not its parent is in the app.
   const parentStore = discoveredBy ?? instance.above();
-  const layout = layoutOf(callsiteFile, params, parentStore);
+  const layout = layoutOf(callsiteFile, params, parentStore, instance.placed?.listing);
+  assertGiven(made, router.context, instance.placed?.store.parentRouterFile);
   if (params?.description) {
     // Of the namespace its endpoints are in, which a router with a description has.
-    const name = layout.effectiveNamespaceChain.join('/');
-    const existing = settings.descriptions.find((t) => t.name === name);
-    if (existing) {
-      existing.description = params.description;
-    } else {
-      settings.descriptions.push({ name, description: params.description });
-    }
+    sharedState.descriptions.set(layout.effectiveNamespaceChain.join('/'), params.description);
   }
   const ownStore = storeOf(callsiteFile, layout, instance.order);
   // From here on, what the routers under it read.
   instance.registeredAs(ownStore);
   const { endpoints, nestedModules } = await loadRouter(made, layout, ownStore);
 
-  const endpointsOf = (m: DynamicModule) => (m as AllEndpointsCarrier)[ALL_ENDPOINTS_SYMBOL] ?? [];
-  const allEndpoints: Type[] = [...endpoints, ...nestedModules.flatMap(endpointsOf)];
+  const allEndpoints: Type[] = [...endpoints, ...nestedModules.flatMap(endpointsUnder)];
   // Guards, interceptors and middleware apply to every endpoint in the subtree, the outermost
-  // router's first. A router made with this one's `child()` applies this one's with its own,
-  // its whole lineage, whether this one is in the app or not: this one leaves its endpoints
-  // to it. A router made with `create()` has none of them, which come before its own.
+  // router's first. A router made with this one's `child()`, or one its `routers` lists,
+  // applies this one's with its own, its whole lineage, whether this one is in the app or not:
+  // this one leaves its endpoints to it. A router made with `create()` that it finds in a
+  // folder has none of them, which come before its own.
   const lineageApplied = [
     ...endpoints,
     ...nestedModules
-      .filter((m) => !isSameModule((m as AllEndpointsCarrier)[CHILD_OF_SYMBOL] ?? '', callsiteFile))
-      .flatMap(endpointsOf),
+      .filter((m) => !isSameModule(subtreeOf(m)?.childOf ?? '', callsiteFile))
+      .flatMap(endpointsUnder),
   ];
   for (const ep of lineageApplied) {
     applyLineage(ep, lineage);
@@ -642,9 +879,6 @@ async function registerRouter(made: MadeWith, router: Router): Promise<DynamicMo
 
   const lineageMiddleware = instance.middleware();
   const basePath = ownStore.parentBasePath;
-  const modulesKey = Symbol('modules');
-  const configKey = Symbol('config');
-  const adapterKey = Symbol('adapter');
 
   // `child()` has been called on this router by now, if it is to be before an app has it:
   // by a router module this one found and loaded above, or one evaluated before.
@@ -662,12 +896,16 @@ async function registerRouter(made: MadeWith, router: Router): Promise<DynamicMo
   }
 
   class RouterModule implements NestModule {
+    constructor(
+      @Inject(ModulesContainer) private readonly modules: ModulesContainer,
+      @Inject(ApplicationConfig) private readonly config: ApplicationConfig,
+      @Inject(HttpAdapterHost) private readonly adapterHost: HttpAdapterHost,
+    ) {}
+
     // Called once for each app, as it starts: what it applies is for that app.
     configure(consumer: MiddlewareConsumer) {
-      const injected = this as unknown as Record<symbol, unknown>;
-      const modules = injected[modulesKey] as ModulesContainer;
-      const config = injected[configKey] as ApplicationConfig;
-      const adapter = (injected[adapterKey] as HttpAdapterHost).httpAdapter;
+      const { modules, config } = this;
+      const adapter = this.adapterHost.httpAdapter;
       const routes = appRoutes(modules);
       warnOfRouteOrder(routes, config, adapter);
       applyRouterMiddleware(
@@ -678,9 +916,6 @@ async function registerRouter(made: MadeWith, router: Router): Promise<DynamicMo
     }
   }
   Module({})(RouterModule);
-  Inject(ModulesContainer)(RouterModule.prototype, modulesKey);
-  Inject(ApplicationConfig)(RouterModule.prototype, configKey);
-  Inject(HttpAdapterHost)(RouterModule.prototype, adapterKey);
   instance.ownModule = RouterModule;
   // After the router above it, and after its own members.
   const before = [...(membersApart ? [instance.module()] : []), ...(above ? [above] : [])];
@@ -694,10 +929,17 @@ async function registerRouter(made: MadeWith, router: Router): Promise<DynamicMo
       ...(root || !parentStore
         ? topLevelProviders(root, { directories: layout.rootDirectories, near: callsiteFile })
         : []),
+      // One another lists has folders of its own, which that router's are not over.
+      ...(instance.placed
+        ? [watching({ directories: layout.rootDirectories, near: callsiteFile })]
+        : []),
     ],
     controllers: endpoints,
-    [ALL_ENDPOINTS_SYMBOL]: allEndpoints,
-    ...(childOf && { [CHILD_OF_SYMBOL]: childOf }),
+    // One another lists applies what is above it itself too, as one made with `child()` does.
+    [SUBTREE]: {
+      endpoints: allEndpoints,
+      ...(under && { childOf: under }),
+    } satisfies RouterSubtree,
   };
   if (shared.wanted || membersApart) {
     // Its providers are in the module its children import, so both have the same
@@ -713,7 +955,7 @@ async function registerRouter(made: MadeWith, router: Router): Promise<DynamicMo
     ...module,
     imports: [
       ...(params?.imports ?? []),
-      ...(parent?.providers?.inherited() ?? []),
+      ...(shared.above()?.inherited() ?? []),
       ...before,
       ...nestedModules,
     ],

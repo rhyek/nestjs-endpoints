@@ -4,14 +4,13 @@ import { APP_GUARD, ModuleRef } from '@nestjs/core';
 import { z } from 'zod';
 import { Access } from '../test/fixtures/routing/context/access';
 import { empty, fixtures, pathOf, start } from '../test/routing';
-import { DESCRIPTOR_METADATA_KEY, type EndpointDescriptor } from './descriptors';
+import { descriptorOf } from './descriptors';
 import { endpoint } from './endpoint-fn';
 import { EndpointRouter } from './endpoint-router';
 import { decorated } from './injections';
 import { NestjsEndpoints } from './nestjs-endpoints';
 
-const describedAs = (cls: Type) =>
-  Reflect.getMetadata(DESCRIPTOR_METADATA_KEY, cls) as EndpointDescriptor;
+const describedAs = (cls: Type) => descriptorOf(cls)!;
 
 describe('a child router an app loads by itself', () => {
   test('is where its parents place it: their base paths and namespaces above its own', async () => {

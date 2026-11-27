@@ -19,6 +19,7 @@ import {
   createClient,
   type ClientInstance,
 } from './react-query-client/.kubb/client';
+import { ApiClientContext, CLIENT_CONTEXT as _CTX, type ApiClientContextValue } from './react-query-client/context';
 
 export type * from './react-query-client/types';
 export { isResponseError, ResponseError } from './react-query-client/.kubb/client';
@@ -34,10 +35,6 @@ const _axiosFor = (config?: CreateAxiosDefaults | AxiosInstance): AxiosInstance 
 /** A Kubb client that sends every request through `axios`. */
 const _clientFor = (axios: AxiosInstance): ClientInstance =>
   createClient({ transport: createAxiosTransport(axios) });
-
-type ApiClientContextValue = { client: ClientInstance; axios: AxiosInstance };
-
-const ApiClientContext = React.createContext<ApiClientContextValue | null>(null);
 
 /**
  * Wrap a generated request function so every call goes through `client`.
@@ -105,8 +102,6 @@ function bindHook<F extends (...args: never[]) => unknown>(hook: F, optionsIndex
     );
   }) as unknown as F;
 }
-
-const _CTX = Symbol('nestjs-endpoints:client-ctx');
 
 const _build = (_ctx: ApiClientContextValue) => {
   const { client: _client, axios: _axios } = _ctx;

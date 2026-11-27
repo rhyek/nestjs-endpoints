@@ -97,6 +97,17 @@ describe('getEndpointHttpPath ($-segment path params)', () => {
     );
   });
 
+  test.each(['', '/'])(
+    'an endpoint.ts at the root, under the base path %j, is at the root, and named Root',
+    (basePath) => {
+      expect(getEndpointHttpPath([root], basePath, endpointPath('endpoint.ts'))).toEqual({
+        httpPath: '',
+        httpPathPascalName: 'Root',
+        httpPathSegments: [],
+      });
+    },
+  );
+
   test('non-$ segments are unchanged', () => {
     expect(subject('recipes/create.endpoint.ts')).toBe('recipes/create');
   });

@@ -21,6 +21,9 @@ function SpreadGreet() {
   return <div data-testid="spread-greeting">{data ?? ''}</div>;
 }
 
+// How long a test waits for what the app answers to show: Testing Library's and Vitest's default.
+const WAIT = { timeout: 1_000 };
+
 describe('Client', () => {
   test('hello world', () => {
     render(<div>Hello</div>);
@@ -34,14 +37,12 @@ describe('Client', () => {
       </App>,
     );
     expect(await screen.findByText('Loading...')).toBeInTheDocument();
-    await vitest.waitFor(async () => {
-      expect(await screen.findByText('Error: User not found')).toBeInTheDocument();
-    });
+    expect(await screen.findByText('Error: User not found', {}, WAIT)).toBeInTheDocument();
     await userEvent.click(screen.getByText('Create User'));
-    await vitest.waitFor(async () => {
-      expect(await screen.findByText('Name: John Doe')).toBeInTheDocument();
-      expect(await screen.findByText('Email: john.doe@example.com')).toBeInTheDocument();
-    });
+    await vitest.waitFor(() => {
+      expect(screen.getByText('Name: John Doe')).toBeInTheDocument();
+      expect(screen.getByText('Email: john.doe@example.com')).toBeInTheDocument();
+    }, WAIT);
   });
 
   test('greet functionality works', async () => {
@@ -57,9 +58,9 @@ describe('Client', () => {
     await userEvent.type(input, 'World');
     await userEvent.click(button);
 
-    await vitest.waitFor(async () => {
-      expect(await screen.findByTestId('greeting')).toHaveTextContent('Hello, World!');
-    });
+    await vitest.waitFor(() => {
+      expect(screen.getByTestId('greeting')).toHaveTextContent('Hello, World!');
+    }, WAIT);
   });
 
   test('optional-params hook works when called with no arguments', async () => {
@@ -71,9 +72,9 @@ describe('Client', () => {
 
     // If the bound client weren't injected (the binding regression), the query
     // would hit the unbound default client and never resolve to this payload.
-    await vitest.waitFor(async () => {
-      expect(await screen.findByTestId('optional-result')).toHaveTextContent('"ok":true');
-    });
+    await vitest.waitFor(() => {
+      expect(screen.getByTestId('optional-result')).toHaveTextContent('"ok":true');
+    }, WAIT);
   });
 
   test('a POST endpoint.query() is a query, keyed by its search params and body', async () => {
@@ -82,22 +83,22 @@ describe('Client', () => {
         <SearchPage />
       </App>,
     );
-    await vitest.waitFor(async () => {
-      expect(JSON.parse((await screen.findByTestId('search-result')).textContent)).toEqual({
+    await vitest.waitFor(() => {
+      expect(JSON.parse(screen.getByTestId('search-result').textContent)).toEqual({
         term: 'pizza',
         tags: [],
         page: 1,
       });
-    });
+    }, WAIT);
     // A new search param is a new query key, so the hook fetches again.
     await userEvent.click(screen.getByText('Next page'));
-    await vitest.waitFor(async () => {
-      expect(JSON.parse((await screen.findByTestId('search-result')).textContent)).toEqual({
+    await vitest.waitFor(() => {
+      expect(JSON.parse(screen.getByTestId('search-result').textContent)).toEqual({
         term: 'pizza',
         tags: [],
         page: 2,
       });
-    });
+    }, WAIT);
   });
 
   test('a null output is null in the query data', async () => {
@@ -106,9 +107,9 @@ describe('Client', () => {
         <UserFindPage />
       </App>,
     );
-    await vitest.waitFor(async () => {
-      expect(await screen.findByTestId('user-find')).toHaveTextContent('No such user');
-    });
+    await vitest.waitFor(() => {
+      expect(screen.getByTestId('user-find')).toHaveTextContent('No such user');
+    }, WAIT);
   });
 
   test('a query takes the path params its router declares', async () => {
@@ -135,8 +136,8 @@ describe('Client', () => {
         </ApiClientProvider>
       </QueryClientProvider>,
     );
-    await vitest.waitFor(async () => {
-      expect(await screen.findByTestId('spread-greeting')).toHaveTextContent('Hello, Spread!');
-    });
+    await vitest.waitFor(() => {
+      expect(screen.getByTestId('spread-greeting')).toHaveTextContent('Hello, Spread!');
+    }, WAIT);
   });
 });

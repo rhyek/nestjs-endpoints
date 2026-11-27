@@ -221,9 +221,11 @@ test('warns once and carries on where node_modules cannot be written', async () 
   expect(warn).toHaveBeenCalledTimes(1);
   expect(warn).toHaveBeenCalledWith(
     expect.stringMatching(
-      /^nestjs-endpoints: watch is on, but .*node_modules\/\.cache\/nestjs-endpoints.* cannot be written, so a new endpoint file needs a manual restart\.$/,
+      /^watch is on, but .*node_modules\/\.cache\/nestjs-endpoints.* cannot be written, so a new endpoint file needs a manual restart\.$/,
     ),
   );
+  // Under the package's name.
+  expect((warn.mock.contexts[0] as { context?: string }).context).toBe('nestjs-endpoints');
 });
 
 test('warns and carries on where there is no node_modules above the app', async () => {

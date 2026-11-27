@@ -251,6 +251,6 @@ created;
 
 ## Keeping the client in step
 
-With [`setupCodegen`](../clients/codegen.md) in your `main.ts` and a dev server that restarts
-on change, saving an endpoint file regenerates the client, and any caller the change broke shows
-up as a type error in the front end.
+With your [clients declared](../clients/codegen.md) in `NestjsEndpoints.forRoot` and a dev server
+that restarts on change, saving an endpoint file regenerates the client, and any caller the
+change broke shows up as a type error in the front end.

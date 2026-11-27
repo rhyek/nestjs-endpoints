@@ -1,3 +1,4 @@
+import fs from 'node:fs/promises';
 import path from 'node:path';
 import { createKubb, type UserConfig } from '@kubb/core';
 import { ast, defineExtension, injectFile } from '@kubb/kit';
@@ -34,21 +35,29 @@ type OmitEach<T, K extends PropertyKey> = T extends unknown ? Omit<T, K> : never
 const TYPES_FILE = 'types.ts';
 const CLIENTS_FILE = 'clients.ts';
 const HOOKS_FILE = 'hooks.ts';
+const CONTEXT_FILE = 'context.ts';
+
+/** A module of the output dir: its source, or the template it is a copy of. */
+type ModuleFile = { baseName: string } & ({ source: string } | { copy: string });
+
+/** A template of the package's, `assets/templates/<name>`: the same from `src/` and `dist/`. */
+const template = (name: string) =>
+  path.resolve(import.meta.dirname, '../../../assets/templates', name);
 
 /**
  * Inline Kubb plugin that emits our own artifacts as part of the same build:
- * the modules in `files` (into the output dir: for react-query, `schemas.ts`)
- * and the namespaced wrapper (at `outputFile`).
- * Nothing is written, post-processed, or deleted by us outside the pipeline —
- * `output.clean` prunes only Kubb's own output directory, and the wrapper at
- * `outputFile` is rewritten in full each run.
+ * the modules in `files` (into the output dir: for react-query, `schemas.ts`
+ * and `context.ts`, a copy of the package's template, whose imports Kubb's
+ * parser prints again) and the namespaced wrapper (at `outputFile`). Nothing is
+ * written by us outside the pipeline: after it, only what it did not write is
+ * removed (`removeOthers`).
  */
 function emitPlugin(params: {
   name: string;
   outDir: string;
   outputFile: string;
   /** Modules for the output dir, by file name. */
-  files: { baseName: string; source: string }[];
+  files: ModuleFile[];
   wrapperSource: string;
 }) {
   const { name, outDir, outputFile, files, wrapperSource } = params;
@@ -70,8 +79,16 @@ function emitPlugin(params: {
     kind: 'plugin',
     meta: { name },
     setup(options) {
-      for (const { baseName, source } of files) {
-        raw(baseName, path.join(outDir, baseName), source);
+      for (const file of files) {
+        if ('copy' in file) {
+          injectFile({
+            baseName: file.baseName as `${string}.${string}`,
+            path: path.join(outDir, file.baseName),
+            copy: file.copy,
+          });
+        } else {
+          raw(file.baseName, path.join(outDir, file.baseName), file.source);
+        }
       }
       raw(path.basename(outputFile), outputFile, wrapperSource);
       return options;
@@ -92,12 +109,14 @@ async function runKubbBuild(params: {
   source: { descriptors: EndpointDescriptor[]; shared: SharedSchemas };
   outputFile: string;
   /** Modules for the output dir besides Kubb's, by file name. */
-  files: { baseName: string; source: string }[];
+  files: ModuleFile[];
+  /** Files a plugin writes when they are missing, and leaves to the user after that. */
+  userFiles?: string[];
   wrapperSource: string;
   hash: string;
   plugins: NonNullable<UserConfig['plugins']>;
 }): Promise<void> {
-  const { name, source, outputFile, files, wrapperSource, hash, plugins } = params;
+  const { name, source, outputFile, files, userFiles = [], wrapperSource, hash, plugins } = params;
   const outDir = stripExtension(outputFile);
   const build = createKubb({
     root: process.cwd(),
@@ -109,7 +128,10 @@ async function runKubbBuild(params: {
     parsers: [parserTs(), parserTsx()],
     output: {
       path: outDir,
-      clean: true,
+      // Kubb writes a file only when its content changed, unless it emptied the folder first:
+      // a module that stays the same is then left alone, for whatever watches the folder. The
+      // files a build no longer writes are removed below.
+      clean: false,
       // Emit verbatim — no formatter/linter dependency, deterministic output.
       format: false,
       lint: false,
@@ -129,12 +151,36 @@ async function runKubbBuild(params: {
       }),
     ],
   });
-  try {
-    await build.build();
-  } finally {
-    // The app keeps running after codegen; release what the build holds.
-    build.dispose();
-  }
+  // The build releases what it holds once it has run, whether it failed or not: the app keeps
+  // running after it.
+  const { files: written } = await build.build();
+  await removeOthers(
+    outDir,
+    new Set([...written.map((file) => file.path), ...userFiles].map((file) => path.resolve(file))),
+  );
+}
+
+/**
+ * Removes the files under `directory` that are not among `kept`, which are absolute paths: what
+ * an earlier build left.
+ */
+async function removeOthers(directory: string, kept: ReadonlySet<string>): Promise<void> {
+  const entries = await fs.readdir(directory, { recursive: true, withFileTypes: true });
+  await Promise.all(
+    entries
+      .filter((entry) => entry.isFile())
+      .map((entry) => path.resolve(entry.parentPath, entry.name))
+      .filter((file) => !kept.has(file))
+      .map((file) => fs.rm(file, { force: true })),
+  );
+}
+
+/**
+ * The file of the module `customOptions.importPath` names, from the folder of the hooks, as the
+ * React Query plugin writes it: a `.ts` file when the path has no extension.
+ */
+function customOptionsFile(outDir: string, importPath: string): string {
+  return path.resolve(outDir, path.extname(importPath) ? importPath : `${importPath}.ts`);
 }
 
 /** The directory name of the generated tree, as the wrapper imports it. */
@@ -142,7 +188,7 @@ function treeDir(outputFile: string): string {
   return `./${path.basename(stripExtension(outputFile))}`;
 }
 
-/** Generate the axios client for one `setupCodegen` entry using Kubb. */
+/** Generate an axios client using Kubb. */
 export async function generateAxiosClient(params: {
   /** The client's descriptors, already filtered to its namespaces. */
   descriptors: EndpointDescriptor[];
@@ -172,7 +218,7 @@ export async function generateAxiosClient(params: {
 }
 
 /**
- * Generate the react-query client for one `setupCodegen` entry using Kubb.
+ * Generate a react-query client using Kubb.
  *
  * The hooks call the same request functions the client's methods expose, and
  * unwrap the response's data themselves. They read their client from React
@@ -204,6 +250,7 @@ export async function generateReactQueryClient(params: {
           typesImport: './types',
         }),
       },
+      { baseName: CONTEXT_FILE, copy: template(CONTEXT_FILE) },
     ],
     wrapperSource: buildReactQueryWrapperSource({
       descriptors,
@@ -213,9 +260,15 @@ export async function generateReactQueryClient(params: {
       runtimeImport: `${dir}/.kubb/client`,
       typesImport: `${dir}/types`,
       schemasImport: `${dir}/schemas`,
+      contextImport: `${dir}/context`,
       pluginOptions: options,
       inputSchemaNames: new Set(inputSchemas.keys()),
     }),
+    // The plugin writes the module `customOptions` names, which its hooks import, when it is
+    // not there: for the user to fill in.
+    userFiles: options?.customOptions
+      ? [customOptionsFile(stripExtension(outputFile), options.customOptions.importPath)]
+      : [],
     hash,
     plugins: [
       pluginReactQuery({

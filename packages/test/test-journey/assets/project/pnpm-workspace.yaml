@@ -1,0 +1,8 @@
+packages:
+  - 'apps/*'
+
+allowBuilds:
+  esbuild: true
+
+# A dependency published today installs today.
+minimumReleaseAge: 0

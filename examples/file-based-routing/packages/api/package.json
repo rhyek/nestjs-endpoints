@@ -3,7 +3,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "node --watch --watch-preserve-output --import @oxc-node/core/register src/main.ts",
+    "dev": "NODE_ENV=development node --watch --watch-preserve-output --import @oxc-node/core/register src/main.ts",
+    "codegen": "nestjs-endpoints generate src/app.module.ts --import @oxc-node/core/register",
     "test": "vitest run",
     "tscheck": "tsc --noEmit"
   },

@@ -4,6 +4,7 @@ import {
   DynamicModule,
   Inject,
   Injectable,
+  Logger,
   Module,
   Req,
   Scope,
@@ -20,10 +21,10 @@ import {
 import { z } from 'zod';
 import { Access } from '../test/fixtures/routing/context/access';
 import { Clock, ClockModule } from '../test/fixtures/routing/context/clock';
-import { empty, fixtures, nestedIn, pathsOf, start } from '../test/routing';
-import { DESCRIPTOR_METADATA_KEY } from './descriptors';
+import { empty, fixtures, nestedIn, pathOf, pathsOf, start } from '../test/routing';
+import { descriptorOf } from './descriptors';
 import { endpoint } from './endpoint-fn';
-import { EndpointRouter, EndpointRouterOptions } from './endpoint-router';
+import { EndpointRouter, EndpointRouterOptions, endpointsUnder } from './endpoint-router';
 import { moduleAls } from './helpers';
 import { decorated } from './injections';
 import { NestjsEndpoints, type NestjsEndpointsOptions } from './nestjs-endpoints';
@@ -32,12 +33,9 @@ import { NestjsEndpoints, type NestjsEndpointsOptions } from './nestjs-endpoints
 async function endpointsOf(router: Promise<DynamicModule>) {
   const module = await router;
   const app = await start(module);
-  const all = (module as unknown as { [key: symbol]: Type[] })[
-    Symbol.for('nestjs-endpoints:allEndpoints')
-  ];
   const instances = Object.fromEntries(
-    all.map((cls) => [
-      Reflect.getMetadata('endpoints:path', cls) as string,
+    endpointsUnder(module).map((cls) => [
+      pathOf(cls),
       app.get<Record<string, any>>(cls, { strict: false }),
     ]),
   );
@@ -96,10 +94,7 @@ describe('a router in a file named router.ts', () => {
   test('has the base path and the namespace of its folder, as one in a router.module.ts', async () => {
     const module = await named();
     expect(pathsOf(module)).toEqual(['named/list']);
-    const descriptor = Reflect.getMetadata(DESCRIPTOR_METADATA_KEY, module.controllers![0]!) as {
-      namespaceChain: string[];
-    };
-    expect(descriptor.namespaceChain).toEqual(['named']);
+    expect(descriptorOf(module.controllers![0]!)?.namespaceChain).toEqual(['named']);
   });
 
   test('is found by the router of a folder above it', async () => {
@@ -180,13 +175,16 @@ test('a router imports the endpoints a callback lists when it runs', async () =>
   expect(called).toBe(false);
   const module = await router;
   expect(module.controllers).toEqual([ping, pong, pung, pang]);
-  expect(Reflect.getMetadata('endpoints:path', pung)).toBe('/listed/pung');
+  expect(pathOf(pung)).toBe('/listed/pung');
 });
 
 test('a router serves the endpoint files that default-export an endpoint, and no other', async () => {
+  // It warns of the others: see router-warnings.spec.ts.
+  const warn = vi.spyOn(Logger.prototype, 'warn').mockImplementation(() => {});
   const module = await EndpointRouter.create({
     rootDirectory: path.join(fixtures, 'not-endpoints'),
   });
+  warn.mockRestore();
   expect(pathsOf(module)).toEqual(['real']);
 });
 
@@ -225,7 +223,7 @@ test('a top-level router stays top-level when another router awaits it first', a
     // is adopted — its `then` called — inside the parent's context.
     async () => router,
   );
-  expect(Reflect.getMetadata('endpoints:path', ping)).toBe('/ping');
+  expect(pathOf(ping)).toBe('/ping');
 });
 
 describe("a router's injections", () => {
@@ -342,8 +340,7 @@ describe("a router's namespace", () => {
   const namespaceOf = async (options: EndpointRouterOptions<undefined, undefined, undefined>) => {
     const cls = endpoint.query({ path: `ns-${Math.random()}`, handler: () => null });
     await EndpointRouter.create({ rootDirectory: empty, endpoints: [cls], ...options });
-    return (Reflect.getMetadata(DESCRIPTOR_METADATA_KEY, cls) as { namespaceChain: string[] })
-      .namespaceChain;
+    return descriptorOf(cls)!.namespaceChain;
   };
 
   test.each(['shop', 'check-out', 'check_out', 'v2', 'Admin'])('may be named %s', async (name) => {
@@ -497,7 +494,7 @@ describe('a child router', () => {
     const { default: child } =
       await import('../test/fixtures/routing/context/solo/$id/router.module');
     const [view] = (await child).controllers as [new () => { invoke: (o: object) => unknown }];
-    expect(Reflect.getMetadata('endpoints:path', view)).toBe('solo/:id/view');
+    expect(pathOf(view)).toBe('solo/:id/view');
     const access = { granted: 'yes' };
     await expect(
       Object.assign(new view(), { access }).invoke({ params: { id: '4' } }),
@@ -522,7 +519,7 @@ test("a child's child loads without the routers above it, with the URL it has un
     await import('../test/fixtures/routing/context/deep/$id/items/router.module');
   const [list] = (await items).controllers as [new () => { invoke: (o: object) => unknown }];
   // Its base path comes from its parents', whether or not an app has them.
-  expect(Reflect.getMetadata('endpoints:path', list)).toBe('deep/:id/items/list');
+  expect(pathOf(list)).toBe('deep/:id/items/list');
   await expect(
     Object.assign(new list(), { access: { granted: true } }).invoke({ params: { id: '4' } }),
   ).resolves.toEqual({ id: 4, granted: true });
@@ -790,16 +787,11 @@ describe('a router in a folder that names a path parameter', () => {
   };
 
   test('has the parameter in its base path, and keeps a `_` folder above it', async () => {
-    expect(Reflect.getMetadata('endpoints:path', await nested())).toBe(
-      'params/_internal/:id/view/show',
-    );
+    expect(pathOf(await nested())).toBe('params/_internal/:id/view/show');
   });
 
   test('is in the namespace of the router above when it names none of its own', async () => {
-    const descriptor = Reflect.getMetadata(DESCRIPTOR_METADATA_KEY, await nested()) as {
-      namespaceChain: string[];
-    };
-    expect(descriptor.namespaceChain).toEqual(['params']);
+    expect(descriptorOf(await nested())?.namespaceChain).toEqual(['params']);
   });
 });
 

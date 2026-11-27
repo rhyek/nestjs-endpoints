@@ -40,7 +40,7 @@ import {
 
 | Export | |
 | --- | --- |
-| [`setupCodegen`](../clients/codegen.md) | Generates the axios and React Query clients. |
+| [`setupCodegen`](../clients/codegen.md#a-global-prefix-or-versioning) | Writes an app's clients from a script: those its `forRoot` declares, or those it is given. |
 
 ## Exceptions
 
@@ -56,8 +56,11 @@ Both have a `getZodError()` method, which returns the `ZodError`.
 | Export | |
 | --- | --- |
 | `NestjsEndpointsOptions` | The options of `NestjsEndpoints.forRoot()`. |
+| `ClientOptions` | One [client](../clients/codegen.md#set-it-up): an entry of `clients`. |
+| `ClientsOption` | What `clients` takes: a list of clients, or a function that returns one or a promise of one. |
 | `EndpointRouterOptions` | The [options](./router.md#options) of a router: what `EndpointRouter.create()`, `child()` and the `router` of `forRoot()` take. |
 | `EndpointRouter` | A router: what `NestjsEndpoints.forRoot()`, `EndpointRouter.create()` and a router's `child()` return. |
+| `ListedRouter`, `RegisteredRouter` | An entry of a router's [`routers`](../guide/routers.md#a-router-from-another-package), and what a router's `register()` returns. |
 | `EndpointBuilder`, `EndpointBuilders` | The types of `endpoint.query` and of `endpoint` itself. |
 
 ## OpenAPI helpers

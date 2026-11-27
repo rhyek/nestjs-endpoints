@@ -2,6 +2,7 @@
 
 import path from 'node:path';
 import { type DynamicModule, Module, type Type } from '@nestjs/common';
+import { PATH_METADATA } from '@nestjs/common/constants.js';
 import { NestFactory } from '@nestjs/core';
 
 /** The folder of the routing fixtures. */
@@ -17,8 +18,8 @@ export async function start(...imports: (Type | DynamicModule | Promise<DynamicM
   return NestFactory.createApplicationContext(AppModule, { logger: false, abortOnError: false });
 }
 
-/** The path of an endpoint. */
-export const pathOf = (cls: Type) => Reflect.getMetadata('endpoints:path', cls) as string;
+/** The path of an endpoint: the one NestJS serves its controller under. */
+export const pathOf = (cls: Type) => Reflect.getMetadata(PATH_METADATA, cls) as string;
 
 /** The paths of the endpoints of a router's module, sorted. */
 export const pathsOf = (module: DynamicModule) => (module.controllers ?? []).map(pathOf).sort();

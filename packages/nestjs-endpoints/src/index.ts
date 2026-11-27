@@ -5,5 +5,7 @@ export { decorated } from './injections';
 export { ZodValidationException, ZodSerializationException } from './exceptions';
 export { ApiParams, ApiQueries } from './helpers';
 export { setupCodegen } from './codegen/setup';
+export type { ClientOptions, ClientsOption } from './codegen/clients';
 export { EndpointRouter, type EndpointRouterOptions } from './endpoint-router';
+export type { ListedRouter, RegisteredRouter } from './router-options';
 export { NestjsEndpoints, type NestjsEndpointsOptions } from './nestjs-endpoints';

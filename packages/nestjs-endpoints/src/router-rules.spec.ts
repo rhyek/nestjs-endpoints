@@ -14,12 +14,13 @@ import { GUARDS_METADATA, INTERCEPTORS_METADATA } from '@nestjs/common/constants
 import { APP_GUARD } from '@nestjs/core';
 import { z } from 'zod';
 import { empty, pathOf, start } from '../test/routing';
+import { tagDescriptions } from './codegen/hash';
+import { descriptorOf } from './descriptors';
 import { endpoint } from './endpoint-fn';
 import { EndpointRouter } from './endpoint-router';
 import * as publicExports from './index';
 import { decorated } from './injections';
 import { NestjsEndpoints } from './nestjs-endpoints';
-import { settings } from './settings';
 
 /** A path no other test's endpoint has. */
 const unique = (name: string) => `${name}-${Math.random()}`;
@@ -324,10 +325,7 @@ describe("a router's namespace", () => {
     });
     const List = router.endpoint.query({ path: 'list', handler: () => null });
     await router;
-    const { namespaceChain } = Reflect.getMetadata('endpoints:descriptor', List) as {
-      namespaceChain: string[];
-    };
-    expect(namespaceChain).toEqual(['shop']);
+    expect(descriptorOf(List)?.namespaceChain).toEqual(['shop']);
     expect(pathOf(List)).toBe('/shop/list');
   });
 
@@ -342,12 +340,12 @@ describe("a router's namespace", () => {
 
   test('has the description of the last router that describes it', async () => {
     const name = `described${Math.random().toString(36).slice(2)}`;
-    const describedAs = () => settings.descriptions.filter((d) => d.name === `${name}/inner`);
+    const describedAs = () => tagDescriptions().get(`${name}/inner`);
     const parent = EndpointRouter.create({ endpoints: [], basePath: name, namespace: name });
     await parent.child({ endpoints: [], namespace: 'inner', description: 'The first' });
-    expect(describedAs()).toEqual([{ name: `${name}/inner`, description: 'The first' }]);
+    expect(describedAs()).toBe('The first');
     await parent.child({ endpoints: [], namespace: 'inner', description: 'The second' });
-    expect(describedAs()).toEqual([{ name: `${name}/inner`, description: 'The second' }]);
+    expect(describedAs()).toBe('The second');
   });
 });
 

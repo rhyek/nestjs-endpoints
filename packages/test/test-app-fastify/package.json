@@ -11,7 +11,7 @@
     "start": "pnpm build && pnpm start:prod",
     "start:prod": "node dist/main.js",
     "dev": "node --watch --watch-preserve-output --inspect=0 --import @oxc-node/core/register ./src/main.ts",
-    "test:e2e": "vitest --config ./vitest.config.ts",
+    "test:e2e": "vitest run --config ./vitest.config.ts",
     "codegen": "node --import @oxc-node/core/register ./src/codegen.ts",
     "tscheck": "tsc --noEmit"
   },

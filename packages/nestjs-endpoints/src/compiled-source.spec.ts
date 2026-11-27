@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { sourceFileOf, sourceGoneFilter } from './compiled-source';
+import { sourceDirectoryOf, sourceFileOf, sourceGoneFilter } from './compiled-source';
 
 let root: string;
 let src: string;
@@ -108,5 +108,23 @@ describe('sourceGoneFilter', () => {
     write(app);
     const isGone = sourceGoneFilter(app);
     expect(isGone(path.join(src, 'a.endpoint.ts'))).toBe(false);
+  });
+});
+
+describe('sourceDirectoryOf', () => {
+  test('a folder beside a compiled file is the folder beside its source', () => {
+    const js = compile('app.module.ts');
+    expect(sourceDirectoryOf(path.join(dist, 'endpoints'), js)).toBe(path.join(src, 'endpoints'));
+  });
+
+  test('a folder beside a source file is itself', () => {
+    const ts = path.join(src, 'app.module.ts');
+    expect(sourceDirectoryOf(path.join(src, 'endpoints'), ts)).toBe(path.join(src, 'endpoints'));
+  });
+
+  test('a folder beside a compiled file with no source map is itself', () => {
+    const js = path.join(dist, 'app.module.js');
+    write(js, 'export {};\n');
+    expect(sourceDirectoryOf(path.join(dist, 'endpoints'), js)).toBe(path.join(dist, 'endpoints'));
   });
 });

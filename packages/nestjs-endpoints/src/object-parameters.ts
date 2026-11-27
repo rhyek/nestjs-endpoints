@@ -17,9 +17,7 @@ export type ObjectSchemaLike =
 
 function unwrapObject(zodObject: ObjectSchemaLike): z.ZodObject {
   if (zodObject instanceof ZodPipe) {
-    return (
-      zodObject.def.in instanceof ZodTransform ? zodObject.def.out : zodObject.def.in
-    ) as z.ZodObject;
+    return (zodObject.in instanceof ZodTransform ? zodObject.out : zodObject.in) as z.ZodObject;
   }
   return zodObject;
 }

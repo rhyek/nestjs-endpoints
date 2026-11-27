@@ -54,23 +54,27 @@ export const isSkippedDirectory = (name: string) => name === 'node_modules' || n
  * is not there. Directories are followed through symlinks.
  */
 function listRoutingEntries(dir: string): [name: string, isDirectory: boolean][] {
-  let names: string[];
+  let entries: fs.Dirent[];
   try {
-    names = fs.readdirSync(dir);
+    entries = fs.readdirSync(dir, { withFileTypes: true });
   } catch {
     return [];
   }
   const directories: string[] = [];
   const byStem = new Map<string, string>();
-  for (const name of names) {
-    let stat: fs.Stats;
-    try {
-      stat = fs.statSync(path.join(dir, name));
-    } catch {
-      // Dangling symlink, or deleted between readdir and stat.
-      continue;
+  for (const entry of entries) {
+    const { name } = entry;
+    let isDirectory = entry.isDirectory();
+    // Only a symlink needs a stat: to what it points to.
+    if (entry.isSymbolicLink()) {
+      try {
+        isDirectory = fs.statSync(path.join(dir, name)).isDirectory();
+      } catch {
+        // Dangling symlink, or deleted since the folder was read.
+        continue;
+      }
     }
-    if (stat.isDirectory()) {
+    if (isDirectory) {
       if (!isSkippedDirectory(name)) {
         directories.push(name);
       }

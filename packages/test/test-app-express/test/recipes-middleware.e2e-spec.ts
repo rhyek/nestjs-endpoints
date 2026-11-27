@@ -1,3 +1,4 @@
+import { setTimeout as sleep } from 'node:timers/promises';
 import request from 'supertest';
 import { AppModule } from '../src/app.module';
 import { appWith } from './app-with';
@@ -31,7 +32,7 @@ describe('recipes middleware + interceptor', () => {
     try {
       await req.post('/recipes/create').send({ name: 'Pizza' }).expect(200);
       // let res.on('finish') callbacks flush
-      await new Promise((resolve) => setTimeout(resolve, 25));
+      await sleep(25);
       const entries = relevantRecipesLogs();
       expect(entries).toEqual([
         expect.stringMatching(/^RecipesMiddleware before, uuid = /),
@@ -57,7 +58,7 @@ describe('recipes middleware + interceptor', () => {
     const { app, req } = await bootstrap();
     try {
       await req.post('/recipes/list').expect(200);
-      await new Promise((resolve) => setTimeout(resolve, 25));
+      await sleep(25);
       const entries = relevantRecipesLogs();
       expect(entries).toEqual([
         expect.stringMatching(/^RecipesInterceptor before, uuid = /),

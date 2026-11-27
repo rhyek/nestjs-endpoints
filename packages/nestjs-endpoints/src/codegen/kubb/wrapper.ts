@@ -1,3 +1,4 @@
+import { resolverTs } from '@kubb/plugin-ts';
 import type { EndpointDescriptor } from '../../descriptors';
 import { reachableSchemas, rootsOf, type SharedSchemas } from '../../shared-schemas';
 import { tagDescriptions } from '../hash';
@@ -42,11 +43,22 @@ const _axiosFor = (config?: CreateAxiosDefaults | AxiosInstance): AxiosInstance 
   typeof config === 'function' && 'defaults' in config && 'interceptors' in config
     ? config
     : Axios.create(config as CreateAxiosDefaults | undefined);
+`;
 
+/** The Kubb client an operation is bound to, made from the instance's axios. */
+const KUBB_CLIENT_HELPER = `
 /** A Kubb client that sends every request through \`axios\`. */
 const _clientFor = (axios: AxiosInstance): ClientInstance =>
   createClient({ transport: createAxiosTransport(axios) });
 `;
+
+/** The import of what `KUBB_CLIENT_HELPER` is made of, from Kubb's runtime. */
+const kubbClientImport = (runtimeImport: string) =>
+  `import {\n` +
+  `  createAxiosTransport,\n` +
+  `  createClient,\n` +
+  `  type ClientInstance,\n` +
+  `} from '${runtimeImport}';\n`;
 
 /** The helpers the wrappers may emit, each with the helpers it calls. */
 const HELPERS = {
@@ -154,20 +166,19 @@ function helperSource(used: ReadonlySet<Helper>): string {
 /**
  * Whether the generated types of this client hold a type Kubb names `name`:
  * re-exporting one of the runtime's under the same name would hide it. Only
- * the shared schemas this client's operations reach are generated, and Kubb's
- * casing rules are its own, so any name that reads the same counts.
+ * the shared schemas this client's operations reach are generated, each named
+ * as Kubb's TypeScript plugin names it.
  */
 function generatesType(
   descriptors: readonly EndpointDescriptor[],
   shared: SharedSchemas,
   name: string,
 ): boolean {
-  const normalize = (value: string) => value.replace(/[^A-Za-z0-9]/g, '').toLowerCase();
   const generated = reachableSchemas(
     descriptors.flatMap((d) => rootsOf(d, shared.renamed)),
     shared,
   );
-  return Object.keys(generated).some((schema) => normalize(schema) === normalize(name));
+  return Object.keys(generated).some((schema) => resolverTs.name(schema) === name);
 }
 
 /**
@@ -218,27 +229,30 @@ export function buildAxiosWrapperSource(params: {
     rootExtras: ['axios: _axios'],
   });
 
+  // Kubb writes its `clients` and `types` modules for the operations it is given, and neither
+  // for an app that has none: the wrapper then refers to neither, and declares nothing that
+  // only an operation reads, which would fail a consumer's `noUnusedLocals`.
+  const hasOperations = descriptors.length > 0;
+
   return (
     HEADER_AXIOS +
     `import Axios from 'axios';\n` +
     `import type { AxiosInstance, CreateAxiosDefaults } from 'axios';\n` +
-    `import * as _ops from '${clientsImport}';\n` +
-    `import {\n` +
-    `  createAxiosTransport,\n` +
-    `  createClient,\n` +
-    `  type ClientInstance,\n` +
-    `} from '${runtimeImport}';\n\n` +
-    `export type * from '${typesImport}';\n` +
+    (hasOperations
+      ? `import * as _ops from '${clientsImport}';\n` + kubbClientImport(runtimeImport)
+      : '') +
+    `\n` +
+    (hasOperations ? `export type * from '${typesImport}';\n` : '') +
     responseErrorExport({ descriptors, shared, runtimeImport }) +
     AXIOS_INSTANCE_HELPER +
-    helperSource(new Set(['bindClient'])) +
+    (hasOperations ? KUBB_CLIENT_HELPER + helperSource(new Set(['bindClient'])) : '') +
     `\n/**\n` +
     ` * A client for the API. \`config\` is axios defaults (\`baseURL\`, \`headers\`, …)\n` +
     ` * for a new axios instance, or an axios instance to send through.\n` +
     ` */\n` +
     `export const createApiClient = (config?: CreateAxiosDefaults | AxiosInstance) => {\n` +
     `  const _axios = _axiosFor(config);\n` +
-    `  const _client = _clientFor(_axios);\n` +
+    (hasOperations ? `  const _client = _clientFor(_axios);\n` : '') +
     `  return ${buildExpr};\n` +
     `};\n\n` +
     `export type ApiClient = ReturnType<typeof createApiClient>;\n`
@@ -282,6 +296,11 @@ export function buildReactQueryWrapperSource(params: {
   /** Import for the emitted `schemas.ts` module. */
   schemasImport: string;
   /**
+   * Import for the emitted `context.ts` module, which holds the React context and the key a
+   * client carries what its provider puts in it under (`assets/templates/context.ts`).
+   */
+  contextImport: string;
+  /**
    * The react-query plugin options, which decide the operations Kubb gives
    * query or mutation helpers (`query`, `mutation`, `include`, `exclude`,
    * `override`).
@@ -298,6 +317,7 @@ export function buildReactQueryWrapperSource(params: {
     runtimeImport,
     typesImport,
     schemasImport,
+    contextImport,
     pluginOptions,
     inputSchemaNames,
   } = params;
@@ -347,38 +367,39 @@ export function buildReactQueryWrapperSource(params: {
       return `bindHook(_hooks.${src}, ${kind === 'query' && hasRequest ? 1 : 0})`;
     },
     // `[_CTX]` carries the instance's client/axios pair so `ApiClientProvider`
-    // can put it into React context. It's a module-private `unique symbol`, so
-    // it's hidden from consumers and absent from `Object.keys`, but — being an
-    // enumerable own property — it survives object spread and stays typed (no
-    // cast needed to read it back).
+    // can put it into React context. It's a `unique symbol` the wrapper does
+    // not export, so it's hidden from consumers and absent from `Object.keys`,
+    // but — being an enumerable own property — it survives object spread and
+    // stays typed (no cast needed to read it back).
     rootExtras: ['axios: _axios', '[_CTX]: _ctx'],
   });
+
+  // Kubb writes each of its modules for the operations that need it: none for an app with no
+  // endpoints, and no `hooks` where no operation is a query or a mutation. The wrapper refers
+  // to those it wrote.
+  const hasOperations = descriptors.length > 0;
 
   return (
     HEADER_REACT_QUERY +
     `import * as React from 'react';\n` +
     `import Axios from 'axios';\n` +
     `import type { AxiosInstance, CreateAxiosDefaults } from 'axios';\n` +
-    `import * as _ops from '${opsImport}';\n` +
-    `import * as _hooks from '${hooksImport}';\n` +
+    (hasOperations ? `import * as _ops from '${opsImport}';\n` : '') +
+    (kinds.size > 0 ? `import * as _hooks from '${hooksImport}';\n` : '') +
     (inputSchemaNames.size ? `import * as _schemas from '${schemasImport}';\n` : '') +
-    `import {\n` +
-    `  createAxiosTransport,\n` +
-    `  createClient,\n` +
-    `  type ClientInstance,\n` +
-    `} from '${runtimeImport}';\n\n` +
-    `export type * from '${typesImport}';\n` +
+    kubbClientImport(runtimeImport) +
+    `import { ApiClientContext, CLIENT_CONTEXT as _CTX, type ApiClientContextValue } from '${contextImport}';\n` +
+    `\n` +
+    (hasOperations ? `export type * from '${typesImport}';\n` : '') +
     responseErrorExport({ descriptors, shared, runtimeImport }) +
     (generatesType(descriptors, shared, 'InputSchema')
       ? ''
       : `export type { InputSchema } from '${schemasImport}';\n`) +
     AXIOS_INSTANCE_HELPER +
-    `\ntype ApiClientContextValue = { client: ClientInstance; axios: AxiosInstance };\n\n` +
-    `const ApiClientContext = React.createContext<ApiClientContextValue | null>(null);\n` +
+    KUBB_CLIENT_HELPER +
     helperSource(helpers) +
-    `\nconst _CTX = Symbol('nestjs-endpoints:client-ctx');\n\n` +
-    `const _build = (_ctx: ApiClientContextValue) => {\n` +
-    `  const { client: _client, axios: _axios } = _ctx;\n` +
+    `\nconst _build = (_ctx: ApiClientContextValue) => {\n` +
+    `  const { ${hasOperations ? 'client: _client, ' : ''}axios: _axios } = _ctx;\n` +
     `  return ${buildExpr};\n` +
     `};\n\n` +
     `/**\n` +

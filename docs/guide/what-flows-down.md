@@ -191,3 +191,9 @@ routers above it still apply to its folder.
 | `imports` and `providers` | ✓ | |
 | `middleware`, `guards` and `interceptors` | ✓ | ✓ |
 | Lifecycle order | ✓ | ✓ |
+
+## A router listed in `routers` {#routers}
+
+A router another lists in its [`routers`](./routers.md#a-router-from-another-package) has everything a router
+made with that router's `child()` has, the `context` too, though it was made with `create()`
+in a package of its own.

@@ -7,7 +7,7 @@ description: The generated axios client — creating one, calling operations, re
 The axios client is a plain object with one typed function per endpoint. It runs anywhere axios
 does: a browser, another Node service, or your tests.
 
-Generate it with [`setupCodegen`](./codegen.md), with `type: 'axios'`.
+[Declare it](./codegen.md#set-it-up) in `NestjsEndpoints.forRoot`, with `type: 'axios'`.
 
 ## Create a client
 
