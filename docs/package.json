@@ -2,13 +2,10 @@
   "name": "nestjs-endpoints-docs",
   "private": true,
   "type": "module",
-  "config": {
-    "port": 22510
-  },
   "scripts": {
-    "dev": "pnpm snippets && vitepress dev . --port $npm_package_config_port --strictPort",
+    "dev": "pnpm snippets && vitepress dev . --port $(node ../scripts/port.ts 22510) --strictPort",
     "build": "pnpm snippets && node scripts/check-code-width.ts && vitepress build .",
-    "preview": "vitepress preview . --port $npm_package_config_port",
+    "preview": "vitepress preview . --port $(node ../scripts/port.ts 22510)",
     "snippets": "node --import @oxc-node/core/register snippets/src/codegen.ts",
     "check": "pnpm snippets && tsc --noEmit -p snippets"
   },
