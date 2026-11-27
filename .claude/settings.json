@@ -1,5 +1,49 @@
 {
   "permissions": {
     "allow": ["Bash(npm test:*)"]
+  },
+  "hooks": {
+    "WorktreeCreate": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$HOME/.claude/skills/prepare-personal-git-workflow/scripts/worktree.ts\" hook create",
+            "timeout": 900
+          }
+        ]
+      }
+    ],
+    "WorktreeRemove": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$HOME/.claude/skills/prepare-personal-git-workflow/scripts/worktree.ts\" hook remove",
+            "timeout": 600
+          }
+        ]
+      }
+    ],
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$HOME/.claude/skills/prepare-personal-git-workflow/scripts/worktree.ts\" hook session-start"
+          }
+        ]
+      }
+    ],
+    "SubagentStop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$HOME/.claude/skills/prepare-personal-git-workflow/scripts/worktree.ts\" hook subagent-stop"
+          }
+        ]
+      }
+    ]
   }
 }

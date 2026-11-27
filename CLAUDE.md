@@ -1,3 +1,9 @@
+## Git workflow
+
+@~/Dev/synced-utils/docs/git-workflow.md
+
+## The project
+
 - Please read the README.md file to understand what this project is about.
 - The only deployable lives at packages/nestjs-endpoints
   - It builds with tsdown in unbundle mode (`packages/nestjs-endpoints/tsdown.config.ts`, run by `scripts/build.sh`; `pnpm dev` watches): one `dist/*.js`, `.d.ts` and their maps per source file, as `tsc` would lay it out. It type-checks while it writes the declarations, so a type error fails the build.

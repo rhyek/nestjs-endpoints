@@ -15,5 +15,7 @@
     "esModuleInterop": true,
     "skipLibCheck": true
   },
-  "include": ["./oxlint.config.ts", "./oxfmt.config.ts"]
+  "include": ["./oxlint.config.ts", "./oxfmt.config.ts"],
+  // Claude Code's worktrees, each a checkout of its own, stay out of a wider include too.
+  "exclude": ["node_modules", ".claude/worktrees"]
 }

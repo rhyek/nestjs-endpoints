@@ -30,7 +30,8 @@ Publishing uses npm **trusted publishing** (OIDC): no npm token is stored anywhe
    version already released (rewording one, or fixing its link, is fine). It also fails if any
    link in `CHANGELOG.md` points at a file or heading that doesn't exist.
 
-3. Merge it. `.github/workflows/release.yaml` reads the top heading and, if that version isn't
+3. Turn on auto-merge (`gh pr merge --auto --squash`): it squash-merges once `check` is green.
+   `.github/workflows/release.yaml` then reads the top heading and, if that version isn't
    out yet, builds the package, then:
    - publishes the package to npm, tokenless over OIDC;
    - creates the GitHub release and its `vX.Y.Z` tag, with the section as its notes and its
@@ -42,7 +43,7 @@ Publishing uses npm **trusted publishing** (OIDC): no npm token is stored anywhe
 Releases up to 2.3.0 are tagged without the `v`. The changelog check compares only against
 `vX.Y.Z` tags.
 
-`main` takes changes only through pull requests, with CI's `check` passing:
+`main` takes changes only through pull requests, squash-merged with CI's `check` passing:
 [`.github/rulesets/main.json`](.github/rulesets/main.json) is the repository ruleset that
 enforces it.
 
@@ -69,8 +70,12 @@ enforces it.
    Actions**, and set the custom domain, with its DNS record pointing at GitHub Pages.
    `.github/workflows/docs.yaml` deploys on every push to `main` that touches the docs.
 
-5. **Delete a pull request's branch when it merges:**
+5. **Merge pull requests by squash only, with auto-merge**, the squash commit taking the pull
+   request's title and body, and delete a pull request's branch when it merges:
 
    ```sh
-   gh api repos/rhyek/nestjs-endpoints --method PATCH -F delete_branch_on_merge=true
+   gh api repos/rhyek/nestjs-endpoints --method PATCH \
+     -F allow_squash_merge=true -F allow_merge_commit=false -F allow_rebase_merge=false \
+     -F allow_auto_merge=true -F delete_branch_on_merge=true \
+     -f squash_merge_commit_title=PR_TITLE -f squash_merge_commit_message=PR_BODY
    ```

@@ -29,3 +29,9 @@ packages/nestjs-endpoints/LICENSE
 
 # Backed-up local files (secrets), a link into Dropbox
 /.local
+
+# Claude Code's worktrees of this repo. Anchored to the root, so a worktree still lints and formats
+# its own files and skips only its own nested worktrees.
+/.claude/worktrees/
+# Env files a worktree's setup generates
+.env*.worktree
